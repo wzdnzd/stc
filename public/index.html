@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CPA ↔ SUB2API 批量转换</title>
+  <title>CPA ↔ SUB2API 账号转换与批量上传工具</title>
   <style>
     :root {
       color-scheme: dark;
@@ -55,9 +55,10 @@
     }
     .page-header h1 {
       margin: 0;
-      font-size: 22px;
+      font-size: 20px;
       font-weight: 700;
       letter-spacing: -0.02em;
+      line-height: 1.35;
     }
     .page-header .sub {
       margin: 6px 0 0;
@@ -176,6 +177,109 @@
       gap: 4px;
       margin-top: 4px;
     }
+    .opt-note {
+      margin-left: 4px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 500;
+      opacity: 0.85;
+    }
+    .field-mini-label {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-bottom: 5px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .field-tip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 700;
+      font-style: normal;
+      line-height: 1;
+      cursor: help;
+      user-select: none;
+      flex: 0 0 auto;
+      background: rgba(255, 255, 255, 0.03);
+    }
+    .field-tip:hover {
+      color: var(--text);
+      border-color: var(--muted);
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .upload-progress {
+      display: none;
+      margin-top: 12px;
+      padding: 12px;
+      border: 1px solid var(--border-soft);
+      border-radius: 10px;
+      background: rgba(28, 39, 56, 0.55);
+    }
+    .upload-progress.show { display: block; }
+    .upload-progress-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .upload-progress-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .upload-progress-pct {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+    .upload-progress-track {
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.06);
+      overflow: hidden;
+      border: 1px solid var(--border-soft);
+    }
+    .upload-progress-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #2563eb, #38bdf8);
+      transition: width 0.25s ease;
+    }
+    .upload-progress-fill.is-warn {
+      background: linear-gradient(90deg, #d97706, #fbbf24);
+    }
+    .upload-progress-fill.is-danger {
+      background: linear-gradient(90deg, #dc2626, #fb7185);
+    }
+    .upload-progress-fill.is-ok {
+      background: linear-gradient(90deg, #16a34a, #4ade80);
+    }
+    .upload-progress-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 14px;
+      margin-top: 9px;
+      color: var(--muted);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+    .upload-progress-meta b {
+      color: var(--text);
+      font-weight: 700;
+    }
     select,
     input[type="text"],
     input[type="password"],
@@ -220,6 +324,9 @@
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 8px;
+    }
+    .triple > div {
+      min-width: 0;
     }
     .batch-grid {
       display: grid;
@@ -609,11 +716,9 @@
   <div class="wrap">
     <header class="page-header">
       <div>
-        <h1>CPA ↔ SUB2API</h1>
-        <p class="sub">批量导入 · 格式互转 · 导出 / 上传</p>
+        <h1>CPA ↔ SUB2API 账号转换与批量上传工具</h1>
       </div>
       <div class="header-actions">
-        <button class="btn-ghost btn-sm" id="btnRuntimeConfig" type="button">服务器配置</button>
         <form method="post" action="/auth/logout" style="margin:0">
           <button class="btn-danger btn-sm" type="submit">退出</button>
         </form>
@@ -621,10 +726,10 @@
     </header>
 
     <div class="runtime-bar">
-      <span class="runtime-badge" id="badgeSub2Config">SUB2API：检测中</span>
-      <span class="runtime-badge" id="badgeCpaConfig">CPA：检测中</span>
+      <span class="runtime-badge" id="badgeSub2Config">SUB2API · …</span>
+      <span class="runtime-badge" id="badgeCpaConfig">CPA · …</span>
       <span class="toolbar-spacer"></span>
-      <span class="toolbar-label" style="font-size:12px">本机配置优先，环境变量回退</span>
+      <span class="toolbar-label" style="font-size:12px">点击徽章配置服务器 · 本机优先</span>
     </div>
 
     <div class="grid">
@@ -642,7 +747,7 @@
         <div class="field">
           <label for="direction">转换方向</label>
           <select id="direction">
-            <option value="auto">自动（按源格式反向）</option>
+            <option value="auto">自动 · 按源格式反向</option>
             <option value="to-SUB2API">全部 → SUB2API</option>
             <option value="to-cpa">全部 → CPA</option>
           </select>
@@ -650,31 +755,49 @@
         <div class="field">
           <label for="nameStrategy">SUB2API 账号名</label>
           <select id="nameStrategy">
-            <option value="email">使用 email</option>
-            <option value="local">使用 email 本地部分</option>
-            <option value="sub">使用 sub</option>
+            <option value="email">使用 Email</option>
+            <option value="local">使用 Email 本地部分</option>
+            <option value="sub">使用 Sub</option>
           </select>
         </div>
         <div class="field">
-          <label>concurrency / priority / rate</label>
+          <label>SUB2API 账号调度参数复写/补全</label>
           <div class="triple">
-            <input type="number" id="concurrency" value="1" min="1" step="1" title="concurrency" aria-label="concurrency" />
-            <input type="number" id="priority" value="1" min="0" step="1" title="priority" aria-label="priority" />
-            <input type="number" id="rateMultiplier" value="1" min="0" step="0.1" title="rate_multiplier" aria-label="rate_multiplier" />
+            <div>
+              <label class="field-mini-label" for="concurrency">
+                并发
+                <span class="field-tip" title="写入 SUB2API 账号的 concurrency：该账号在 SUB2API 内可同时处理的请求数">i</span>
+              </label>
+              <input type="number" id="concurrency" value="1" min="1" step="1" title="SUB2API 账号 concurrency" aria-label="SUB2API 账号并发" />
+            </div>
+            <div>
+              <label class="field-mini-label" for="priority">
+                优先级
+                <span class="field-tip" title="写入 SUB2API 账号的 priority：该账号在 SUB2API 调度队列中的优先级，数值越大通常越优先被选用">i</span>
+              </label>
+              <input type="number" id="priority" value="1" min="0" step="1" title="SUB2API 账号 priority" aria-label="SUB2API 账号优先级" />
+            </div>
+            <div>
+              <label class="field-mini-label" for="rateMultiplier">
+                速率倍率
+                <span class="field-tip" title="写入 SUB2API 账号的 rate_multiplier：该账号在 SUB2API 内的速率限额倍率，用于放大或缩小请求速率">i</span>
+              </label>
+              <input type="number" id="rateMultiplier" value="1" min="0" step="0.1" title="SUB2API 账号 rate_multiplier" aria-label="SUB2API 账号速率倍率" />
+            </div>
           </div>
         </div>
         <div class="opt-grid">
           <label class="opt">
             <input type="checkbox" id="autoPause" checked />
-            过期自动暂停（SUB2API）
+            过期自动暂停<span class="opt-note">SUB2API</span>
           </label>
           <label class="opt">
             <input type="checkbox" id="keepSso" checked />
-            保留 sso 字段（CPA）
+            保留 sso 字段<span class="opt-note">CPA</span>
           </label>
           <label class="opt">
             <input type="checkbox" id="keepHeaders" checked />
-            写入默认 headers（CPA）
+            写入默认 headers<span class="opt-note">CPA</span>
           </label>
         </div>
         <hr class="divider" />
@@ -771,6 +894,16 @@
           <button class="btn-danger" id="btnCancelUpload" type="button" hidden>取消上传</button>
         </div>
       </div>
+      <div class="upload-progress" id="uploadProgress" hidden>
+        <div class="upload-progress-head">
+          <span class="upload-progress-title" id="uploadProgressTitle">上传进度</span>
+          <span class="upload-progress-pct" id="uploadProgressPct">0%</span>
+        </div>
+        <div class="upload-progress-track" aria-hidden="true">
+          <div class="upload-progress-fill" id="uploadProgressFill"></div>
+        </div>
+        <div class="upload-progress-meta" id="uploadProgressMeta"></div>
+      </div>
       <div class="msg" id="msg"></div>
     </div>
   </div>
@@ -799,9 +932,9 @@
         <div class="field" id="cfgAuthModeField" hidden>
           <label for="cfgAuthMode">鉴权模式</label>
           <select id="cfgAuthMode">
-            <option value="auto">auto（Bearer → X-Management-Key）</option>
-            <option value="bearer">bearer</option>
-            <option value="x-management-key">x-management-key</option>
+            <option value="auto">自动 · Bearer → X-Management-Key</option>
+            <option value="bearer">Bearer</option>
+            <option value="x-management-key">X-Management-Key</option>
           </select>
         </div>
         <div class="env-target" id="cfgEnvFallback">
@@ -1042,11 +1175,11 @@
     function targetConfigTooltip(target) {
       const effective = getEffectiveClientConfig(target);
       if (effective?.source === "local") {
-        return `${target} 使用本机配置（${effective.baseUrl}）；点击后会先验证`;
+        return `${target} 使用本机配置 · ${effective.baseUrl}；点击后会先验证`;
       }
       if (effective?.source === "env") {
         const baseUrl = targetConfigInfo(target)?.baseUrl || "";
-        return `${target} 使用 Worker 环境变量${baseUrl ? `（${baseUrl}）` : ""}；点击后会先验证`;
+        return `${target} 使用 Worker 环境变量${baseUrl ? ` · ${baseUrl}` : ""}；点击后会先验证`;
       }
       return `${target} 尚未配置；点击上传将引导填写本机配置，也可依赖 Worker 环境变量`;
     }
@@ -1152,6 +1285,7 @@
       $("btnUploadCpa").innerHTML = busy && target === TARGET_CPA
         ? '<span class="busy-spin"></span>正在上传到 CPA'
         : "上传到 CPA";
+      // 上传结束后保留进度条，便于核对；下次开始上传时会刷新
       refreshActionButtons();
     }
 
@@ -1713,6 +1847,7 @@
       }
       let ok = 0;
       let skip = 0;
+      let failed = 0;
       for (const item of targets) {
         item.converted = null;
         item.targetFormat = null;
@@ -1723,7 +1858,7 @@
         const target = resolveTarget(item.sourceFormat);
         if (!target) {
           item.error = "无法判定目标格式";
-          skip++;
+          failed++;
           continue;
         }
         try {
@@ -1732,12 +1867,15 @@
           ok++;
         } catch (e) {
           item.error = "转换失败: " + e.message;
-          skip++;
+          failed++;
         }
       }
       converted = items.some((item) => item.converted);
       renderTable();
-      showMsg(`转换完成：成功 ${ok}，跳过/失败 ${skip}`, ok ? "ok" : "err");
+      showMsg(
+        `转换完成，成功: ${ok}  跳过: ${skip}  失败: ${failed}`,
+        failed || (!ok && skip) ? "err" : "ok"
+      );
     }
 
     function downloadBlob(blob, filename) {
@@ -1930,9 +2068,9 @@
       const raw = error.message || String(error);
       // Cloudflare 边缘连不上源站时常返回 522；与密钥无关，本机 Postman 能通也常见
       if (/\b522\b/.test(raw) || /error code:\s*522/i.test(raw)) {
-        return `${raw} —— 这是 Cloudflare 无法连接源站（Connection timed out），不是密钥错误。` +
+        return `${raw} —— 这是 Cloudflare 无法连接源站 · Connection timed out，不是密钥错误。` +
           `Worker 从公网边缘访问你的 SUB2API；本机 Postman 成功只说明你电脑能连，不代表 Cloudflare 能连。` +
-          `请确认地址是公网可达的 HTTPS 域名（勿用 127.0.0.1/localhost/内网 IP），源站防火墙放行 Cloudflare，或用 Cloudflare Tunnel 暴露。`;
+          `请确认地址是公网可达的 HTTPS 域名 · 勿用 127.0.0.1/localhost/内网 IP，源站防火墙放行 Cloudflare，或用 Cloudflare Tunnel 暴露。`;
       }
       if (/\b5(2[1-4]|30)\b/.test(raw)) {
         return `${raw} —— 上游网络/网关错误，通常不是 API Key 问题；请检查目标是否对公网可达。`;
@@ -2125,7 +2263,7 @@
       $("cfgApiKey").value = "";
       if (local?.apiKey) {
         $("cfgApiKey").placeholder = "已保存，留空沿用";
-        $("cfgApiKeyHint").textContent = `已保存（${local.apiKey.slice(0, 2)}***${local.apiKey.slice(-2)}），留空继续使用`;
+        $("cfgApiKeyHint").textContent = `已保存 · ${local.apiKey.slice(0, 2)}***${local.apiKey.slice(-2)}，留空继续使用`;
       } else {
         $("cfgApiKey").placeholder = "API Key / Management Key";
         $("cfgApiKeyHint").textContent = envInfo?.configured
@@ -2258,7 +2396,7 @@
         }
 
         try {
-          showMsg(`正在验证 ${target} 服务器配置（${effective.source === "local" ? "本机" : "环境变量"}）…`, "info");
+          showMsg(`正在验证 ${target} 服务器配置 · ${effective.source === "local" ? "本机" : "环境变量"}…`, "info");
           const override = effective.source === "local"
             ? {
                 baseUrl: effective.baseUrl,
@@ -2305,6 +2443,13 @@
       throw error;
     }
 
+    function setUploadProgressVisible(visible) {
+      const el = $("uploadProgress");
+      if (!el) return;
+      el.hidden = !visible;
+      el.classList.toggle("show", visible);
+    }
+
     function uploadProgressMessage(target, total) {
       const scope = activeUploadItemIds
         ? items.filter((item) => activeUploadItemIds.has(item.id))
@@ -2318,11 +2463,26 @@
       const cancelled = count(UPLOAD_STATUS.CANCELLED);
       const uploading = count(UPLOAD_STATUS.UPLOADING);
       const queued = count(UPLOAD_STATUS.QUEUED);
-      showMsg(
-        `${target} 上传进度：已确认成功 ${success}，失败 ${failed}，状态未知 ${unknown}，` +
-        `处理中 ${uploading}，等待 ${queued}，已取消 ${cancelled}，本次共 ${total} 个`,
-        failed || unknown ? "info" : "info"
-      );
+      const settled = success + failed + unknown + cancelled;
+      const pct = total > 0 ? Math.min(100, Math.round((settled / total) * 100)) : 0;
+
+      setUploadProgressVisible(true);
+      $("uploadProgressTitle").textContent = `${target} 上传进度`;
+      $("uploadProgressPct").textContent = `${pct}% · ${settled}/${total}`;
+      $("uploadProgressMeta").innerHTML =
+        `<span>成功: <b>${success}</b></span>` +
+        `<span>失败: <b>${failed}</b></span>` +
+        `<span>未知: <b>${unknown}</b></span>` +
+        `<span>处理中: <b>${uploading}</b></span>` +
+        `<span>等待: <b>${queued}</b></span>` +
+        `<span>已取消: <b>${cancelled}</b></span>` +
+        `<span>共: <b>${total}</b></span>`;
+
+      const fill = $("uploadProgressFill");
+      fill.style.width = `${pct}%`;
+      fill.classList.remove("is-ok", "is-warn", "is-danger");
+      if (failed || unknown) fill.classList.add(failed ? "is-danger" : "is-warn");
+      else if (settled >= total && total > 0 && !uploading && !queued) fill.classList.add("is-ok");
     }
 
     function markBatchAfterRequestError(entries, target, error) {
@@ -2349,7 +2509,7 @@
           entry.item,
           UPLOAD_STATUS.UPLOADING,
           TARGET_SUB2API,
-          `正在处理第 ${batchNumber}/${batchCount} 批（${entries.length} 个）`
+          `正在处理第 ${batchNumber}/${batchCount} 批 · ${entries.length} 个`
         );
       }
       uploadProgressMessage(TARGET_SUB2API, total);
@@ -2414,7 +2574,7 @@
           entry.item,
           UPLOAD_STATUS.UPLOADING,
           TARGET_CPA,
-          `正在处理第 ${batchNumber}/${batchCount} 批（${entries.length} 个）`,
+          `正在处理第 ${batchNumber}/${batchCount} 批 · ${entries.length} 个`,
           0
         );
       }
@@ -2439,7 +2599,7 @@
         for (const entry of entries) {
           const result = resultMap.get(entry.filename);
           if (result?.ok) {
-            setItemUploadState(entry.item, UPLOAD_STATUS.SUCCESS, TARGET_CPA, `上传成功（Worker 尝试 ${result.attempts || 1} 次）`, result.attempts || 1);
+            setItemUploadState(entry.item, UPLOAD_STATUS.SUCCESS, TARGET_CPA, `上传成功 · Worker 尝试 ${result.attempts || 1} 次`, result.attempts || 1);
           } else {
             setItemUploadState(entry.item, UPLOAD_STATUS.FAILED, TARGET_CPA, result?.error || "服务器未返回该文件的处理结果", result?.attempts || 1);
           }
@@ -2538,8 +2698,9 @@
         const success = operationItems.filter((item) => item.uploadStatus === UPLOAD_STATUS.SUCCESS).length;
         const failed = operationItems.filter((item) => item.uploadStatus === UPLOAD_STATUS.FAILED).length;
         const unknown = operationItems.filter((item) => item.uploadStatus === UPLOAD_STATUS.UNKNOWN).length;
+        uploadProgressMessage(target, operationItems.length);
         showMsg(
-          `${target} 上传完成：已确认成功 ${success}，失败 ${failed}，状态未知 ${unknown}`,
+          `${target} 上传完成，成功: ${success}  失败: ${failed}  未知: ${unknown}`,
           failed || unknown ? "info" : "ok"
         );
       } catch (error) {
@@ -2594,7 +2755,7 @@
       }
 
       renderTable();
-      showMsg(`已导入 ${files.length} 个文件，累计账号 ${items.length}`, "info");
+      showMsg(`已导入 ${files.length} 个文件，累计账号: ${items.length}`, "info");
     }
 
     function clearAll() {
@@ -2731,14 +2892,7 @@
     $("badgeCpaConfig").addEventListener("click", () => {
       openConfigDialog({ target: TARGET_CPA, reason: "", mode: "manage" });
     });
-    $("btnRuntimeConfig").addEventListener("click", () => {
-      openConfigDialog({
-        target: configDialogTarget || TARGET_SUB2API,
-        reason: "",
-        mode: "manage"
-      });
-    });
-    document.addEventListener("keydown", (event) => {
+        document.addEventListener("keydown", (event) => {
       if (event.key === "Escape" && $("serverConfigModal").classList.contains("show")) {
         closeConfigDialog(false);
       }

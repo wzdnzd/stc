@@ -796,12 +796,10 @@ function renderLoginPage(error = "") {
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>登录 · CPA ↔ SUB2API</title><style>${authPageCss()}</style></head>
 <body><main class="panel">
-<h1>CPA ↔ SUB2API</h1>
-<p>请输入访问密码</p>
+<h1>CPA ↔ SUB2API 账号转换与批量上传工具</h1>
 ${error ? `<div class="error">${escapeHtml(error)}</div>` : ""}
 <form method="post" action="/auth/login">
-<label for="password">访问密码</label>
-<input id="password" name="password" type="password" required autofocus autocomplete="current-password">
+<input id="password" name="password" type="password" required autofocus autocomplete="current-password" placeholder="访问密码" aria-label="访问密码">
 <button type="submit">登录</button>
 </form>
 </main></body></html>`;
@@ -827,7 +825,7 @@ function renderErrorPage(error) {
 }
 
 function authPageCss() {
-  return `:root{color-scheme:dark;--bg:#0b1017;--panel:#141c28;--border:#2a3649;--text:#e8eef7;--muted:#8b9bb4;--accent:#3b82f6;--danger:#ef4444}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:20px;background:radial-gradient(900px 500px at 10% -10%,rgba(37,99,235,.18),transparent 55%),radial-gradient(800px 450px at 100% 0%,rgba(124,58,237,.12),transparent 48%),var(--bg);color:var(--text);font-family:"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif}.panel{width:min(400px,100%);padding:28px 26px;border:1px solid var(--border);border-radius:14px;background:var(--panel);box-shadow:0 24px 70px rgba(0,0,0,.4)}.panel h1{margin:0 0 8px;font-size:22px;letter-spacing:-.02em}.panel p,.hint{color:var(--muted);font-size:13px;line-height:1.6;margin:0 0 4px}label{display:block;margin:18px 0 7px;color:var(--muted);font-size:12px;font-weight:600}input{width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:8px;background:#1c2738;color:var(--text);font:inherit}input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,130,246,.15)}button{width:100%;margin-top:14px;padding:11px;border:0;border-radius:8px;background:var(--accent);color:#fff;font:inherit;font-weight:700;cursor:pointer}button:hover{filter:brightness(1.08)}.error{margin:14px 0;padding:10px 12px;border:1px solid rgba(239,68,68,.35);border-radius:8px;background:rgba(239,68,68,.12);color:#fca5a5;font-size:12px;white-space:pre-wrap;line-height:1.55}pre{overflow:auto;margin:12px 0;padding:12px;border:1px solid var(--border);border-radius:8px;background:#0f172a;color:#cbd5e1;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.hint{margin-top:12px}a{color:#93c5fd;text-decoration:none}a:hover{text-decoration:underline}`;
+  return `:root{color-scheme:dark;--bg:#0b1017;--panel:#141c28;--border:#2a3649;--text:#e8eef7;--muted:#8b9bb4;--accent:#3b82f6;--danger:#ef4444}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:20px;background:radial-gradient(900px 500px at 10% -10%,rgba(37,99,235,.18),transparent 55%),radial-gradient(800px 450px at 100% 0%,rgba(124,58,237,.12),transparent 48%),var(--bg);color:var(--text);font-family:"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif}.panel{width:min(520px,100%);padding:28px 26px;border:1px solid var(--border);border-radius:14px;background:var(--panel);box-shadow:0 24px 70px rgba(0,0,0,.4)}.panel h1{margin:0;font-size:18px;letter-spacing:-.02em;line-height:1.4;white-space:nowrap}.panel .sub{margin:8px 0 0;color:var(--muted);font-size:13px;line-height:1.5}.panel p,.hint{color:var(--muted);font-size:13px;line-height:1.6;margin:0 0 4px}input{width:100%;margin-top:18px;padding:11px 12px;border:1px solid var(--border);border-radius:8px;background:#1c2738;color:var(--text);font:inherit}input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,130,246,.15)}input::placeholder{color:var(--muted)}button{width:100%;margin-top:12px;padding:11px;border:0;border-radius:8px;background:var(--accent);color:#fff;font:inherit;font-weight:700;cursor:pointer}button:hover{filter:brightness(1.08)}.error{margin:14px 0 0;padding:10px 12px;border:1px solid rgba(239,68,68,.35);border-radius:8px;background:rgba(239,68,68,.12);color:#fca5a5;font-size:12px;white-space:pre-wrap;line-height:1.55}pre{overflow:auto;margin:12px 0;padding:12px;border:1px solid var(--border);border-radius:8px;background:#0f172a;color:#cbd5e1;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.hint{margin-top:12px}a{color:#93c5fd;text-decoration:none}a:hover{text-decoration:underline}`;
 }
 
 function escapeHtml(value) {
