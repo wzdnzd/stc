@@ -795,29 +795,39 @@ function renderLoginPage(error = "") {
   return `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>登录 · CPA ↔ SUB2API</title><style>${authPageCss()}</style></head>
-<body><main class="panel"><div class="eyebrow">PRIVATE TOOL</div><h1>CPA ↔ SUB2API</h1><p>请输入此 Worker 配置的访问密码。</p>
+<body><main class="panel">
+<h1>CPA ↔ SUB2API</h1>
+<p>请输入访问密码</p>
 ${error ? `<div class="error">${escapeHtml(error)}</div>` : ""}
-<form method="post" action="/auth/login"><label for="password">访问密码</label><input id="password" name="password" type="password" required autofocus autocomplete="current-password"><button type="submit">登录</button></form>
-<div class="hint">会话通过 HttpOnly、Secure、SameSite=Strict Cookie 保存，管理员 API Key 不会下发到浏览器。</div></main></body></html>`;
+<form method="post" action="/auth/login">
+<label for="password">访问密码</label>
+<input id="password" name="password" type="password" required autofocus autocomplete="current-password">
+<button type="submit">登录</button>
+</form>
+</main></body></html>`;
 }
 
 function renderSetupPage(message) {
   return `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>需要配置 · CPA ↔ SUB2API</title><style>${authPageCss()}</style></head>
-<body><main class="panel"><div class="eyebrow">SETUP REQUIRED</div><h1>Worker 尚未完成配置</h1><div class="error">${escapeHtml(message)}</div>
-<p>进入 Cloudflare Dashboard → Workers & Pages → 当前 Worker → Settings → Variables and Secrets，添加以下 Secret：</p>
-<pre>APP_PASSWORD=页面访问密码
-SESSION_SECRET=至少 32 字节随机字符串</pre>
-<div class="hint">保存并部署新版本后刷新本页面。</div></main></body></html>`;
+<body><main class="panel">
+<h1>尚未完成配置</h1>
+<div class="error">${escapeHtml(message)}</div>
+<p>在 Worker 的 Variables and Secrets 中添加：</p>
+<pre>APP_PASSWORD
+SESSION_SECRET</pre>
+<div class="hint">保存并重新部署后刷新本页。</div>
+</main></body></html>`;
 }
 
 function renderErrorPage(error) {
-  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>错误</title><style>${authPageCss()}</style></head><body><main class="panel"><div class="eyebrow">ERROR</div><h1>请求失败</h1><div class="error">${escapeHtml(publicErrorMessage(error))}</div><p><a href="/">返回工具</a></p></main></body></html>`;
+  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>错误</title><style>${authPageCss()}</style></head>
+<body><main class="panel"><h1>请求失败</h1><div class="error">${escapeHtml(publicErrorMessage(error))}</div><p><a href="/">返回</a></p></main></body></html>`;
 }
 
 function authPageCss() {
-  return `:root{color-scheme:dark;--bg:#0f1419;--panel:#1a2332;--border:#2d3a4f;--text:#e7ecf3;--muted:#8b9bb4;--accent:#3b82f6;--danger:#ef4444}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:20px;background:radial-gradient(900px 500px at 10% -10%,#1e293b 0%,transparent 55%),radial-gradient(800px 450px at 100% 0%,#172554 0%,transparent 48%),var(--bg);color:var(--text);font-family:"SF Mono","Menlo","Consolas","PingFang SC","Microsoft YaHei",monospace}.panel{width:min(460px,100%);padding:28px;border:1px solid var(--border);border-radius:14px;background:var(--panel);box-shadow:0 24px 80px rgba(0,0,0,.45)}.eyebrow{color:#93c5fd;font-size:11px;letter-spacing:1.6px}.panel h1{margin:8px 0 10px;font-size:22px}.panel p,.hint{color:var(--muted);font-size:13px;line-height:1.7}label{display:block;margin:20px 0 7px;color:var(--muted);font-size:12px}input{width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;background:#243044;color:var(--text);font:inherit}input:focus{outline:none;border-color:var(--accent)}button{width:100%;margin-top:12px;padding:11px;border:0;border-radius:8px;background:var(--accent);color:white;font:inherit;font-weight:700;cursor:pointer}.error{margin:14px 0;padding:10px 12px;border:1px solid rgba(239,68,68,.35);border-radius:8px;background:rgba(239,68,68,.12);color:#fca5a5;font-size:12px;white-space:pre-wrap}pre{overflow:auto;padding:12px;border:1px solid var(--border);border-radius:8px;background:#0f172a;color:#cbd5e1;font-size:12px}a{color:#93c5fd}`;
+  return `:root{color-scheme:dark;--bg:#0b1017;--panel:#141c28;--border:#2a3649;--text:#e8eef7;--muted:#8b9bb4;--accent:#3b82f6;--danger:#ef4444}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:20px;background:radial-gradient(900px 500px at 10% -10%,rgba(37,99,235,.18),transparent 55%),radial-gradient(800px 450px at 100% 0%,rgba(124,58,237,.12),transparent 48%),var(--bg);color:var(--text);font-family:"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif}.panel{width:min(400px,100%);padding:28px 26px;border:1px solid var(--border);border-radius:14px;background:var(--panel);box-shadow:0 24px 70px rgba(0,0,0,.4)}.panel h1{margin:0 0 8px;font-size:22px;letter-spacing:-.02em}.panel p,.hint{color:var(--muted);font-size:13px;line-height:1.6;margin:0 0 4px}label{display:block;margin:18px 0 7px;color:var(--muted);font-size:12px;font-weight:600}input{width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:8px;background:#1c2738;color:var(--text);font:inherit}input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,130,246,.15)}button{width:100%;margin-top:14px;padding:11px;border:0;border-radius:8px;background:var(--accent);color:#fff;font:inherit;font-weight:700;cursor:pointer}button:hover{filter:brightness(1.08)}.error{margin:14px 0;padding:10px 12px;border:1px solid rgba(239,68,68,.35);border-radius:8px;background:rgba(239,68,68,.12);color:#fca5a5;font-size:12px;white-space:pre-wrap;line-height:1.55}pre{overflow:auto;margin:12px 0;padding:12px;border:1px solid var(--border);border-radius:8px;background:#0f172a;color:#cbd5e1;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.hint{margin-top:12px}a{color:#93c5fd;text-decoration:none}a:hover{text-decoration:underline}`;
 }
 
 function escapeHtml(value) {

@@ -6,93 +6,181 @@
   <title>CPA ↔ SUB2API 批量转换</title>
   <style>
     :root {
-      --bg: #0f1419;
-      --panel: #1a2332;
-      --panel-2: #243044;
-      --border: #2d3a4f;
-      --text: #e7ecf3;
+      color-scheme: dark;
+      --bg: #0b1017;
+      --panel: #141c28;
+      --panel-2: #1c2738;
+      --border: #2a3649;
+      --border-soft: rgba(42, 54, 73, 0.72);
+      --text: #e8eef7;
       --muted: #8b9bb4;
       --accent: #3b82f6;
-      --accent-2: #22c55e;
+      --accent-soft: rgba(59, 130, 246, 0.12);
+      --ok: #22c55e;
+      --ok-soft: rgba(34, 197, 94, 0.12);
       --warn: #f59e0b;
       --danger: #ef4444;
+      --danger-soft: rgba(239, 68, 68, 0.12);
       --cpa: #38bdf8;
       --sub2: #a78bfa;
+      --radius: 12px;
+      --shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+      --font: "Segoe UI", "PingFang SC", "Microsoft YaHei", "SF Pro Text", system-ui, sans-serif;
+      --mono: "SF Mono", "Menlo", "Consolas", "Cascadia Mono", monospace;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: "SF Mono", "Menlo", "Consolas", "PingFang SC", "Microsoft YaHei", monospace;
-      background: radial-gradient(1200px 600px at 10% -10%, #1e293b 0%, transparent 50%),
-                  radial-gradient(900px 500px at 100% 0%, #172554 0%, transparent 45%),
-                  var(--bg);
-      color: var(--text);
       min-height: 100vh;
+      font-family: var(--font);
+      color: var(--text);
       line-height: 1.5;
+      background:
+        radial-gradient(980px 520px at 8% -12%, rgba(37, 99, 235, 0.18), transparent 55%),
+        radial-gradient(820px 420px at 100% 0%, rgba(124, 58, 237, 0.12), transparent 48%),
+        var(--bg);
     }
     .wrap {
-      max-width: 1480px;
+      max-width: 1280px;
       margin: 0 auto;
-      padding: 28px 20px 60px;
+      padding: 24px 18px 48px;
     }
-    h1 {
-      margin: 0 0 6px;
-      font-size: 22px;
-      letter-spacing: 0.5px;
-    }
-    .sub {
-      color: var(--muted);
-      font-size: 13px;
-      margin-bottom: 22px;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
+    .page-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
       gap: 16px;
+      flex-wrap: wrap;
       margin-bottom: 16px;
     }
-    @media (max-width: 800px) {
+    .page-header h1 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .page-header .sub {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .runtime-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+      padding: 10px 12px;
+      border: 1px solid var(--border-soft);
+      border-radius: 10px;
+      background: rgba(20, 28, 40, 0.78);
+    }
+    .runtime-bar .toolbar-spacer { flex: 1 1 auto; min-width: 8px; }
+    .runtime-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.02);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+    .runtime-badge:hover {
+      border-color: var(--muted);
+      background: rgba(255, 255, 255, 0.04);
+    }
+    .runtime-badge.ok { color: #86efac; border-color: rgba(34, 197, 94, 0.35); }
+    .runtime-badge.bad { color: #fca5a5; border-color: rgba(239, 68, 68, 0.35); }
+    .grid {
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+    @media (max-width: 900px) {
       .grid { grid-template-columns: 1fr; }
     }
     .card {
       background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 16px;
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius);
+      padding: 16px 16px 14px;
+      box-shadow: var(--shadow);
     }
     .card h2 {
       margin: 0 0 12px;
-      font-size: 14px;
+      font-size: 12px;
+      font-weight: 700;
       color: var(--muted);
-      font-weight: 600;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
-      letter-spacing: 1px;
     }
+    .card-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .card-title-row h2 { margin: 0; }
     .drop {
-      border: 2px dashed var(--border);
+      border: 1.5px dashed var(--border);
       border-radius: 10px;
-      padding: 36px 16px;
+      padding: 42px 18px;
       text-align: center;
       cursor: pointer;
       transition: 0.15s ease;
-      background: rgba(255,255,255,0.02);
+      background: rgba(255, 255, 255, 0.015);
     }
     .drop:hover, .drop.dragover {
       border-color: var(--accent);
-      background: rgba(59,130,246,0.08);
+      background: var(--accent-soft);
     }
-    .drop strong { display: block; margin-bottom: 6px; font-size: 15px; }
-    .drop span { color: var(--muted); font-size: 12px; }
+    .drop strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 15px;
+      font-weight: 650;
+    }
+    .drop span {
+      color: var(--muted);
+      font-size: 12px;
+    }
     input[type="file"] { display: none; }
     label.opt {
       display: flex;
       align-items: center;
       gap: 8px;
-      margin: 8px 0;
+      margin: 0;
+      padding: 8px 10px;
+      border: 1px solid transparent;
+      border-radius: 8px;
       font-size: 13px;
       cursor: pointer;
+      color: var(--text);
     }
-    select, input[type="text"], input[type="password"], input[type="search"], input[type="number"] {
+    label.opt:hover { background: rgba(255, 255, 255, 0.03); }
+    label.opt input { margin: 0; }
+    .opt-grid {
+      display: grid;
+      gap: 4px;
+      margin-top: 4px;
+    }
+    select,
+    input[type="text"],
+    input[type="password"],
+    input[type="search"],
+    input[type="number"] {
       width: 100%;
       background: var(--panel-2);
       border: 1px solid var(--border);
@@ -105,13 +193,22 @@
     select:focus, input:focus {
       outline: none;
       border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
     }
     .field { margin-bottom: 12px; }
+    .field:last-child { margin-bottom: 0; }
     .field label {
       display: block;
       font-size: 12px;
       color: var(--muted);
       margin-bottom: 6px;
+      font-weight: 600;
+    }
+    .field-hint {
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.5;
     }
     .row {
       display: flex;
@@ -119,13 +216,32 @@
       flex-wrap: wrap;
       align-items: center;
     }
+    .triple {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .batch-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    @media (max-width: 560px) {
+      .triple, .batch-grid { grid-template-columns: 1fr; }
+    }
+    .divider {
+      height: 1px;
+      margin: 12px 0;
+      background: var(--border-soft);
+      border: 0;
+    }
     button {
       border: none;
       border-radius: 8px;
-      padding: 10px 16px;
+      padding: 9px 14px;
       font: inherit;
       font-size: 13px;
-      font-weight: 600;
+      font-weight: 650;
       cursor: pointer;
       transition: 0.15s ease;
     }
@@ -134,8 +250,8 @@
       cursor: not-allowed;
     }
     .btn-primary { background: var(--accent); color: #fff; }
-    .btn-primary:hover:not(:disabled) { filter: brightness(1.1); }
-    .btn-ok { background: var(--accent-2); color: #052e16; }
+    .btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
+    .btn-ok { background: var(--ok); color: #052e16; }
     .btn-ok:hover:not(:disabled) { filter: brightness(1.05); }
     .btn-ghost {
       background: transparent;
@@ -145,96 +261,141 @@
     .btn-ghost:hover:not(:disabled) {
       color: var(--text);
       border-color: var(--muted);
+      background: rgba(255, 255, 255, 0.03);
     }
     .btn-danger {
-      background: rgba(239,68,68,0.15);
+      background: var(--danger-soft);
       color: #fca5a5;
-      border: 1px solid rgba(239,68,68,0.35);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+    }
+    .btn-danger:hover:not(:disabled) { background: rgba(239, 68, 68, 0.18); }
+    .btn-sm {
+      padding: 7px 11px;
+      font-size: 12px;
     }
     .stats {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 8px;
       margin-bottom: 12px;
+    }
+    @media (max-width: 760px) {
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     .stat {
       background: var(--panel-2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 8px 12px;
+      border: 1px solid var(--border-soft);
+      border-radius: 10px;
+      padding: 10px 12px;
       font-size: 12px;
-      min-width: 100px;
+      color: var(--muted);
     }
-    .stat b { display: block; font-size: 18px; margin-top: 2px; }
+    .stat b {
+      display: block;
+      margin-top: 2px;
+      color: var(--text);
+      font-size: 18px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
     .tag {
       display: inline-block;
       padding: 2px 8px;
       border-radius: 999px;
       font-size: 11px;
       font-weight: 700;
-      letter-spacing: 0.3px;
+      letter-spacing: 0.2px;
     }
-    .tag-cpa { background: rgba(56,189,248,0.15); color: var(--cpa); }
-    .tag-sub2 { background: rgba(167,139,250,0.15); color: var(--sub2); }
-    .tag-err { background: rgba(239,68,68,0.15); color: #fca5a5; }
-    .tag-ok { background: rgba(34,197,94,0.15); color: #86efac; }
+    .tag-cpa { background: rgba(56, 189, 248, 0.15); color: var(--cpa); }
+    .tag-sub2 { background: rgba(167, 139, 250, 0.15); color: var(--sub2); }
+    .tag-err { background: rgba(239, 68, 68, 0.15); color: #fca5a5; }
+    .tag-ok { background: rgba(34, 197, 94, 0.15); color: #86efac; }
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 12px;
+      font-size: 12.5px;
     }
     th, td {
       text-align: left;
-      padding: 10px 8px;
-      border-bottom: 1px solid var(--border);
+      padding: 11px 10px;
+      border-bottom: 1px solid var(--border-soft);
       vertical-align: top;
     }
     th {
       color: var(--muted);
-      font-weight: 600;
+      font-weight: 650;
       position: sticky;
       top: 0;
-      background: var(--panel);
+      background: rgba(20, 28, 40, 0.96);
+      backdrop-filter: blur(6px);
+      z-index: 1;
     }
+    tbody tr:hover td { background: rgba(255, 255, 255, 0.02); }
     .table-wrap {
-      max-height: 420px;
+      max-height: min(52vh, 520px);
       overflow: auto;
-      border: 1px solid var(--border);
+      border: 1px solid var(--border-soft);
       border-radius: 10px;
+      background: rgba(0, 0, 0, 0.12);
     }
-    .email { color: #fff; word-break: break-all; }
+    .email {
+      color: #fff;
+      word-break: break-all;
+      font-family: var(--mono);
+      font-size: 12px;
+    }
     .mono {
-      font-family: inherit;
+      font-family: var(--mono);
       color: var(--muted);
       word-break: break-all;
+      font-size: 12px;
     }
     .msg {
       margin-top: 12px;
       padding: 10px 12px;
       border-radius: 8px;
-      font-size: 12px;
+      font-size: 12.5px;
       white-space: pre-wrap;
       display: none;
     }
     .msg.show { display: block; }
-    .msg.info { background: rgba(59,130,246,0.12); color: #93c5fd; border: 1px solid rgba(59,130,246,0.3); }
-    .msg.err { background: rgba(239,68,68,0.12); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
-    .msg.ok { background: rgba(34,197,94,0.12); color: #86efac; border: 1px solid rgba(34,197,94,0.3); }
+    .msg.info { background: var(--accent-soft); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.28); }
+    .msg.err { background: var(--danger-soft); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.28); }
+    .msg.ok { background: var(--ok-soft); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.28); }
     .hint {
       margin-top: 10px;
       color: var(--muted);
-      font-size: 11px;
-      line-height: 1.6;
+      font-size: 12px;
+      line-height: 1.55;
     }
     .actions {
       display: flex;
-      gap: 10px;
+      gap: 8px;
       flex-wrap: wrap;
       margin-top: 14px;
+      align-items: center;
+    }
+    .actions-group {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .actions-group + .actions-group {
+      padding-left: 8px;
+      margin-left: 2px;
+      border-left: 1px solid var(--border-soft);
+    }
+    @media (max-width: 720px) {
+      .actions-group + .actions-group {
+        padding-left: 0;
+        margin-left: 0;
+        border-left: 0;
+      }
     }
     .table-control-panel {
       display: none;
-      gap: 10px;
+      gap: 8px;
       flex-direction: column;
       margin-bottom: 10px;
     }
@@ -243,22 +404,22 @@
     .search-toolbar {
       display: none;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
       flex-wrap: wrap;
-      min-height: 46px;
-      padding: 9px 12px;
-      border: 1px solid var(--border);
-      border-radius: 9px;
-      background: rgba(36,48,68,0.78);
+      min-height: 44px;
+      padding: 8px 10px;
+      border: 1px solid var(--border-soft);
+      border-radius: 10px;
+      background: rgba(28, 39, 56, 0.7);
       font-size: 12px;
     }
     .selection-toolbar.show,
     .search-toolbar.show { display: flex; }
-    .selection-toolbar b { color: #fff; font-size: 15px; }
+    .selection-toolbar b { color: #fff; font-size: 14px; }
     .toolbar-spacer { flex: 1 1 auto; }
     .toolbar-sep {
       width: 1px;
-      height: 24px;
+      height: 22px;
       background: var(--border);
     }
     .toolbar-label { color: var(--muted); }
@@ -271,26 +432,26 @@
       border-radius: 7px;
       cursor: pointer;
       user-select: none;
-      background: rgba(255,255,255,0.025);
+      background: rgba(255, 255, 255, 0.02);
     }
     .status-select:hover { border-color: var(--muted); }
     .search-toolbar input {
-      min-width: min(520px, 100%);
-      flex: 1 1 360px;
+      min-width: min(420px, 100%);
+      flex: 1 1 280px;
     }
     .head-tools {
       display: inline-flex;
       align-items: center;
-      gap: 5px;
+      gap: 4px;
       white-space: nowrap;
     }
     .icon-btn {
-      width: 27px;
-      height: 27px;
+      width: 28px;
+      height: 28px;
       padding: 0;
       display: inline-grid;
       place-items: center;
-      border-radius: 6px;
+      border-radius: 7px;
       background: transparent;
       border: 1px solid transparent;
       color: var(--muted);
@@ -310,20 +471,20 @@
       white-space: nowrap;
     }
     .row-select-cell input { margin: 0; }
-    tr.selected-row td { background: rgba(59,130,246,0.07); }
-    .tag-upload-none { background: rgba(139,155,180,0.13); color: #b9c4d6; }
-    .tag-upload-queued { background: rgba(59,130,246,0.15); color: #93c5fd; }
-    .tag-uploading { background: rgba(245,158,11,0.15); color: #fcd34d; }
-    .tag-upload-ok { background: rgba(34,197,94,0.15); color: #86efac; }
-    .tag-upload-fail { background: rgba(239,68,68,0.15); color: #fca5a5; }
-    .tag-upload-unknown { background: rgba(249,115,22,0.16); color: #fdba74; }
-    .tag-upload-cancelled { background: rgba(148,163,184,0.15); color: #cbd5e1; }
+    tr.selected-row td { background: rgba(59, 130, 246, 0.08); }
+    .tag-upload-none { background: rgba(139, 155, 180, 0.13); color: #b9c4d6; }
+    .tag-upload-queued { background: rgba(59, 130, 246, 0.15); color: #93c5fd; }
+    .tag-uploading { background: rgba(245, 158, 11, 0.15); color: #fcd34d; }
+    .tag-upload-ok { background: rgba(34, 197, 94, 0.15); color: #86efac; }
+    .tag-upload-fail { background: rgba(239, 68, 68, 0.15); color: #fca5a5; }
+    .tag-upload-unknown { background: rgba(249, 115, 22, 0.16); color: #fdba74; }
+    .tag-upload-cancelled { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; }
     .upload-detail {
       display: block;
-      max-width: 300px;
+      max-width: 280px;
       margin-top: 4px;
       color: var(--muted);
-      font-size: 10px;
+      font-size: 11px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -335,17 +496,17 @@
       display: none;
       align-items: center;
       justify-content: center;
-      padding: 20px;
-      background: rgba(3,7,18,0.74);
-      backdrop-filter: blur(5px);
+      padding: 18px;
+      background: rgba(3, 7, 18, 0.72);
+      backdrop-filter: blur(8px);
     }
     .modal-backdrop.show { display: flex; }
     .modal {
-      width: min(560px, 100%);
+      width: min(480px, 100%);
       border: 1px solid var(--border);
-      border-radius: 13px;
+      border-radius: 14px;
       background: var(--panel);
-      box-shadow: 0 24px 80px rgba(0,0,0,0.45);
+      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.5);
       overflow: hidden;
     }
     .modal-head,
@@ -354,65 +515,39 @@
       align-items: center;
       gap: 10px;
       padding: 14px 16px;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid var(--border-soft);
     }
-    .modal-head h3 { margin: 0; font-size: 15px; }
+    .modal-head h3 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 700;
+    }
     .modal-head .icon-btn { margin-left: auto; }
     .modal-body { padding: 16px; }
     .modal-foot {
       justify-content: flex-end;
-      border-top: 1px solid var(--border);
+      border-top: 1px solid var(--border-soft);
       border-bottom: 0;
+      background: rgba(0, 0, 0, 0.12);
     }
     .config-status {
-      min-height: 20px;
-      margin-top: 8px;
+      min-height: 18px;
+      margin-top: 10px;
       color: var(--muted);
-      font-size: 11px;
+      font-size: 12px;
+      line-height: 1.55;
       white-space: pre-wrap;
     }
     .config-status.ok { color: #86efac; }
     .config-status.err { color: #fca5a5; }
     .secret-row { display: flex; gap: 8px; }
     .secret-row input { flex: 1 1 auto; }
-    .secret-row button { flex: 0 0 auto; }
-    .runtime-bar {
-      display: flex;
-      align-items: center;
-      gap: 9px;
-      flex-wrap: wrap;
-      margin: -8px 0 18px;
-      padding: 9px 11px;
-      border: 1px solid var(--border);
-      border-radius: 9px;
-      background: rgba(26,35,50,0.72);
-      font-size: 11px;
-      color: var(--muted);
-    }
-    .runtime-bar .toolbar-spacer { min-width: 12px; }
-    .runtime-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 8px;
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      background: rgba(255,255,255,0.025);
-      color: var(--muted);
-    }
-    .runtime-badge.ok { color: #86efac; border-color: rgba(34,197,94,0.35); }
-    .runtime-badge.bad { color: #fca5a5; border-color: rgba(239,68,68,0.35); }
-    .env-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 10px;
-      margin-top: 10px;
-    }
     .env-target {
+      margin-top: 12px;
       padding: 12px;
-      border: 1px solid var(--border);
-      border-radius: 9px;
-      background: rgba(255,255,255,0.025);
+      border: 1px solid var(--border-soft);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.02);
     }
     .env-target-head {
       display: flex;
@@ -425,30 +560,29 @@
     }
     .env-target dl {
       display: grid;
-      grid-template-columns: 125px 1fr;
-      gap: 5px 10px;
+      grid-template-columns: 52px 1fr;
+      gap: 6px 10px;
       margin: 0;
-      font-size: 11px;
+      font-size: 12px;
     }
     .env-target dt { color: var(--muted); }
-    .env-target dd { margin: 0; word-break: break-all; }
+    .env-target dd { margin: 0; word-break: break-all; color: var(--text); }
     .env-help {
-      margin-top: 12px;
-      padding: 11px;
-      border-radius: 9px;
-      background: rgba(59,130,246,0.08);
-      border: 1px solid rgba(59,130,246,0.25);
-      color: #bfdbfe;
-      font-size: 11px;
-      line-height: 1.7;
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 11.5px;
+      line-height: 1.55;
     }
-    .env-help code { color: #fff; }
+    .env-help code {
+      color: #dbeafe;
+      background: rgba(59, 130, 246, 0.12);
+    }
     .busy-spin {
       display: inline-block;
       width: 12px;
       height: 12px;
       margin-right: 6px;
-      border: 2px solid rgba(255,255,255,0.3);
+      border: 2px solid rgba(255, 255, 255, 0.3);
       border-top-color: currentColor;
       border-radius: 50%;
       animation: spin 0.7s linear infinite;
@@ -456,12 +590,15 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     @media (max-width: 760px) {
-      th, td { padding: 9px 6px; }
+      .wrap { padding: 16px 12px 36px; }
+      th, td { padding: 9px 7px; }
       .toolbar-sep { display: none; }
-      .table-wrap { max-height: 520px; }
+      .table-wrap { max-height: 58vh; }
+      .page-header h1 { font-size: 20px; }
     }
     code {
-      background: rgba(255,255,255,0.06);
+      font-family: var(--mono);
+      background: rgba(255, 255, 255, 0.06);
       padding: 1px 5px;
       border-radius: 4px;
       font-size: 11px;
@@ -470,86 +607,89 @@
 </head>
 <body>
   <div class="wrap">
-    <h1>CPA ↔ SUB2API 批量转换</h1>
-    <div class="sub">
-      Cloudflare Worker 私有工具 · 批量导入 JSON · 自动识别格式 · 双向转换导出<br>
-      CPA 扁平 <code>xai-*.json</code> 与 SUB2API 导出包 <code>{accounts:[]}</code> 互转
-    </div>
+    <header class="page-header">
+      <div>
+        <h1>CPA ↔ SUB2API</h1>
+        <p class="sub">批量导入 · 格式互转 · 导出 / 上传</p>
+      </div>
+      <div class="header-actions">
+        <button class="btn-ghost btn-sm" id="btnRuntimeConfig" type="button">服务器配置</button>
+        <form method="post" action="/auth/logout" style="margin:0">
+          <button class="btn-danger btn-sm" type="submit">退出</button>
+        </form>
+      </div>
+    </header>
 
     <div class="runtime-bar">
-      <span>上传经 Worker 中转；可使用本机配置（localStorage）或 Worker 环境变量回退。</span>
       <span class="runtime-badge" id="badgeSub2Config">SUB2API：检测中</span>
       <span class="runtime-badge" id="badgeCpaConfig">CPA：检测中</span>
       <span class="toolbar-spacer"></span>
-      <button class="btn-ghost" id="btnRuntimeConfig" type="button">服务器配置</button>
-      <form method="post" action="/auth/logout" style="margin:0"><button class="btn-danger" type="submit">退出登录</button></form>
+      <span class="toolbar-label" style="font-size:12px">本机配置优先，环境变量回退</span>
     </div>
 
     <div class="grid">
       <div class="card">
-        <h2>1. 导入文件</h2>
+        <h2>导入</h2>
         <div class="drop" id="dropzone">
-          <strong>拖拽 JSON 到此处，或点击选择</strong>
-          <span>支持多选 · CPA 扁平 / SUB2API 导出包 / 账号数组</span>
+          <strong>拖入 JSON，或点击选择</strong>
+          <span>支持多选 · 自动识别 CPA / SUB2API</span>
         </div>
         <input type="file" id="fileInput" accept=".json,application/json" multiple />
-        <div class="hint">
-          · CPA：单账号扁平对象（含 <code>type:xai</code> / <code>access_token</code>）<br>
-          · SUB2API：含 <code>accounts[]</code> 的导出包，或账号对象数组<br>
-          · 可混选多种文件，转换方向按每条记录源格式自动判定
-        </div>
       </div>
 
       <div class="card">
-        <h2>2. 转换选项</h2>
+        <h2>转换选项</h2>
         <div class="field">
-          <label>转换方向</label>
+          <label for="direction">转换方向</label>
           <select id="direction">
             <option value="auto">自动（按源格式反向）</option>
-            <option value="to-SUB2API">全部 → SUB2API 导出包</option>
-            <option value="to-cpa">全部 → CPA 扁平 xai-*.json</option>
+            <option value="to-SUB2API">全部 → SUB2API</option>
+            <option value="to-cpa">全部 → CPA</option>
           </select>
         </div>
         <div class="field">
-          <label>SUB2API 账号 name 字段策略</label>
+          <label for="nameStrategy">SUB2API 账号名</label>
           <select id="nameStrategy">
             <option value="email">使用 email</option>
             <option value="local">使用 email 本地部分</option>
-            <option value="sub">使用 sub / principal_id</option>
+            <option value="sub">使用 sub</option>
           </select>
         </div>
         <div class="field">
-          <label>默认 concurrency / priority / rate_multiplier</label>
-          <div class="row">
-            <input type="number" id="concurrency" value="1" min="1" step="1" style="width:32%" />
-            <input type="number" id="priority" value="1" min="0" step="1" style="width:32%" />
-            <input type="number" id="rateMultiplier" value="1" min="0" step="0.1" style="width:32%" />
+          <label>concurrency / priority / rate</label>
+          <div class="triple">
+            <input type="number" id="concurrency" value="1" min="1" step="1" title="concurrency" aria-label="concurrency" />
+            <input type="number" id="priority" value="1" min="0" step="1" title="priority" aria-label="priority" />
+            <input type="number" id="rateMultiplier" value="1" min="0" step="0.1" title="rate_multiplier" aria-label="rate_multiplier" />
           </div>
         </div>
-        <label class="opt">
-          <input type="checkbox" id="autoPause" checked />
-          SUB2API: auto_pause_on_expired = true
-        </label>
-        <label class="opt">
-          <input type="checkbox" id="keepSso" checked />
-          CPA 输出保留 sso 字段（若源有）
-        </label>
-        <label class="opt">
-          <input type="checkbox" id="keepHeaders" checked />
-          CPA 输出写入默认 grok-cli headers
-        </label>
-        <div class="field" style="margin-top:12px">
-          <label>分批上传批次大小</label>
-          <div class="row">
-            <div style="flex:1 1 46%; min-width:140px">
-              <label for="batchSub2" style="display:block;font-size:11px;color:var(--muted);margin-bottom:5px">SUB2API 每批账号数</label>
+        <div class="opt-grid">
+          <label class="opt">
+            <input type="checkbox" id="autoPause" checked />
+            过期自动暂停（SUB2API）
+          </label>
+          <label class="opt">
+            <input type="checkbox" id="keepSso" checked />
+            保留 sso 字段（CPA）
+          </label>
+          <label class="opt">
+            <input type="checkbox" id="keepHeaders" checked />
+            写入默认 headers（CPA）
+          </label>
+        </div>
+        <hr class="divider" />
+        <div class="field">
+          <label>上传批次大小</label>
+          <div class="batch-grid">
+            <div>
+              <label for="batchSub2" class="field-hint" style="margin:0 0 5px;display:block">SUB2API</label>
               <input type="number" id="batchSub2" value="100" min="1" step="1" />
-              <div class="hint" id="batchSub2Hint" style="margin-top:4px">范围 1–…，加载配置后更新</div>
+              <div class="field-hint" id="batchSub2Hint">范围 1–…</div>
             </div>
-            <div style="flex:1 1 46%; min-width:140px">
-              <label for="batchCpa" style="display:block;font-size:11px;color:var(--muted);margin-bottom:5px">CPA 每批文件数</label>
+            <div>
+              <label for="batchCpa" class="field-hint" style="margin:0 0 5px;display:block">CPA</label>
               <input type="number" id="batchCpa" value="20" min="1" step="1" />
-              <div class="hint" id="batchCpaHint" style="margin-top:4px">范围 1–…，加载配置后更新</div>
+              <div class="field-hint" id="batchCpaHint">范围 1–…</div>
             </div>
           </div>
         </div>
@@ -557,34 +697,35 @@
     </div>
 
     <div class="card">
-      <h2>3. 预览 / 导出</h2>
+      <div class="card-title-row">
+        <h2>预览与操作</h2>
+      </div>
       <div class="stats">
-        <div class="stat">导入文件 <b id="statFiles">0</b></div>
-        <div class="stat">解析账号 <b id="statAccounts">0</b></div>
-        <div class="stat">CPA 源 <b id="statCpa">0</b></div>
-        <div class="stat">SUB2API 源 <b id="statSub2">0</b></div>
+        <div class="stat">文件 <b id="statFiles">0</b></div>
+        <div class="stat">账号 <b id="statAccounts">0</b></div>
+        <div class="stat">CPA <b id="statCpa">0</b></div>
+        <div class="stat">SUB2API <b id="statSub2">0</b></div>
         <div class="stat">错误 <b id="statErr">0</b></div>
       </div>
 
       <div class="table-control-panel" id="tableControlPanel">
         <div class="selection-toolbar" id="selectionToolbar">
-          <span>已选择：<b id="selectedCount">0</b> 个</span>
-          <button class="btn-primary" id="btnSelectVisible" type="button">全选当前结果</button>
-          <button class="btn-ghost" id="btnClearSelection" type="button">清空选择</button>
-          <button class="btn-danger" id="btnExitSelection" type="button">退出多选</button>
+          <span>已选 <b id="selectedCount">0</b></span>
+          <button class="btn-primary btn-sm" id="btnSelectVisible" type="button">全选结果</button>
+          <button class="btn-ghost btn-sm" id="btnClearSelection" type="button">清空</button>
+          <button class="btn-danger btn-sm" id="btnExitSelection" type="button">退出多选</button>
           <span class="toolbar-sep"></span>
-          <span class="toolbar-label">按上传状态快速选择（当前结果）</span>
-          <label class="status-select"><input type="checkbox" data-upload-select="failed" />上传失败</label>
+          <span class="toolbar-label">按状态</span>
+          <label class="status-select"><input type="checkbox" data-upload-select="failed" />失败</label>
           <label class="status-select"><input type="checkbox" data-upload-select="not-uploaded" />未上传</label>
-          <label class="status-select"><input type="checkbox" data-upload-select="success" />上传成功</label>
+          <label class="status-select"><input type="checkbox" data-upload-select="success" />成功</label>
           <label class="status-select"><input type="checkbox" data-upload-select="uploading" />上传中</label>
-          <label class="status-select"><input type="checkbox" data-upload-select="unknown" />状态未知</label>
+          <label class="status-select"><input type="checkbox" data-upload-select="unknown" />未知</label>
           <label class="status-select"><input type="checkbox" data-upload-select="cancelled" />已取消</label>
         </div>
         <div class="search-toolbar" id="searchToolbar">
-          <span class="toolbar-label">模糊搜索</span>
-          <input id="accountSearch" type="search" autocomplete="off" placeholder="输入邮箱、标识、源文件、格式或上传信息…" />
-          <button class="btn-ghost" id="btnClearSearch" type="button">清除</button>
+          <input id="accountSearch" type="search" autocomplete="off" placeholder="搜索邮箱、文件、状态…" />
+          <button class="btn-ghost btn-sm" id="btnClearSearch" type="button">清除</button>
           <span class="mono" id="searchResultCount"></span>
         </div>
       </div>
@@ -593,19 +734,19 @@
         <table>
           <thead>
             <tr>
-              <th style="width:100px">
+              <th style="width:96px">
                 <div class="head-tools">
                   <span>#</span>
-                  <button class="icon-btn" id="btnSelectMode" type="button" title="多选账号" aria-label="多选账号">☷</button>
-                  <button class="icon-btn" id="btnSearchToggle" type="button" title="搜索账号" aria-label="搜索账号">⌕</button>
+                  <button class="icon-btn" id="btnSelectMode" type="button" title="多选" aria-label="多选">☷</button>
+                  <button class="icon-btn" id="btnSearchToggle" type="button" title="搜索" aria-label="搜索">⌕</button>
                 </div>
               </th>
               <th>源文件</th>
-              <th>源格式</th>
+              <th>源</th>
               <th>目标</th>
               <th>邮箱 / 标识</th>
-              <th>转换状态</th>
-              <th>上传状态</th>
+              <th>转换</th>
+              <th>上传</th>
             </tr>
           </thead>
           <tbody id="tbody">
@@ -615,26 +756,24 @@
       </div>
 
       <div class="actions">
-        <button class="btn-primary" id="btnConvert" disabled>转换全部</button>
-        <button class="btn-ok" id="btnExportSub2" disabled>导出 SUB2API 合并包</button>
-        <button class="btn-ok" id="btnExportCpaZip" disabled>导出 CPA 多文件 ZIP</button>
-        <button class="btn-primary" id="btnUploadSub2" disabled title="点击后先验证配置；Shift + 点击仅打开配置">上传到 SUB2API</button>
-        <button class="btn-primary" id="btnUploadCpa" disabled title="点击后先验证配置；Shift + 点击仅打开配置">上传到 CPA</button>
-        <button class="btn-danger" id="btnCancelUpload" type="button" hidden>取消上传</button>
-        <button class="btn-ghost" id="btnExportCpaEach" disabled>逐个下载 CPA JSON</button>
-        <button class="btn-danger" id="btnClear" disabled>清空</button>
+        <div class="actions-group">
+          <button class="btn-primary" id="btnConvert" disabled>转换全部</button>
+          <button class="btn-ghost" id="btnClear" disabled>清空</button>
+        </div>
+        <div class="actions-group">
+          <button class="btn-ok" id="btnExportSub2" disabled>导出 SUB2API</button>
+          <button class="btn-ok" id="btnExportCpaZip" disabled>导出 CPA ZIP</button>
+          <button class="btn-ghost" id="btnExportCpaEach" disabled>逐个下载 CPA</button>
+        </div>
+        <div class="actions-group">
+          <button class="btn-primary" id="btnUploadSub2" disabled title="点击后先验证配置；Shift + 点击仅打开配置">上传到 SUB2API</button>
+          <button class="btn-primary" id="btnUploadCpa" disabled title="点击后先验证配置；Shift + 点击仅打开配置">上传到 CPA</button>
+          <button class="btn-danger" id="btnCancelUpload" type="button" hidden>取消上传</button>
+        </div>
       </div>
       <div class="msg" id="msg"></div>
-      <div class="hint">
-        映射说明：access/refresh/id_token、base_url、token_type 直接迁移；
-        client_id / scope / sub / expires 从 JWT 解码补齐；
-        CPA 固定补 redirect_uri / token_endpoint / headers；
-        SUB2API 的 usage_snapshot / proxies 不反向生成。
-        服务器配置优先使用本机 localStorage，其次回退 Worker 环境变量；上传前会验证有效性。本机密钥为明文存储，请注意同机与 XSS 风险。
-      </div>
     </div>
   </div>
-
 
   <div class="modal-backdrop" id="serverConfigModal" role="dialog" aria-modal="true" aria-labelledby="serverConfigTitle">
     <div class="modal">
@@ -643,10 +782,9 @@
         <button class="icon-btn" id="btnCloseConfig" type="button" aria-label="关闭">×</button>
       </div>
       <div class="modal-body">
-        <div class="hint" id="configHint">
-          优先使用本机配置（保存在浏览器 localStorage），没有本机配置时回退 Worker 环境变量。
-          请求仍由 Worker 中转；本机密钥为明文，请勿在公用设备上保存。
-        </div>
+        <p class="hint" id="configHint" style="margin-top:0">
+          本机配置优先保存；未配置时回退环境变量。密钥仅保存在本机，请勿在公用设备上使用。
+        </p>
         <div class="field">
           <label for="cfgBaseUrl">服务器地址</label>
           <input id="cfgBaseUrl" type="text" autocomplete="off" placeholder="https://example.com" />
@@ -654,33 +792,34 @@
         <div class="field">
           <label for="cfgApiKey">管理员密钥</label>
           <div class="secret-row">
-            <input id="cfgApiKey" type="password" autocomplete="off" placeholder="输入 API Key / Management Key" />
+            <input id="cfgApiKey" type="password" autocomplete="off" placeholder="API Key / Management Key" />
           </div>
-          <div class="hint" id="cfgApiKeyHint" style="margin-top:4px">本机未保存密钥</div>
+          <div class="field-hint" id="cfgApiKeyHint">本机未保存密钥</div>
         </div>
         <div class="field" id="cfgAuthModeField" hidden>
-          <label for="cfgAuthMode">CPA 鉴权模式</label>
+          <label for="cfgAuthMode">鉴权模式</label>
           <select id="cfgAuthMode">
-            <option value="auto">auto（先 Bearer 再 X-Management-Key）</option>
+            <option value="auto">auto（Bearer → X-Management-Key）</option>
             <option value="bearer">bearer</option>
             <option value="x-management-key">x-management-key</option>
           </select>
         </div>
-        <div class="env-target" id="cfgEnvFallback" style="margin-top:8px">
-          <div class="env-target-head"><span>环境变量回退</span><span class="tag tag-upload-none" id="cfgEnvTag">检测中</span></div>
+        <div class="env-target" id="cfgEnvFallback">
+          <div class="env-target-head">
+            <span>环境变量回退</span>
+            <span class="tag tag-upload-none" id="cfgEnvTag">检测中</span>
+          </div>
           <dl>
             <dt>状态</dt><dd id="cfgEnvStatus">-</dd>
             <dt>地址</dt><dd id="cfgEnvBaseUrl">-</dd>
             <dt>变量</dt><dd id="cfgEnvVars">-</dd>
           </dl>
         </div>
-        <div class="env-help" id="cfgEnvHelp">
-          可选：在 Cloudflare Worker 中配置环境变量作为回退。
-        </div>
+        <div class="env-help" id="cfgEnvHelp"></div>
         <div class="config-status" id="configStatus"></div>
       </div>
       <div class="modal-foot">
-        <button class="btn-danger" id="btnClearLocalConfig" type="button">清除本机配置</button>
+        <button class="btn-danger" id="btnClearLocalConfig" type="button">清除本机</button>
         <span class="toolbar-spacer"></span>
         <button class="btn-ghost" id="btnCancelConfig" type="button">关闭</button>
         <button class="btn-primary" id="btnSaveVerifyConfig" type="button">验证并保存</button>
@@ -943,8 +1082,8 @@
       sub2Input.max = String(maxSub2);
       cpaInput.min = "1";
       cpaInput.max = String(maxCpa);
-      $("batchSub2Hint").textContent = `可选范围 1–${maxSub2}（由 Worker 上限决定）`;
-      $("batchCpaHint").textContent = `可选范围 1–${maxCpa}（由 Worker 上限决定）`;
+      $("batchSub2Hint").textContent = `上限 ${maxSub2}`;
+      $("batchCpaHint").textContent = `上限 ${maxCpa}`;
       // 若当前值超出新上限，自动钳制到合法范围
       sub2Input.value = String(clampInt(sub2Input.value, 1, maxSub2, defaultBatchSize(TARGET_SUB2API)));
       cpaInput.value = String(clampInt(cpaInput.value, 1, maxCpa, defaultBatchSize(TARGET_CPA)));
@@ -1880,19 +2019,19 @@
         const envInfo = targetConfigInfo(target);
         const clickHint = `点击管理 ${target} 配置`;
         if (local) {
-          badge.textContent = `${target}：已配置（本机）`;
+          badge.textContent = `${target} · 本机`;
           badge.className = "runtime-badge ok";
           badge.title = `${local.baseUrl || "本机配置"} · ${clickHint}`;
         } else if (envInfo?.configured) {
-          badge.textContent = `${target}：已配置（环境变量）`;
+          badge.textContent = `${target} · 环境变量`;
           badge.className = "runtime-badge ok";
           badge.title = `${envInfo.baseUrl || "环境变量"} · ${clickHint}`;
         } else if (!runtimeTargetStatus) {
-          badge.textContent = `${target}：检测中`;
+          badge.textContent = `${target} · …`;
           badge.className = "runtime-badge";
           badge.title = clickHint;
         } else {
-          badge.textContent = `${target}：未配置`;
+          badge.textContent = `${target} · 未配置`;
           badge.className = "runtime-badge bad";
           const missing = (envInfo?.missing || []).join(", ");
           badge.title = missing ? `${missing} · ${clickHint}` : clickHint;
@@ -1947,8 +2086,8 @@
       const help = $("cfgEnvHelp");
       if (help) {
         help.innerHTML = configDialogTarget === TARGET_CPA
-          ? `可选：在 Cloudflare Worker 中配置环境变量作为回退。<br>CPA：<code>CPA_BASE_URL</code> + Secret <code>CPA_MANAGEMENT_KEY</code>，可选 <code>CPA_AUTH_MODE</code>`
-          : `可选：在 Cloudflare Worker 中配置环境变量作为回退。<br>SUB2API：<code>SUB2API_BASE_URL</code> + Secret <code>SUB2API_ADMIN_API_KEY</code>`;
+          ? `环境变量：<code>CPA_BASE_URL</code> + <code>CPA_MANAGEMENT_KEY</code>`
+          : `环境变量：<code>SUB2API_BASE_URL</code> + <code>SUB2API_ADMIN_API_KEY</code>`;
       }
       fillConfigDialogForm(configDialogTarget);
     }
@@ -1959,18 +2098,18 @@
       if (envInfo?.configured) {
         envTag.textContent = "可用";
         envTag.className = "tag tag-upload-ok";
-        $("cfgEnvStatus").textContent = "Worker 环境变量已成对配置，可作回退";
+        $("cfgEnvStatus").textContent = "已配置，可作回退";
         $("cfgEnvBaseUrl").textContent = envInfo.baseUrl || "-";
       } else if (!runtimeTargetStatus) {
-        envTag.textContent = "未知";
+        envTag.textContent = "…";
         envTag.className = "tag tag-upload-none";
-        $("cfgEnvStatus").textContent = "尚未读取到环境变量状态";
+        $("cfgEnvStatus").textContent = "读取中";
         $("cfgEnvBaseUrl").textContent = "-";
       } else {
         envTag.textContent = "不可用";
         envTag.className = "tag tag-upload-fail";
         const missing = envInfo?.missing?.length ? envInfo.missing.join(", ") : "未配置";
-        $("cfgEnvStatus").textContent = envInfo?.urlError ? `地址错误：${envInfo.urlError}` : `缺少：${missing}`;
+        $("cfgEnvStatus").textContent = envInfo?.urlError ? `地址错误：${envInfo.urlError}` : `缺少 ${missing}`;
         $("cfgEnvBaseUrl").textContent = envInfo?.baseUrl || "未设置";
       }
       $("cfgEnvVars").innerHTML = envInfo?.variables
@@ -1985,12 +2124,12 @@
       $("cfgBaseUrl").value = local?.baseUrl || envInfo?.baseUrl || "";
       $("cfgApiKey").value = "";
       if (local?.apiKey) {
-        $("cfgApiKey").placeholder = "已保存本机密钥，留空则沿用";
-        $("cfgApiKeyHint").textContent = `本机已保存密钥（${local.apiKey.slice(0, 2)}***${local.apiKey.slice(-2)}），留空表示继续使用`;
+        $("cfgApiKey").placeholder = "已保存，留空沿用";
+        $("cfgApiKeyHint").textContent = `已保存（${local.apiKey.slice(0, 2)}***${local.apiKey.slice(-2)}），留空继续使用`;
       } else {
-        $("cfgApiKey").placeholder = "输入 API Key / Management Key";
+        $("cfgApiKey").placeholder = "API Key / Management Key";
         $("cfgApiKeyHint").textContent = envInfo?.configured
-          ? "本机未保存密钥；若只想用环境变量，可关闭本窗后直接上传"
+          ? "未保存；可关闭后直接用环境变量上传"
           : "本机未保存密钥";
       }
       if (target === TARGET_CPA) {
@@ -2087,8 +2226,8 @@
       const envReady = Boolean(targetConfigInfo(target)?.configured);
       setConfigStatus(
         envReady
-          ? `已清除 ${target} 本机配置，将回退到 Worker 环境变量。`
-          : `已清除 ${target} 本机配置，且环境变量也未配置。`,
+          ? `已清除 ${target} 本机配置，将回退环境变量。`
+          : `已清除 ${target} 本机配置，且无环境变量可用。`,
         envReady ? "ok" : "err"
       );
     }
@@ -2098,7 +2237,7 @@
       if (forceShow) {
         await openConfigDialog({
           target,
-          reason: `正在管理 ${target} 配置。本机优先，环境变量回退。`,
+          reason: "",
           mode: "manage"
         });
         return false;
@@ -2110,7 +2249,7 @@
         if (!effective) {
           const saved = await openConfigDialog({
             target,
-            reason: `${target} 尚未配置。请填写服务器地址和密钥并验证，或先在 Worker 中配置环境变量。`,
+            reason: `${target} 尚未配置，请填写地址与密钥后验证。`,
             mode: "ensure"
           });
           // ensure 模式下验证并保存成功会关闭弹窗并返回 true（已验证）
@@ -2133,7 +2272,7 @@
         } catch (error) {
           const saved = await openConfigDialog({
             target,
-            reason: `${target} 配置验证失败：${apiErrorMessage(error)}。请修正后重新验证并保存。`,
+            reason: `${target} 验证失败：${apiErrorMessage(error)}`,
             mode: "ensure"
           });
           if (saved) return true;
@@ -2593,10 +2732,9 @@
       openConfigDialog({ target: TARGET_CPA, reason: "", mode: "manage" });
     });
     $("btnRuntimeConfig").addEventListener("click", () => {
-      // 通用入口默认打开上次目标；也可点顶栏徽章直达某一目标
       openConfigDialog({
         target: configDialogTarget || TARGET_SUB2API,
-        reason: "可点顶栏「SUB2API / CPA」徽章分别管理对应目标配置。",
+        reason: "",
         mode: "manage"
       });
     });
