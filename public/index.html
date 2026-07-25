@@ -1,0 +1,2024 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CPA ↔ SUB2API 批量转换</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a2332;
+      --panel-2: #243044;
+      --border: #2d3a4f;
+      --text: #e7ecf3;
+      --muted: #8b9bb4;
+      --accent: #3b82f6;
+      --accent-2: #22c55e;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+      --cpa: #38bdf8;
+      --sub2: #a78bfa;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "SF Mono", "Menlo", "Consolas", "PingFang SC", "Microsoft YaHei", monospace;
+      background: radial-gradient(1200px 600px at 10% -10%, #1e293b 0%, transparent 50%),
+                  radial-gradient(900px 500px at 100% 0%, #172554 0%, transparent 45%),
+                  var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+    .wrap {
+      max-width: 1480px;
+      margin: 0 auto;
+      padding: 28px 20px 60px;
+    }
+    h1 {
+      margin: 0 0 6px;
+      font-size: 22px;
+      letter-spacing: 0.5px;
+    }
+    .sub {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 22px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    @media (max-width: 800px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .card h2 {
+      margin: 0 0 12px;
+      font-size: 14px;
+      color: var(--muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .drop {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 36px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: 0.15s ease;
+      background: rgba(255,255,255,0.02);
+    }
+    .drop:hover, .drop.dragover {
+      border-color: var(--accent);
+      background: rgba(59,130,246,0.08);
+    }
+    .drop strong { display: block; margin-bottom: 6px; font-size: 15px; }
+    .drop span { color: var(--muted); font-size: 12px; }
+    input[type="file"] { display: none; }
+    label.opt {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 8px 0;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    select, input[type="text"], input[type="password"], input[type="search"], input[type="number"] {
+      width: 100%;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 9px 11px;
+      font: inherit;
+      font-size: 13px;
+    }
+    select:focus, input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .field { margin-bottom: 12px; }
+    .field label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: 0.15s ease;
+    }
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { filter: brightness(1.1); }
+    .btn-ok { background: var(--accent-2); color: #052e16; }
+    .btn-ok:hover:not(:disabled) { filter: brightness(1.05); }
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover:not(:disabled) {
+      color: var(--text);
+      border-color: var(--muted);
+    }
+    .btn-danger {
+      background: rgba(239,68,68,0.15);
+      color: #fca5a5;
+      border: 1px solid rgba(239,68,68,0.35);
+    }
+    .stats {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .stat {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 12px;
+      min-width: 100px;
+    }
+    .stat b { display: block; font-size: 18px; margin-top: 2px; }
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+    .tag-cpa { background: rgba(56,189,248,0.15); color: var(--cpa); }
+    .tag-sub2 { background: rgba(167,139,250,0.15); color: var(--sub2); }
+    .tag-err { background: rgba(239,68,68,0.15); color: #fca5a5; }
+    .tag-ok { background: rgba(34,197,94,0.15); color: #86efac; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    th {
+      color: var(--muted);
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      background: var(--panel);
+    }
+    .table-wrap {
+      max-height: 420px;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    .email { color: #fff; word-break: break-all; }
+    .mono {
+      font-family: inherit;
+      color: var(--muted);
+      word-break: break-all;
+    }
+    .msg {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      white-space: pre-wrap;
+      display: none;
+    }
+    .msg.show { display: block; }
+    .msg.info { background: rgba(59,130,246,0.12); color: #93c5fd; border: 1px solid rgba(59,130,246,0.3); }
+    .msg.err { background: rgba(239,68,68,0.12); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
+    .msg.ok { background: rgba(34,197,94,0.12); color: #86efac; border: 1px solid rgba(34,197,94,0.3); }
+    .hint {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.6;
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+    }
+    .table-control-panel {
+      display: none;
+      gap: 10px;
+      flex-direction: column;
+      margin-bottom: 10px;
+    }
+    .table-control-panel.show { display: flex; }
+    .selection-toolbar,
+    .search-toolbar {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      min-height: 46px;
+      padding: 9px 12px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: rgba(36,48,68,0.78);
+      font-size: 12px;
+    }
+    .selection-toolbar.show,
+    .search-toolbar.show { display: flex; }
+    .selection-toolbar b { color: #fff; font-size: 15px; }
+    .toolbar-spacer { flex: 1 1 auto; }
+    .toolbar-sep {
+      width: 1px;
+      height: 24px;
+      background: var(--border);
+    }
+    .toolbar-label { color: var(--muted); }
+    .status-select {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 8px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      cursor: pointer;
+      user-select: none;
+      background: rgba(255,255,255,0.025);
+    }
+    .status-select:hover { border-color: var(--muted); }
+    .search-toolbar input {
+      min-width: min(520px, 100%);
+      flex: 1 1 360px;
+    }
+    .head-tools {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+    }
+    .icon-btn {
+      width: 27px;
+      height: 27px;
+      padding: 0;
+      display: inline-grid;
+      place-items: center;
+      border-radius: 6px;
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1;
+    }
+    .icon-btn:hover,
+    .icon-btn.active {
+      color: var(--text);
+      border-color: var(--border);
+      background: var(--panel-2);
+    }
+    .row-select-cell {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      white-space: nowrap;
+    }
+    .row-select-cell input { margin: 0; }
+    tr.selected-row td { background: rgba(59,130,246,0.07); }
+    .tag-upload-none { background: rgba(139,155,180,0.13); color: #b9c4d6; }
+    .tag-uploading { background: rgba(245,158,11,0.15); color: #fcd34d; }
+    .tag-upload-ok { background: rgba(34,197,94,0.15); color: #86efac; }
+    .tag-upload-fail { background: rgba(239,68,68,0.15); color: #fca5a5; }
+    .upload-detail {
+      display: block;
+      max-width: 300px;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 10px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: rgba(3,7,18,0.74);
+      backdrop-filter: blur(5px);
+    }
+    .modal-backdrop.show { display: flex; }
+    .modal {
+      width: min(560px, 100%);
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      background: var(--panel);
+      box-shadow: 0 24px 80px rgba(0,0,0,0.45);
+      overflow: hidden;
+    }
+    .modal-head,
+    .modal-foot {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .modal-head h3 { margin: 0; font-size: 15px; }
+    .modal-head .icon-btn { margin-left: auto; }
+    .modal-body { padding: 16px; }
+    .modal-foot {
+      justify-content: flex-end;
+      border-top: 1px solid var(--border);
+      border-bottom: 0;
+    }
+    .config-status {
+      min-height: 20px;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 11px;
+      white-space: pre-wrap;
+    }
+    .config-status.ok { color: #86efac; }
+    .config-status.err { color: #fca5a5; }
+    .secret-row { display: flex; gap: 8px; }
+    .secret-row input { flex: 1 1 auto; }
+    .secret-row button { flex: 0 0 auto; }
+    .runtime-bar {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      flex-wrap: wrap;
+      margin: -8px 0 18px;
+      padding: 9px 11px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: rgba(26,35,50,0.72);
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .runtime-bar .toolbar-spacer { min-width: 12px; }
+    .runtime-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: rgba(255,255,255,0.025);
+      color: var(--muted);
+    }
+    .runtime-badge.ok { color: #86efac; border-color: rgba(34,197,94,0.35); }
+    .runtime-badge.bad { color: #fca5a5; border-color: rgba(239,68,68,0.35); }
+    .env-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .env-target {
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: rgba(255,255,255,0.025);
+    }
+    .env-target-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .env-target dl {
+      display: grid;
+      grid-template-columns: 125px 1fr;
+      gap: 5px 10px;
+      margin: 0;
+      font-size: 11px;
+    }
+    .env-target dt { color: var(--muted); }
+    .env-target dd { margin: 0; word-break: break-all; }
+    .env-help {
+      margin-top: 12px;
+      padding: 11px;
+      border-radius: 9px;
+      background: rgba(59,130,246,0.08);
+      border: 1px solid rgba(59,130,246,0.25);
+      color: #bfdbfe;
+      font-size: 11px;
+      line-height: 1.7;
+    }
+    .env-help code { color: #fff; }
+    .busy-spin {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      margin-right: 6px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: -2px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (max-width: 760px) {
+      th, td { padding: 9px 6px; }
+      .toolbar-sep { display: none; }
+      .table-wrap { max-height: 520px; }
+    }
+    code {
+      background: rgba(255,255,255,0.06);
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>CPA ↔ SUB2API 批量转换</h1>
+    <div class="sub">
+      Cloudflare Worker 私有工具 · 批量导入 JSON · 自动识别格式 · 双向转换导出<br>
+      CPA 扁平 <code>xai-*.json</code> 与 SUB2API 导出包 <code>{accounts:[]}</code> 互转
+    </div>
+
+    <div class="runtime-bar">
+      <span>上传请求由 Worker 服务端转发，管理员密钥不会进入浏览器。</span>
+      <span class="runtime-badge" id="badgeSub2Config">SUB2API：检测中</span>
+      <span class="runtime-badge" id="badgeCpaConfig">CPA：检测中</span>
+      <span class="toolbar-spacer"></span>
+      <button class="btn-ghost" id="btnRuntimeConfig" type="button">环境配置</button>
+      <form method="post" action="/auth/logout" style="margin:0"><button class="btn-danger" type="submit">退出登录</button></form>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>1. 导入文件</h2>
+        <div class="drop" id="dropzone">
+          <strong>拖拽 JSON 到此处，或点击选择</strong>
+          <span>支持多选 · CPA 扁平 / SUB2API 导出包 / 账号数组</span>
+        </div>
+        <input type="file" id="fileInput" accept=".json,application/json" multiple />
+        <div class="hint">
+          · CPA：单账号扁平对象（含 <code>type:xai</code> / <code>access_token</code>）<br>
+          · SUB2API：含 <code>accounts[]</code> 的导出包，或账号对象数组<br>
+          · 可混选多种文件，转换方向按每条记录源格式自动判定
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>2. 转换选项</h2>
+        <div class="field">
+          <label>转换方向</label>
+          <select id="direction">
+            <option value="auto">自动（按源格式反向）</option>
+            <option value="to-SUB2API">全部 → SUB2API 导出包</option>
+            <option value="to-cpa">全部 → CPA 扁平 xai-*.json</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>SUB2API 账号 name 字段策略</label>
+          <select id="nameStrategy">
+            <option value="email">使用 email</option>
+            <option value="local">使用 email 本地部分</option>
+            <option value="sub">使用 sub / principal_id</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>默认 concurrency / priority / rate_multiplier</label>
+          <div class="row">
+            <input type="number" id="concurrency" value="1" min="1" step="1" style="width:32%" />
+            <input type="number" id="priority" value="1" min="0" step="1" style="width:32%" />
+            <input type="number" id="rateMultiplier" value="1" min="0" step="0.1" style="width:32%" />
+          </div>
+        </div>
+        <label class="opt">
+          <input type="checkbox" id="autoPause" checked />
+          SUB2API: auto_pause_on_expired = true
+        </label>
+        <label class="opt">
+          <input type="checkbox" id="keepSso" checked />
+          CPA 输出保留 sso 字段（若源有）
+        </label>
+        <label class="opt">
+          <input type="checkbox" id="keepHeaders" checked />
+          CPA 输出写入默认 grok-cli headers
+        </label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>3. 预览 / 导出</h2>
+      <div class="stats">
+        <div class="stat">导入文件 <b id="statFiles">0</b></div>
+        <div class="stat">解析账号 <b id="statAccounts">0</b></div>
+        <div class="stat">CPA 源 <b id="statCpa">0</b></div>
+        <div class="stat">SUB2API 源 <b id="statSub2">0</b></div>
+        <div class="stat">错误 <b id="statErr">0</b></div>
+      </div>
+
+      <div class="table-control-panel" id="tableControlPanel">
+        <div class="selection-toolbar" id="selectionToolbar">
+          <span>已选择：<b id="selectedCount">0</b> 个</span>
+          <button class="btn-primary" id="btnSelectVisible" type="button">全选当前结果</button>
+          <button class="btn-ghost" id="btnClearSelection" type="button">清空选择</button>
+          <button class="btn-danger" id="btnExitSelection" type="button">退出多选</button>
+          <span class="toolbar-sep"></span>
+          <span class="toolbar-label">按上传状态快速选择（当前结果）</span>
+          <label class="status-select"><input type="checkbox" data-upload-select="failed" />上传失败</label>
+          <label class="status-select"><input type="checkbox" data-upload-select="not-uploaded" />未上传</label>
+          <label class="status-select"><input type="checkbox" data-upload-select="success" />上传成功</label>
+          <label class="status-select"><input type="checkbox" data-upload-select="uploading" />上传中</label>
+        </div>
+        <div class="search-toolbar" id="searchToolbar">
+          <span class="toolbar-label">模糊搜索</span>
+          <input id="accountSearch" type="search" autocomplete="off" placeholder="输入邮箱、标识、源文件、格式或上传信息…" />
+          <button class="btn-ghost" id="btnClearSearch" type="button">清除</button>
+          <span class="mono" id="searchResultCount"></span>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:100px">
+                <div class="head-tools">
+                  <span>#</span>
+                  <button class="icon-btn" id="btnSelectMode" type="button" title="多选账号" aria-label="多选账号">☷</button>
+                  <button class="icon-btn" id="btnSearchToggle" type="button" title="搜索账号" aria-label="搜索账号">⌕</button>
+                </div>
+              </th>
+              <th>源文件</th>
+              <th>源格式</th>
+              <th>目标</th>
+              <th>邮箱 / 标识</th>
+              <th>转换状态</th>
+              <th>上传状态</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="7" class="mono">尚未导入文件</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="actions">
+        <button class="btn-primary" id="btnConvert" disabled>转换全部</button>
+        <button class="btn-ok" id="btnExportSub2" disabled>导出 SUB2API 合并包</button>
+        <button class="btn-ok" id="btnExportCpaZip" disabled>导出 CPA 多文件 ZIP</button>
+        <button class="btn-primary" id="btnUploadSub2" disabled title="服务器地址和管理员密钥由 Worker 环境变量管理；Shift + 点击查看配置状态">上传到 SUB2API</button>
+        <button class="btn-primary" id="btnUploadCpa" disabled title="服务器地址和管理员密钥由 Worker 环境变量管理；Shift + 点击查看配置状态">上传到 CPA</button>
+        <button class="btn-ghost" id="btnExportCpaEach" disabled>逐个下载 CPA JSON</button>
+        <button class="btn-danger" id="btnClear" disabled>清空</button>
+      </div>
+      <div class="msg" id="msg"></div>
+      <div class="hint">
+        映射说明：access/refresh/id_token、base_url、token_type 直接迁移；
+        client_id / scope / sub / expires 从 JWT 解码补齐；
+        CPA 固定补 redirect_uri / token_endpoint / headers；
+        SUB2API 的 usage_snapshot / proxies 不反向生成。服务器地址与管理员密钥仅保存在 Worker 环境变量/Secret 中，不会下发到浏览器。
+      </div>
+    </div>
+  </div>
+
+
+  <div class="modal-backdrop" id="serverConfigModal" role="dialog" aria-modal="true" aria-labelledby="serverConfigTitle">
+    <div class="modal">
+      <div class="modal-head">
+        <h3 id="serverConfigTitle">Worker 环境配置</h3>
+        <button class="icon-btn" id="btnCloseConfig" type="button" aria-label="关闭">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="hint" id="configHint">
+          页面只能读取“是否已配置”和服务器地址，无法读取管理员密钥。密钥必须在 Cloudflare 中以 Secret 类型保存。
+        </div>
+        <div class="env-grid" id="envConfigGrid"></div>
+        <div class="env-help">
+          配置位置：<b>Cloudflare Dashboard → Workers &amp; Pages → 当前 Worker → Settings → Variables and Secrets</b><br>
+          普通变量：<code>SUB2API_BASE_URL</code>、<code>CPA_BASE_URL</code><br>
+          Secret：<code>SUB2API_ADMIN_API_KEY</code>、<code>CPA_MANAGEMENT_KEY</code><br>
+          CPA 可选变量：<code>CPA_AUTH_MODE=auto|bearer|x-management-key</code>。<br>
+          保存变量后需要部署新版本，再点击“重新检测”。
+        </div>
+        <div class="config-status" id="configStatus"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-ghost" id="btnCancelConfig" type="button">关闭</button>
+        <button class="btn-primary" id="btnRefreshConfig" type="button">重新检测</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const CLIENT_ID = "b1a00492-073a-47ea-816f-4c329264a828";
+    const REDIRECT_URI = "http://127.0.0.1:56121/callback";
+    const TOKEN_ENDPOINT = "https://auth.x.ai/oauth2/token";
+    const BASE_URL = "https://cli-chat-proxy.grok.com/v1";
+    const DEFAULT_HEADERS = {
+      "User-Agent": "grok-pager/0.2.93 grok-shell/0.2.93 (linux; x86_64)",
+      "X-XAI-Token-Auth": "xai-grok-cli",
+      "x-authenticateresponse": "authenticate-response",
+      "x-grok-client-identifier": "grok-pager",
+      "x-grok-client-version": "0.2.93"
+    };
+
+    /** @type {Array<{id:string,sourceFile:string,sourceFormat:string,account:any,error?:string,converted?:any,targetFormat?:string,selected:boolean,uploadStatus:string,uploadTarget:string,uploadMessage:string,uploadAttempts:number}>} */
+    let items = [];
+    let converted = false;
+    let selectionMode = false;
+    let searchVisible = false;
+    let tableSearch = "";
+    let uploadBusy = false;
+    let runtimeTargetStatus = null;
+    let activeUploadItemIds = null;
+
+    const TARGET_SUB2API = "SUB2API";
+    const TARGET_CPA = "CPA";
+    const UPLOAD_STATUS = Object.freeze({
+      NONE: "not-uploaded",
+      UPLOADING: "uploading",
+      SUCCESS: "success",
+      FAILED: "failed"
+    });
+
+    const $ = (id) => document.getElementById(id);
+    const dropzone = $("dropzone");
+    const fileInput = $("fileInput");
+    const tbody = $("tbody");
+    const msgEl = $("msg");
+
+    function showMsg(text, type = "info") {
+      msgEl.textContent = text;
+      msgEl.className = "msg show " + type;
+    }
+    function clearMsg() {
+      msgEl.className = "msg";
+      msgEl.textContent = "";
+    }
+
+    function makeItemId() {
+      if (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") {
+        return globalThis.crypto.randomUUID();
+      }
+      return `item-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    }
+
+    function prepareItem(item) {
+      return {
+        id: makeItemId(),
+        selected: false,
+        uploadStatus: UPLOAD_STATUS.NONE,
+        uploadTarget: "",
+        uploadMessage: "",
+        uploadAttempts: 0,
+        ...item
+      };
+    }
+
+    function getVisibleItems() {
+      const q = tableSearch.trim().toLowerCase();
+      if (!q) return items.map((item, index) => ({ item, index }));
+      const tokens = q.split(/\s+/).filter(Boolean);
+      return items
+        .map((item, index) => ({ item, index }))
+        .filter(({ item }) => {
+          const haystack = [
+            item.sourceFile,
+            item.sourceFormat,
+            item.targetFormat,
+            accountLabel(item),
+            item.uploadTarget,
+            item.uploadMessage,
+            item.uploadStatus
+          ].join(" ").toLowerCase();
+          return tokens.every((token) => haystack.includes(token));
+        });
+    }
+
+    function getOperationItems() {
+      if (!selectionMode) return items.filter((item) => !item.error && item.account);
+      return items.filter((item) => item.selected && !item.error && item.account);
+    }
+
+    function selectedCount() {
+      return items.filter((item) => item.selected).length;
+    }
+
+    function syncTableControls() {
+      const panel = $("tableControlPanel");
+      const selection = $("selectionToolbar");
+      const search = $("searchToolbar");
+      selection.classList.toggle("show", selectionMode);
+      search.classList.toggle("show", searchVisible);
+      panel.classList.toggle("show", selectionMode || searchVisible);
+      $("btnSelectMode").classList.toggle("active", selectionMode);
+      $("btnSearchToggle").classList.toggle("active", searchVisible);
+      $("selectedCount").textContent = String(selectedCount());
+      const visible = getVisibleItems().length;
+      $("searchResultCount").textContent = tableSearch ? `匹配 ${visible} / ${items.length}` : `共 ${items.length}`;
+    }
+
+    function refreshActionButtons() {
+      const operationItems = getOperationItems();
+      const usable = operationItems.length > 0 && !uploadBusy;
+      $("btnConvert").disabled = !usable;
+      $("btnUploadSub2").disabled = !usable;
+      $("btnUploadCpa").disabled = !usable;
+      $("btnClear").disabled = !items.length || uploadBusy;
+      const hasSub2 = operationItems.some((item) => item.converted && item.targetFormat === TARGET_SUB2API);
+      const hasCpa = operationItems.some((item) => item.converted && item.targetFormat === TARGET_CPA);
+      $("btnExportSub2").disabled = !hasSub2 || uploadBusy;
+      $("btnExportCpaZip").disabled = !hasCpa || uploadBusy;
+      $("btnExportCpaEach").disabled = !hasCpa || uploadBusy;
+      $("btnConvert").textContent = selectionMode ? "转换所选" : "转换全部";
+    }
+
+    function setUploadBusy(busy) {
+      uploadBusy = busy;
+      refreshActionButtons();
+      $("btnUploadSub2").innerHTML = busy ? '<span class="busy-spin"></span>上传处理中' : "上传到 SUB2API";
+      $("btnUploadCpa").innerHTML = busy ? '<span class="busy-spin"></span>上传处理中' : "上传到 CPA";
+    }
+
+    function b64urlDecode(seg) {
+      const s = seg.replace(/-/g, "+").replace(/_/g, "/");
+      const pad = s + "=".repeat((4 - (s.length % 4)) % 4);
+      try {
+        return decodeURIComponent(
+          Array.from(atob(pad), (c) => "%" + c.charCodeAt(0).toString(16).padStart(2, "0")).join("")
+        );
+      } catch {
+        try { return atob(pad); } catch { return ""; }
+      }
+    }
+
+    function decodeJwtPayload(token) {
+      if (!token || typeof token !== "string" || token.split(".").length < 2) return {};
+      try {
+        return JSON.parse(b64urlDecode(token.split(".")[1]));
+      } catch {
+        return {};
+      }
+    }
+
+    function isoFromUnix(sec) {
+      if (sec == null || sec === "") return "";
+      const n = Number(sec);
+      if (!Number.isFinite(n)) return "";
+      return new Date(n * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
+    }
+
+    function unixFromIsoOrNumber(v) {
+      if (v == null || v === "") return null;
+      if (typeof v === "number" && Number.isFinite(v)) {
+        return v > 1e12 ? Math.floor(v / 1000) : Math.floor(v);
+      }
+      const s = String(v).trim();
+      if (/^\d+$/.test(s)) {
+        const n = Number(s);
+        return n > 1e12 ? Math.floor(n / 1000) : n;
+      }
+      const t = Date.parse(s);
+      if (Number.isNaN(t)) return null;
+      return Math.floor(t / 1000);
+    }
+
+    function safeFilename(s) {
+      const t = String(s || "unknown").trim() || "unknown";
+      return t.replace(/[^a-zA-Z0-9._@-]/g, "_");
+    }
+
+    function cpaFilename(record) {
+      const ident = String(record.email || record.sub || "unknown").trim() || "unknown";
+      const safe = safeFilename(ident);
+      const base = safe.toLowerCase().startsWith("xai") ? safe : `xai-${safe}`;
+      return `${base}.json`;
+    }
+
+    function isCpaRecord(obj) {
+      if (!obj || typeof obj !== "object" || Array.isArray(obj)) return false;
+      if (obj.type === "xai") return true;
+      if (obj.auth_kind === "oauth" && (obj.access_token || obj.refresh_token)) return true;
+      // 扁平 token 文件
+      if (obj.access_token && obj.refresh_token && !obj.credentials && !obj.accounts && !obj.platform) {
+        return true;
+      }
+      return false;
+    }
+
+    function isSub2Account(obj) {
+      if (!obj || typeof obj !== "object" || Array.isArray(obj)) return false;
+      if (obj.platform === "grok" || obj.platform === "xai") return true;
+      if (obj.credentials && (obj.credentials.access_token || obj.credentials.refresh_token)) return true;
+      return false;
+    }
+
+    function isSub2Export(obj) {
+      return obj && typeof obj === "object" && Array.isArray(obj.accounts);
+    }
+
+    function normalizeCpa(raw) {
+      const access = raw.access_token || raw.key || "";
+      const refresh = raw.refresh_token || "";
+      const idToken = raw.id_token || "";
+      const payload = decodeJwtPayload(access);
+      const idPayload = decodeJwtPayload(idToken);
+      const email = raw.email || idPayload.email || payload.email || "";
+      const sub = raw.sub || payload.sub || idPayload.sub || "";
+      let expired = raw.expired || "";
+      if (!expired && payload.exp) expired = isoFromUnix(payload.exp);
+      if (!expired && raw.expires_in != null) {
+        expired = isoFromUnix(Math.floor(Date.now() / 1000) + Number(raw.expires_in));
+      }
+      return {
+        type: "xai",
+        auth_kind: raw.auth_kind || "oauth",
+        email,
+        sub,
+        access_token: access,
+        refresh_token: refresh,
+        id_token: idToken,
+        token_type: raw.token_type || "Bearer",
+        expires_in: raw.expires_in ?? null,
+        expired,
+        last_refresh: raw.last_refresh || new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+        redirect_uri: raw.redirect_uri || REDIRECT_URI,
+        token_endpoint: raw.token_endpoint || TOKEN_ENDPOINT,
+        base_url: raw.base_url || BASE_URL,
+        disabled: !!raw.disabled,
+        headers: raw.headers && typeof raw.headers === "object" ? raw.headers : { ...DEFAULT_HEADERS },
+        sso: raw.sso || "",
+        // 内部辅助
+        _scope: payload.scope || "",
+        _client_id: payload.aud || payload.client_id || CLIENT_ID,
+        _exp: payload.exp || unixFromIsoOrNumber(expired)
+      };
+    }
+
+    function normalizeSub2(raw) {
+      const cred = raw.credentials || {};
+      const access = cred.access_token || "";
+      const refresh = cred.refresh_token || "";
+      const idToken = cred.id_token || "";
+      const payload = decodeJwtPayload(access);
+      const idPayload = decodeJwtPayload(idToken);
+      const email =
+        cred.email ||
+        (raw.extra && raw.extra.email) ||
+        idPayload.email ||
+        payload.email ||
+        raw.name ||
+        "";
+      const expiresAt =
+        unixFromIsoOrNumber(cred.expires_at) ||
+        (payload.exp ? Number(payload.exp) : null);
+      return {
+        name: raw.name || email || "",
+        platform: raw.platform || "grok",
+        type: raw.type || "oauth",
+        credentials: {
+          access_token: access,
+          base_url: cred.base_url || BASE_URL,
+          client_id: cred.client_id || payload.aud || payload.client_id || CLIENT_ID,
+          email,
+          expires_at: expiresAt,
+          id_token: idToken,
+          refresh_token: refresh,
+          scope: cred.scope || payload.scope || "",
+          token_type: cred.token_type || "Bearer"
+        },
+        extra: raw.extra && typeof raw.extra === "object" ? raw.extra : { email },
+        concurrency: raw.concurrency ?? 1,
+        priority: raw.priority ?? 1,
+        rate_multiplier: raw.rate_multiplier ?? 1,
+        auto_pause_on_expired: raw.auto_pause_on_expired !== false,
+        // 内部
+        _sub: payload.sub || idPayload.sub || "",
+        _sso: (raw.extra && raw.extra.sso) || raw.sso || "",
+        _headers: (raw.extra && raw.extra.headers) || null,
+        _redirect_uri: (raw.extra && raw.extra.redirect_uri) || "",
+        _token_endpoint: (raw.extra && raw.extra.token_endpoint) || "",
+        _expires_in: payload.exp && payload.iat ? Number(payload.exp) - Number(payload.iat) : null,
+        _last_refresh: (raw.extra && raw.extra.last_refresh) || ""
+      };
+    }
+
+    function cpaToSub2(cpa) {
+      const nameStrategy = $("nameStrategy").value;
+      const email = cpa.email || "";
+      const sub = cpa.sub || "";
+      let name = email || sub || "unknown";
+      if (nameStrategy === "local" && email.includes("@")) name = email.split("@")[0];
+      if (nameStrategy === "sub" && sub) name = sub;
+
+      const expiresAt =
+        cpa._exp ||
+        unixFromIsoOrNumber(cpa.expired) ||
+        null;
+
+      const account = {
+        name,
+        platform: "grok",
+        type: "oauth",
+        credentials: {
+          access_token: cpa.access_token || "",
+          base_url: cpa.base_url || BASE_URL,
+          client_id: cpa._client_id || CLIENT_ID,
+          email,
+          expires_at: expiresAt,
+          id_token: cpa.id_token || "",
+          refresh_token: cpa.refresh_token || "",
+          scope: cpa._scope || "",
+          token_type: cpa.token_type || "Bearer"
+        },
+        extra: {
+          email
+        },
+        concurrency: Number($("concurrency").value) || 1,
+        priority: Number($("priority").value) || 1,
+        rate_multiplier: Number($("rateMultiplier").value) || 1,
+        auto_pause_on_expired: $("autoPause").checked
+      };
+
+      if (cpa.sso) account.extra.sso = cpa.sso;
+      if (cpa.last_refresh) account.extra.last_refresh = cpa.last_refresh;
+      if (cpa.redirect_uri) account.extra.redirect_uri = cpa.redirect_uri;
+      if (cpa.token_endpoint) account.extra.token_endpoint = cpa.token_endpoint;
+      if (cpa.headers) account.extra.headers = cpa.headers;
+      if (sub) account.extra.sub = sub;
+
+      return account;
+    }
+
+    function sub2ToCpa(sub2) {
+      const email = sub2.credentials.email || "";
+      const access = sub2.credentials.access_token || "";
+      const payload = decodeJwtPayload(access);
+      const expired =
+        sub2.credentials.expires_at != null
+          ? isoFromUnix(sub2.credentials.expires_at)
+          : payload.exp
+            ? isoFromUnix(payload.exp)
+            : "";
+
+      const record = {
+        type: "xai",
+        auth_kind: "oauth",
+        email,
+        sub: sub2._sub || payload.sub || "",
+        access_token: access,
+        refresh_token: sub2.credentials.refresh_token || "",
+        id_token: sub2.credentials.id_token || "",
+        token_type: sub2.credentials.token_type || "Bearer",
+        expires_in: sub2._expires_in,
+        expired,
+        last_refresh:
+          sub2._last_refresh ||
+          new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+        redirect_uri: sub2._redirect_uri || REDIRECT_URI,
+        token_endpoint: sub2._token_endpoint || TOKEN_ENDPOINT,
+        base_url: sub2.credentials.base_url || BASE_URL,
+        disabled: false
+      };
+
+      if ($("keepHeaders").checked) {
+        record.headers = sub2._headers || { ...DEFAULT_HEADERS };
+      }
+      if ($("keepSso").checked && sub2._sso) {
+        record.sso = sub2._sso;
+      }
+      return record;
+    }
+
+    function parseFileContent(filename, text) {
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        return [prepareItem({ sourceFile: filename, sourceFormat: "unknown", account: null, error: "JSON 解析失败: " + e.message })];
+      }
+
+      const out = [];
+
+      if (isSub2Export(data)) {
+        if (!data.accounts.length) {
+          out.push(prepareItem({ sourceFile: filename, sourceFormat: "SUB2API-export", account: null, error: "accounts 为空" }));
+          return out;
+        }
+        for (const acc of data.accounts) {
+          if (isSub2Account(acc) || (acc && acc.credentials)) {
+            out.push(prepareItem({
+              sourceFile: filename,
+              sourceFormat: "SUB2API",
+              account: normalizeSub2(acc)
+            }));
+          } else if (isCpaRecord(acc)) {
+            out.push(prepareItem({
+              sourceFile: filename,
+              sourceFormat: "cpa",
+              account: normalizeCpa(acc)
+            }));
+          } else {
+            out.push(prepareItem({
+              sourceFile: filename,
+              sourceFormat: "unknown",
+              account: null,
+              error: "accounts 内对象无法识别"
+            }));
+          }
+        }
+        return out;
+      }
+
+      if (Array.isArray(data)) {
+        for (const item of data) {
+          if (isSub2Account(item)) {
+            out.push(prepareItem({ sourceFile: filename, sourceFormat: "SUB2API", account: normalizeSub2(item) }));
+          } else if (isCpaRecord(item)) {
+            out.push(prepareItem({ sourceFile: filename, sourceFormat: "cpa", account: normalizeCpa(item) }));
+          } else {
+            out.push(prepareItem({ sourceFile: filename, sourceFormat: "unknown", account: null, error: "数组元素无法识别" }));
+          }
+        }
+        return out;
+      }
+
+      if (isSub2Account(data)) {
+        out.push(prepareItem({ sourceFile: filename, sourceFormat: "SUB2API", account: normalizeSub2(data) }));
+        return out;
+      }
+
+      if (isCpaRecord(data)) {
+        out.push(prepareItem({ sourceFile: filename, sourceFormat: "cpa", account: normalizeCpa(data) }));
+        return out;
+      }
+
+      // 兼容 grok auth 合并字典：key = issuer::client_id
+      if (data && typeof data === "object") {
+        const values = Object.values(data);
+        const looksMerged = values.some(
+          (v) => v && typeof v === "object" && (v.refresh_token || v.key || v.access_token) && (v.user_id || v.oidc_client_id || v.auth_mode)
+        );
+        if (looksMerged) {
+          for (const v of values) {
+            if (!v || typeof v !== "object") continue;
+            const flat = {
+              access_token: v.access_token || v.key || "",
+              refresh_token: v.refresh_token || "",
+              id_token: v.id_token || "",
+              email: v.email || "",
+              sub: v.user_id || v.principal_id || "",
+              token_type: "Bearer",
+              expired: v.expires_at || "",
+              last_refresh: v.create_time || "",
+              base_url: BASE_URL
+            };
+            out.push(prepareItem({
+              sourceFile: filename,
+              sourceFormat: "cpa",
+              account: normalizeCpa(flat)
+            }));
+          }
+          if (out.length) return out;
+        }
+      }
+
+      out.push(prepareItem({
+        sourceFile: filename,
+        sourceFormat: "unknown",
+        account: null,
+        error: "无法识别的 JSON 结构"
+      }));
+      return out;
+    }
+
+    function accountLabel(item) {
+      if (item.error || !item.account) return "-";
+      if (item.sourceFormat === "cpa") {
+        return item.account.email || item.account.sub || "(无邮箱)";
+      }
+      return (
+        item.account.credentials?.email ||
+        item.account.name ||
+        item.account._sub ||
+        "(无邮箱)"
+      );
+    }
+
+    function updateStats() {
+      const files = new Set(items.map((i) => i.sourceFile));
+      $("statFiles").textContent = String(files.size);
+      $("statAccounts").textContent = String(items.length);
+      $("statCpa").textContent = String(items.filter((i) => i.sourceFormat === "cpa").length);
+      $("statSub2").textContent = String(items.filter((i) => i.sourceFormat === "SUB2API").length);
+      $("statErr").textContent = String(items.filter((i) => i.error).length);
+    }
+
+    function uploadStatusHtml(item) {
+      const detail = item.uploadMessage
+        ? `<span class="upload-detail" title="${escapeHtml(item.uploadMessage)}">${escapeHtml(item.uploadMessage)}</span>`
+        : "";
+      if (item.uploadStatus === UPLOAD_STATUS.UPLOADING) {
+        return `<span class="tag tag-uploading">${escapeHtml(item.uploadTarget || "")} 上传中</span>${detail}`;
+      }
+      if (item.uploadStatus === UPLOAD_STATUS.SUCCESS) {
+        return `<span class="tag tag-upload-ok">${escapeHtml(item.uploadTarget || "")} 上传成功</span>${detail}`;
+      }
+      if (item.uploadStatus === UPLOAD_STATUS.FAILED) {
+        return `<span class="tag tag-upload-fail">${escapeHtml(item.uploadTarget || "")} 上传失败</span>${detail}`;
+      }
+      return `<span class="tag tag-upload-none">未上传</span>`;
+    }
+
+    function renderTable() {
+      syncTableControls();
+      const visibleItems = getVisibleItems();
+      if (!items.length) {
+        tbody.innerHTML = `<tr><td colspan="7" class="mono">尚未导入文件</td></tr>`;
+        updateStats();
+        refreshActionButtons();
+        return;
+      }
+      if (!visibleItems.length) {
+        tbody.innerHTML = `<tr><td colspan="7" class="mono">没有匹配的账号</td></tr>`;
+        updateStats();
+        refreshActionButtons();
+        return;
+      }
+      tbody.innerHTML = visibleItems
+        .map(({ item, index }) => {
+          const srcTag =
+            item.sourceFormat === "cpa"
+              ? `<span class="tag tag-cpa">CPA</span>`
+              : item.sourceFormat === TARGET_SUB2API
+                ? `<span class="tag tag-sub2">SUB2API</span>`
+                : `<span class="tag tag-err">unknown</span>`;
+          let target = "-";
+          if (item.error) {
+            target = `<span class="tag tag-err">跳过</span>`;
+          } else if (item.targetFormat === "cpa") {
+            target = `<span class="tag tag-cpa">CPA</span>`;
+          } else if (item.targetFormat === TARGET_SUB2API) {
+            target = `<span class="tag tag-sub2">SUB2API</span>`;
+          } else {
+            const dir = $("direction").value;
+            if (dir === "to-cpa") target = `<span class="tag tag-cpa">CPA</span>`;
+            else if (dir === "to-SUB2API") target = `<span class="tag tag-sub2">SUB2API</span>`;
+            else if (item.sourceFormat === "cpa") target = `<span class="tag tag-sub2">SUB2API</span>`;
+            else if (item.sourceFormat === TARGET_SUB2API) target = `<span class="tag tag-cpa">CPA</span>`;
+          }
+          const status = item.error
+            ? `<span class="tag tag-err">${escapeHtml(item.error)}</span>`
+            : item.converted
+              ? `<span class="tag tag-ok">已转换</span>`
+              : `<span class="tag tag-ok">待转换</span>`;
+          const firstCell = selectionMode
+            ? `<label class="row-select-cell"><input type="checkbox" class="row-check" data-item-id="${escapeHtml(item.id)}" ${item.selected ? "checked" : ""} /><span>${index + 1}</span></label>`
+            : `${index + 1}`;
+          return `<tr class="${item.selected && selectionMode ? "selected-row" : ""}">
+            <td>${firstCell}</td>
+            <td class="mono">${escapeHtml(item.sourceFile)}</td>
+            <td>${srcTag}</td>
+            <td>${target}</td>
+            <td class="email">${escapeHtml(accountLabel(item))}</td>
+            <td>${status}</td>
+            <td>${uploadStatusHtml(item)}</td>
+          </tr>`;
+        })
+        .join("");
+      updateStats();
+      refreshActionButtons();
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function resolveTarget(sourceFormat) {
+      const dir = $("direction").value;
+      if (dir === "to-cpa") return "cpa";
+      if (dir === "to-SUB2API") return TARGET_SUB2API;
+      if (sourceFormat === "cpa") return TARGET_SUB2API;
+      if (sourceFormat === TARGET_SUB2API) return "cpa";
+      return null;
+    }
+
+    function stripInternal(obj) {
+      const out = { ...obj };
+      Object.keys(out).forEach((k) => {
+        if (k.startsWith("_")) delete out[k];
+      });
+      return out;
+    }
+
+    function finalizeCpa(c) {
+      const record = {
+        type: "xai",
+        auth_kind: "oauth",
+        email: c.email || "",
+        sub: c.sub || "",
+        access_token: c.access_token || "",
+        refresh_token: c.refresh_token || "",
+        id_token: c.id_token || "",
+        token_type: c.token_type || "Bearer",
+        expires_in: c.expires_in ?? null,
+        expired: c.expired || "",
+        last_refresh: c.last_refresh || new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+        redirect_uri: c.redirect_uri || REDIRECT_URI,
+        token_endpoint: c.token_endpoint || TOKEN_ENDPOINT,
+        base_url: c.base_url || BASE_URL,
+        disabled: !!c.disabled
+      };
+      if ($("keepHeaders").checked) {
+        record.headers = c.headers && typeof c.headers === "object" ? c.headers : { ...DEFAULT_HEADERS };
+      }
+      if ($("keepSso").checked && c.sso) {
+        record.sso = c.sso;
+      }
+      return record;
+    }
+
+    function finalizeSub2(account, preserveExtra) {
+      const out = {
+        name: account.name || account.credentials?.email || "unknown",
+        platform: account.platform || "grok",
+        type: account.type || "oauth",
+        credentials: { ...(account.credentials || {}) },
+        extra: { ...(account.extra || {}) },
+        concurrency: Number($("concurrency").value) || account.concurrency || 1,
+        priority: Number($("priority").value) || account.priority || 1,
+        rate_multiplier: Number($("rateMultiplier").value) || account.rate_multiplier || 1,
+        auto_pause_on_expired: $("autoPause").checked
+      };
+      if (!out.extra.email && out.credentials.email) out.extra.email = out.credentials.email;
+      if (preserveExtra && account.extra && account.extra.grok_usage_snapshot) {
+        out.extra.grok_usage_snapshot = account.extra.grok_usage_snapshot;
+      }
+      return out;
+    }
+
+    function convertItemTo(item, target) {
+      if (!item || item.error || !item.account) throw new Error("账号不可用");
+      if (target === TARGET_SUB2API) {
+        if (item.sourceFormat === "cpa") {
+          return finalizeSub2(cpaToSub2(item.account), false);
+        }
+        const normalized = finalizeSub2(cpaToSub2(normalizeCpa(sub2ToCpa(item.account))), true);
+        if (item.account.name) normalized.name = item.account.name;
+        return normalized;
+      }
+      if (target === TARGET_CPA || target === "cpa") {
+        if (item.sourceFormat === TARGET_SUB2API) {
+          return finalizeCpa(sub2ToCpa(item.account));
+        }
+        return finalizeCpa(stripInternal(item.account));
+      }
+      throw new Error("无法判定目标格式");
+    }
+
+    function convertAll() {
+      clearMsg();
+      const targets = getOperationItems();
+      if (!targets.length) {
+        showMsg(selectionMode ? "请先选择账号" : "没有可转换的账号", "err");
+        return;
+      }
+      let ok = 0;
+      let skip = 0;
+      for (const item of targets) {
+        item.converted = null;
+        item.targetFormat = null;
+        if (item.error || !item.account) {
+          skip++;
+          continue;
+        }
+        const target = resolveTarget(item.sourceFormat);
+        if (!target) {
+          item.error = "无法判定目标格式";
+          skip++;
+          continue;
+        }
+        try {
+          item.converted = convertItemTo(item, target);
+          item.targetFormat = target;
+          ok++;
+        } catch (e) {
+          item.error = "转换失败: " + e.message;
+          skip++;
+        }
+      }
+      converted = items.some((item) => item.converted);
+      renderTable();
+      showMsg(`转换完成：成功 ${ok}，跳过/失败 ${skip}`, ok ? "ok" : "err");
+    }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    }
+
+    function downloadJson(obj, filename) {
+      const text = JSON.stringify(obj, null, 2);
+      downloadBlob(new Blob([text], { type: "application/json;charset=utf-8" }), filename);
+    }
+
+    function tsStamp() {
+      const d = new Date();
+      const p = (n) => String(n).padStart(2, "0");
+      return (
+        d.getFullYear() +
+        p(d.getMonth() + 1) +
+        p(d.getDate()) +
+        p(d.getHours()) +
+        p(d.getMinutes()) +
+        p(d.getSeconds())
+      );
+    }
+
+    function exportSub2() {
+      const accounts = getOperationItems()
+        .filter((i) => i.converted && i.targetFormat === TARGET_SUB2API)
+        .map((i) => i.converted);
+      if (!accounts.length) {
+        showMsg("没有可导出的 SUB2API 账号", "err");
+        return;
+      }
+      const pack = {
+        exported_at: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+        proxies: [],
+        accounts
+      };
+      downloadJson(pack, `SUB2API-account-${tsStamp()}.json`);
+      showMsg(`已导出 SUB2API 合并包：${accounts.length} 个账号`, "ok");
+    }
+
+    // ---- minimal ZIP (STORE) ----
+    function crc32(buf) {
+      let c = ~0;
+      for (let i = 0; i < buf.length; i++) {
+        c ^= buf[i];
+        for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1));
+      }
+      return ~c >>> 0;
+    }
+
+    function u16(n) {
+      return new Uint8Array([n & 255, (n >>> 8) & 255]);
+    }
+    function u32(n) {
+      return new Uint8Array([n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255]);
+    }
+    function concat(chunks) {
+      const len = chunks.reduce((s, c) => s + c.length, 0);
+      const out = new Uint8Array(len);
+      let o = 0;
+      for (const c of chunks) {
+        out.set(c, o);
+        o += c.length;
+      }
+      return out;
+    }
+
+    function buildZip(files) {
+      // files: [{name, data: Uint8Array}]
+      const enc = new TextEncoder();
+      const locals = [];
+      const centrals = [];
+      let offset = 0;
+      for (const f of files) {
+        const nameBytes = enc.encode(f.name);
+        const data = f.data;
+        const crc = crc32(data);
+        const local = concat([
+          u32(0x04034b50),
+          u16(20),
+          u16(0),
+          u16(0),
+          u16(0),
+          u16(0),
+          u32(crc),
+          u32(data.length),
+          u32(data.length),
+          u16(nameBytes.length),
+          u16(0),
+          nameBytes,
+          data
+        ]);
+        const central = concat([
+          u32(0x02014b50),
+          u16(20),
+          u16(20),
+          u16(0),
+          u16(0),
+          u16(0),
+          u16(0),
+          u32(crc),
+          u32(data.length),
+          u32(data.length),
+          u16(nameBytes.length),
+          u16(0),
+          u16(0),
+          u16(0),
+          u16(0),
+          u32(0),
+          u32(offset),
+          nameBytes
+        ]);
+        locals.push(local);
+        centrals.push(central);
+        offset += local.length;
+      }
+      const centralDir = concat(centrals);
+      const end = concat([
+        u32(0x06054b50),
+        u16(0),
+        u16(0),
+        u16(files.length),
+        u16(files.length),
+        u32(centralDir.length),
+        u32(offset),
+        u16(0)
+      ]);
+      return concat([...locals, centralDir, end]);
+    }
+
+    function exportCpaZip() {
+      const list = getOperationItems().filter((i) => i.converted && i.targetFormat === "cpa");
+      if (!list.length) {
+        showMsg("没有可导出的 CPA 记录", "err");
+        return;
+      }
+      const enc = new TextEncoder();
+      const used = new Map();
+      const files = list.map((item) => {
+        let name = cpaFilename(item.converted);
+        if (used.has(name)) {
+          const n = used.get(name) + 1;
+          used.set(name, n);
+          name = name.replace(/\.json$/i, `-${n}.json`);
+        } else {
+          used.set(name, 1);
+        }
+        const text = JSON.stringify(item.converted, null, 2);
+        return { name, data: enc.encode(text) };
+      });
+      const zipBytes = buildZip(files);
+      downloadBlob(new Blob([zipBytes], { type: "application/zip" }), `cpa-auth-${tsStamp()}.zip`);
+      showMsg(`已导出 CPA ZIP：${files.length} 个文件`, "ok");
+    }
+
+    async function exportCpaEach() {
+      const list = getOperationItems().filter((i) => i.converted && i.targetFormat === "cpa");
+      if (!list.length) {
+        showMsg("没有可导出的 CPA 记录", "err");
+        return;
+      }
+      const used = new Map();
+      for (const item of list) {
+        let name = cpaFilename(item.converted);
+        if (used.has(name)) {
+          const n = used.get(name) + 1;
+          used.set(name, n);
+          name = name.replace(/\.json$/i, `-${n}.json`);
+        } else {
+          used.set(name, 1);
+        }
+        downloadJson(item.converted, name);
+        await new Promise((r) => setTimeout(r, 120));
+      }
+      showMsg(`已触发逐个下载 CPA JSON：${list.length} 个`, "ok");
+    }
+
+    function apiErrorMessage(error) {
+      if (!error) return "未知错误";
+      if (error.name === "AbortError") return "请求超时";
+      return error.message || String(error);
+    }
+
+    async function fetchJson(url, options = {}, timeoutMs = 60000) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(url, {
+          ...options,
+          headers: {
+            Accept: "application/json",
+            ...(options.headers || {})
+          },
+          signal: controller.signal
+        });
+        const text = await response.text();
+        let data = null;
+        if (text) {
+          try { data = JSON.parse(text); } catch { data = { raw: text }; }
+        }
+        if (response.status === 401 && data?.code === "AUTH_REQUIRED") {
+          location.reload();
+          throw new Error("登录状态已失效");
+        }
+        if (!response.ok) {
+          const detail = data?.error || data?.message || data?.code || data?.raw || response.statusText;
+          const error = new Error(`HTTP ${response.status}: ${typeof detail === "string" ? detail : JSON.stringify(detail)}`);
+          error.status = response.status;
+          error.code = data?.code;
+          error.data = data;
+          throw error;
+        }
+        return { response, data };
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    function shouldRetry(error) {
+      if (!error || error.name === "AbortError") return true;
+      if (!error.status) return true;
+      return error.status === 408 || error.status === 425 || error.status === 429 || error.status >= 500;
+    }
+
+    function sleep(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    async function withRetry(task, attempts = 3, onAttempt = null) {
+      let lastError;
+      for (let attempt = 1; attempt <= attempts; attempt++) {
+        try {
+          if (onAttempt) onAttempt(attempt);
+          return await task(attempt);
+        } catch (error) {
+          lastError = error;
+          if (attempt >= attempts || !shouldRetry(error)) throw error;
+          const jitter = Math.floor(Math.random() * 250);
+          await sleep(700 * (2 ** (attempt - 1)) + jitter);
+        }
+      }
+      throw lastError;
+    }
+
+    function configStateHtml(target, info) {
+      const configured = !!info?.configured;
+      const statusClass = configured ? "tag-upload-ok" : "tag-upload-fail";
+      const statusText = configured ? "已配置" : "未配置";
+      const missing = info?.missing?.length ? info.missing.join(", ") : "-";
+      const urlError = info?.urlError || "";
+      return `<div class="env-target">
+        <div class="env-target-head"><span>${target}</span><span class="tag ${statusClass}">${statusText}</span></div>
+        <dl>
+          <dt>服务器地址</dt><dd>${escapeHtml(info?.baseUrl || "未设置")}</dd>
+          <dt>缺少变量</dt><dd>${escapeHtml(missing)}</dd>
+          <dt>地址错误</dt><dd>${escapeHtml(urlError || "-")}</dd>
+          <dt>地址变量</dt><dd><code>${escapeHtml(info?.variables?.baseUrl || "-")}</code></dd>
+          <dt>密钥 Secret</dt><dd><code>${escapeHtml(info?.variables?.apiKey || "-")}</code></dd>
+        </dl>
+      </div>`;
+    }
+
+    function updateRuntimeConfigUi() {
+      const targets = runtimeTargetStatus?.targets || {};
+      for (const [target, badgeId] of [[TARGET_SUB2API, "badgeSub2Config"], [TARGET_CPA, "badgeCpaConfig"]]) {
+        const info = targets[target];
+        const badge = $(badgeId);
+        if (!info) {
+          badge.textContent = `${target}：检测失败`;
+          badge.className = "runtime-badge bad";
+        } else if (info.configured) {
+          badge.textContent = `${target}：已配置`;
+          badge.className = "runtime-badge ok";
+          badge.title = info.baseUrl || "";
+        } else {
+          badge.textContent = `${target}：未配置`;
+          badge.className = "runtime-badge bad";
+          badge.title = (info.missing || []).join(", ");
+        }
+      }
+      $("envConfigGrid").innerHTML = [TARGET_SUB2API, TARGET_CPA]
+        .map((target) => configStateHtml(target, targets[target]))
+        .join("");
+    }
+
+    async function loadRuntimeConfigStatus(showError = false) {
+      try {
+        const { data } = await fetchJson("/api/config/status", { method: "GET" }, 30000);
+        runtimeTargetStatus = data;
+        updateRuntimeConfigUi();
+        return data;
+      } catch (error) {
+        runtimeTargetStatus = null;
+        updateRuntimeConfigUi();
+        if (showError) setConfigStatus(apiErrorMessage(error), "err");
+        return null;
+      }
+    }
+
+    function setConfigStatus(text, type = "") {
+      const el = $("configStatus");
+      el.textContent = text;
+      el.className = `config-status ${type}`.trim();
+    }
+
+    function closeConfigDialog() {
+      $("serverConfigModal").classList.remove("show");
+    }
+
+    async function openConfigDialog(reason = "") {
+      setConfigStatus(reason, reason ? "err" : "");
+      $("serverConfigModal").classList.add("show");
+      if (!runtimeTargetStatus) await loadRuntimeConfigStatus(true);
+      updateRuntimeConfigUi();
+    }
+
+    async function verifyServerConfig(target) {
+      const { data } = await fetchJson(
+        "/api/config/verify",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ target })
+        },
+        60000
+      );
+      return data;
+    }
+
+    async function ensureVerifiedConfig(target, forceShow = false) {
+      if (!runtimeTargetStatus) await loadRuntimeConfigStatus(false);
+      const info = runtimeTargetStatus?.targets?.[target];
+      if (forceShow) {
+        await openConfigDialog(`${target} 的地址和密钥由 Worker 环境变量管理。`);
+        return false;
+      }
+      if (!info?.configured) {
+        await openConfigDialog(`${target} 尚未配置，请按说明设置环境变量和 Secret。`);
+        return false;
+      }
+      try {
+        showMsg(`正在验证 ${target} 服务器配置…`, "info");
+        const verified = await verifyServerConfig(target);
+        showMsg(verified.message || `${target} 配置验证成功`, "ok");
+        return true;
+      } catch (error) {
+        await openConfigDialog(`${target} 已配置但验证失败：${apiErrorMessage(error)}`);
+        return false;
+      }
+    }
+
+    function setItemUploadState(item, status, target, message = "", attempts = 0) {
+      item.uploadStatus = status;
+      item.uploadTarget = target;
+      item.uploadMessage = message;
+      item.uploadAttempts = attempts;
+    }
+
+    function uploadProgressMessage(target, total) {
+      const scope = activeUploadItemIds
+        ? items.filter((item) => activeUploadItemIds.has(item.id))
+        : getOperationItems();
+      const done = scope.filter((item) => item.uploadTarget === target && item.uploadStatus === UPLOAD_STATUS.SUCCESS).length;
+      const failed = scope.filter((item) => item.uploadTarget === target && item.uploadStatus === UPLOAD_STATUS.FAILED).length;
+      showMsg(`${target} 上传进度：成功 ${done}，失败 ${failed}，本次共 ${total} 个`, "info");
+    }
+
+    async function uploadSub2Batch(entries, total, depth = 0) {
+      for (const entry of entries) setItemUploadState(entry.item, UPLOAD_STATUS.UPLOADING, TARGET_SUB2API, "Worker 正在转发请求");
+      renderTable();
+      try {
+        const { data } = await fetchJson(
+          "/api/upload/sub2api",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              accounts: entries.map((entry) => entry.account),
+              skipDefaultGroupBind: false
+            })
+          },
+          660000
+        );
+        const attempts = Number(data?.attempts || 1);
+        for (const entry of entries) {
+          setItemUploadState(entry.item, UPLOAD_STATUS.SUCCESS, TARGET_SUB2API, `导入成功（Worker 尝试 ${attempts} 次）`, attempts);
+        }
+      } catch (error) {
+        if (entries.length > 1 && depth < 8 && ![401, 403, 503].includes(error.status)) {
+          const mid = Math.ceil(entries.length / 2);
+          await uploadSub2Batch(entries.slice(0, mid), total, depth + 1);
+          await uploadSub2Batch(entries.slice(mid), total, depth + 1);
+          return;
+        }
+        const message = apiErrorMessage(error);
+        const attempts = Number(error?.data?.attempts || 1);
+        for (const entry of entries) {
+          setItemUploadState(entry.item, UPLOAD_STATUS.FAILED, TARGET_SUB2API, message, attempts);
+        }
+      } finally {
+        uploadProgressMessage(TARGET_SUB2API, total);
+        renderTable();
+      }
+    }
+
+    function uniqueCpaUploadEntries(operationItems) {
+      const used = new Map();
+      return operationItems.map((item) => {
+        const account = convertItemTo(item, TARGET_CPA);
+        let filename = cpaFilename(account);
+        const count = (used.get(filename) || 0) + 1;
+        used.set(filename, count);
+        if (count > 1) filename = filename.replace(/\.json$/i, `-${count}.json`);
+        return { item, account, filename };
+      });
+    }
+
+    async function uploadCpaBatch(entries, total) {
+      for (const entry of entries) {
+        setItemUploadState(entry.item, UPLOAD_STATUS.UPLOADING, TARGET_CPA, "Worker 正在上传", 0);
+      }
+      renderTable();
+      try {
+        const { data } = await fetchJson(
+          "/api/upload/cpa",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              files: entries.map((entry) => ({ name: entry.filename, account: entry.account }))
+            })
+          },
+          180000
+        );
+        const resultMap = new Map((data?.results || []).map((result) => [result.name, result]));
+        for (const entry of entries) {
+          const result = resultMap.get(entry.filename);
+          if (result?.ok) {
+            setItemUploadState(entry.item, UPLOAD_STATUS.SUCCESS, TARGET_CPA, `上传成功（Worker 尝试 ${result.attempts || 1} 次）`, result.attempts || 1);
+          } else {
+            setItemUploadState(entry.item, UPLOAD_STATUS.FAILED, TARGET_CPA, result?.error || "服务器未返回该文件的处理结果", result?.attempts || 1);
+          }
+        }
+      } catch (error) {
+        const message = apiErrorMessage(error);
+        for (const entry of entries) {
+          setItemUploadState(entry.item, UPLOAD_STATUS.FAILED, TARGET_CPA, message, Number(error?.data?.attempts || 1));
+        }
+      } finally {
+        uploadProgressMessage(TARGET_CPA, total);
+        renderTable();
+      }
+    }
+
+    async function uploadToServer(target, showConfigOnly = false) {
+      if (uploadBusy) return;
+      const operationItems = getOperationItems();
+      if (!showConfigOnly && !operationItems.length) {
+        showMsg(selectionMode ? "请先勾选要上传的账号" : "没有可上传的账号", "err");
+        return;
+      }
+      const verified = await ensureVerifiedConfig(target, showConfigOnly);
+      if (!verified) return;
+
+      activeUploadItemIds = new Set(operationItems.map((item) => item.id));
+      setUploadBusy(true);
+      clearMsg();
+      for (const item of operationItems) {
+        setItemUploadState(item, UPLOAD_STATUS.UPLOADING, target, "准备上传", 0);
+      }
+      renderTable();
+      try {
+        if (target === TARGET_SUB2API) {
+          const entries = operationItems.map((item) => ({ item, account: convertItemTo(item, TARGET_SUB2API) }));
+          const batchSize = 50;
+          for (let i = 0; i < entries.length; i += batchSize) {
+            await uploadSub2Batch(entries.slice(i, i + batchSize), entries.length);
+          }
+        } else {
+          const entries = uniqueCpaUploadEntries(operationItems);
+          const batchSize = 10;
+          for (let i = 0; i < entries.length; i += batchSize) {
+            await uploadCpaBatch(entries.slice(i, i + batchSize), entries.length);
+          }
+        }
+        const success = operationItems.filter((item) => item.uploadStatus === UPLOAD_STATUS.SUCCESS).length;
+        const failed = operationItems.length - success;
+        showMsg(`${target} 上传完成：成功 ${success}，失败 ${failed}`, failed ? "info" : "ok");
+      } catch (error) {
+        const message = apiErrorMessage(error);
+        for (const item of operationItems) {
+          if (item.uploadStatus !== UPLOAD_STATUS.SUCCESS) {
+            setItemUploadState(item, UPLOAD_STATUS.FAILED, target, message, item.uploadAttempts);
+          }
+        }
+        showMsg(`${target} 上传中止：${message}`, "err");
+      } finally {
+        activeUploadItemIds = null;
+        setUploadBusy(false);
+        renderTable();
+      }
+    }
+
+    async function handleFiles(fileList) {
+      clearMsg();
+      converted = false;
+      const files = Array.from(fileList || []);
+      if (!files.length) return;
+
+      for (const file of files) {
+        try {
+          const text = await file.text();
+          const parsed = parseFileContent(file.name, text);
+          items.push(...parsed);
+        } catch (e) {
+          items.push(prepareItem({
+            sourceFile: file.name,
+            sourceFormat: "unknown",
+            account: null,
+            error: "读取失败: " + e.message
+          }));
+        }
+      }
+
+      renderTable();
+      showMsg(`已导入 ${files.length} 个文件，累计账号 ${items.length}`, "info");
+    }
+
+    function clearAll() {
+      items = [];
+      converted = false;
+      fileInput.value = "";
+      selectionMode = false;
+      tableSearch = "";
+      $("accountSearch").value = "";
+      document.querySelectorAll("[data-upload-select]").forEach((input) => { input.checked = false; });
+      clearMsg();
+      renderTable();
+    }
+
+    // events
+    dropzone.addEventListener("click", () => fileInput.click());
+    dropzone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropzone.classList.add("dragover");
+    });
+    dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
+    dropzone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropzone.classList.remove("dragover");
+      handleFiles(e.dataTransfer.files);
+    });
+    fileInput.addEventListener("change", () => handleFiles(fileInput.files));
+    $("btnConvert").addEventListener("click", convertAll);
+    $("btnExportSub2").addEventListener("click", exportSub2);
+    $("btnExportCpaZip").addEventListener("click", exportCpaZip);
+    $("btnExportCpaEach").addEventListener("click", exportCpaEach);
+    $("btnUploadSub2").addEventListener("click", (event) => uploadToServer(TARGET_SUB2API, event.shiftKey));
+    $("btnUploadCpa").addEventListener("click", (event) => uploadToServer(TARGET_CPA, event.shiftKey));
+    $("btnClear").addEventListener("click", clearAll);
+
+    $("btnSelectMode").addEventListener("click", () => {
+      selectionMode = !selectionMode;
+      if (!selectionMode) {
+        for (const item of items) item.selected = false;
+        document.querySelectorAll("[data-upload-select]").forEach((input) => { input.checked = false; });
+      }
+      renderTable();
+    });
+    $("btnExitSelection").addEventListener("click", () => {
+      selectionMode = false;
+      for (const item of items) item.selected = false;
+      document.querySelectorAll("[data-upload-select]").forEach((input) => { input.checked = false; });
+      renderTable();
+    });
+    $("btnSelectVisible").addEventListener("click", () => {
+      for (const { item } of getVisibleItems()) {
+        if (!item.error && item.account) item.selected = true;
+      }
+      renderTable();
+    });
+    $("btnClearSelection").addEventListener("click", () => {
+      for (const item of items) item.selected = false;
+      document.querySelectorAll("[data-upload-select]").forEach((input) => { input.checked = false; });
+      renderTable();
+    });
+    tbody.addEventListener("change", (event) => {
+      const checkbox = event.target.closest(".row-check");
+      if (!checkbox) return;
+      const item = items.find((row) => row.id === checkbox.dataset.itemId);
+      if (item) item.selected = checkbox.checked;
+      renderTable();
+    });
+    document.querySelectorAll("[data-upload-select]").forEach((checkbox) => {
+      checkbox.addEventListener("change", () => {
+        const status = checkbox.dataset.uploadSelect;
+        for (const { item } of getVisibleItems()) {
+          if (item.error || !item.account) continue;
+          if (item.uploadStatus === status) item.selected = checkbox.checked;
+        }
+        renderTable();
+      });
+    });
+
+    $("btnSearchToggle").addEventListener("click", () => {
+      searchVisible = !searchVisible;
+      renderTable();
+      if (searchVisible) setTimeout(() => $("accountSearch").focus(), 0);
+    });
+    $("accountSearch").addEventListener("input", (event) => {
+      tableSearch = event.target.value;
+      renderTable();
+    });
+    $("btnClearSearch").addEventListener("click", () => {
+      tableSearch = "";
+      $("accountSearch").value = "";
+      renderTable();
+      $("accountSearch").focus();
+    });
+
+    $("direction").addEventListener("change", () => {
+      converted = false;
+      for (const i of items) {
+        i.converted = null;
+        i.targetFormat = null;
+      }
+      renderTable();
+    });
+
+    $("btnCloseConfig").addEventListener("click", closeConfigDialog);
+    $("btnCancelConfig").addEventListener("click", closeConfigDialog);
+    $("serverConfigModal").addEventListener("click", (event) => {
+      if (event.target === $("serverConfigModal")) closeConfigDialog();
+    });
+    $("btnRuntimeConfig").addEventListener("click", () => openConfigDialog());
+    $("btnRefreshConfig").addEventListener("click", async () => {
+      $("btnRefreshConfig").disabled = true;
+      setConfigStatus("正在重新读取并验证环境配置…");
+      await loadRuntimeConfigStatus(true);
+      const targets = [TARGET_SUB2API, TARGET_CPA];
+      const lines = [];
+      for (const target of targets) {
+        if (!runtimeTargetStatus?.targets?.[target]?.configured) {
+          lines.push(`${target}：未配置`);
+          continue;
+        }
+        try {
+          const result = await verifyServerConfig(target);
+          lines.push(`${target}：${result.message || "验证成功"}`);
+        } catch (error) {
+          lines.push(`${target}：${apiErrorMessage(error)}`);
+        }
+      }
+      const allOk = lines.every((line) => line.includes("成功"));
+      setConfigStatus(lines.join("\n"), allOk ? "ok" : "err");
+      $("btnRefreshConfig").disabled = false;
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && $("serverConfigModal").classList.contains("show")) {
+        closeConfigDialog();
+      }
+    });
+
+    renderTable();
+    loadRuntimeConfigStatus(false);
+  </script>
+</body>
+</html>
