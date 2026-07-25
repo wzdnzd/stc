@@ -13,3 +13,9 @@ CPA_MANAGEMENT_KEY="replace-with-cpa-management-key"
 CPA_AUTH_MODE="auto"
 SESSION_TTL_HOURS="168"
 ALLOW_INSECURE_UPSTREAM="false"
+
+# 单批上传上限（可选；未设置/无效值回退默认，超过硬上限时钳制）
+# SUB2API 默认 100，硬上限 5000
+# MAX_SUB2API_ACCOUNTS="100"
+# CPA 默认 20，硬上限 100
+# MAX_CPA_FILES="20"

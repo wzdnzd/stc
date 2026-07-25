@@ -1,7 +1,9 @@
 const COOKIE_NAME = "converter_session";
 const DEFAULT_SESSION_TTL_HOURS = 168;
-const MAX_SUB2API_ACCOUNTS = 500;
-const MAX_CPA_FILES = 12;
+const DEFAULT_MAX_SUB2API_ACCOUNTS = 100;
+const DEFAULT_MAX_CPA_FILES = 20;
+const ABSOLUTE_MAX_SUB2API_ACCOUNTS = 5000;
+const ABSOLUTE_MAX_CPA_FILES = 100;
 const UPSTREAM_TIMEOUT_MS = 10 * 60 * 1000;
 const VERIFY_TIMEOUT_MS = 30 * 1000;
 
@@ -87,6 +89,10 @@ async function handleApi(request, env, url) {
         protected: true,
         sessionTtlHours: sessionTtlHours(env),
       },
+      limits: {
+        maxSub2apiAccounts: maxSub2apiAccounts(env),
+        maxCpaFiles: maxCpaFiles(env),
+      },
     });
   }
 
@@ -100,11 +106,12 @@ async function handleApi(request, env, url) {
   if (url.pathname === "/api/upload/sub2api" && request.method === "POST") {
     const body = await readJsonBody(request, 20 * 1024 * 1024);
     const accounts = body?.accounts;
+    const maxAccounts = maxSub2apiAccounts(env);
     if (!Array.isArray(accounts) || accounts.length === 0) {
       throw new HttpError(400, "accounts 必须是非空数组。", "INVALID_PAYLOAD");
     }
-    if (accounts.length > MAX_SUB2API_ACCOUNTS) {
-      throw new HttpError(400, `单批最多上传 ${MAX_SUB2API_ACCOUNTS} 个 SUB2API 账号。`, "BATCH_TOO_LARGE");
+    if (accounts.length > maxAccounts) {
+      throw new HttpError(400, `单批最多上传 ${maxAccounts} 个 SUB2API 账号。`, "BATCH_TOO_LARGE");
     }
     const result = await uploadSub2api(env, accounts, Boolean(body?.skipDefaultGroupBind), request.signal);
     return jsonResponse({ ok: true, target: "SUB2API", count: accounts.length, ...result });
@@ -113,11 +120,12 @@ async function handleApi(request, env, url) {
   if (url.pathname === "/api/upload/cpa" && request.method === "POST") {
     const body = await readJsonBody(request, 20 * 1024 * 1024);
     const files = body?.files;
+    const maxFiles = maxCpaFiles(env);
     if (!Array.isArray(files) || files.length === 0) {
       throw new HttpError(400, "files 必须是非空数组。", "INVALID_PAYLOAD");
     }
-    if (files.length > MAX_CPA_FILES) {
-      throw new HttpError(400, `单批最多上传 ${MAX_CPA_FILES} 个 CPA 账号。`, "BATCH_TOO_LARGE");
+    if (files.length > maxFiles) {
+      throw new HttpError(400, `单批最多上传 ${maxFiles} 个 CPA 账号。`, "BATCH_TOO_LARGE");
     }
     const results = await uploadCpaFiles(env, files, request.signal);
     return jsonResponse({
@@ -175,6 +183,23 @@ function sessionTtlHours(env) {
   const parsed = Number(env.SESSION_TTL_HOURS || DEFAULT_SESSION_TTL_HOURS);
   if (!Number.isFinite(parsed)) return DEFAULT_SESSION_TTL_HOURS;
   return Math.min(24 * 30, Math.max(1, Math.floor(parsed)));
+}
+
+function parsePositiveIntEnv(raw, fallback, absoluteMax) {
+  if (raw === undefined || raw === null || String(raw).trim() === "") return fallback;
+  const parsed = Number(String(raw).trim());
+  if (!Number.isFinite(parsed)) return fallback;
+  const floored = Math.floor(parsed);
+  if (floored < 1) return fallback;
+  return Math.min(absoluteMax, floored);
+}
+
+function maxSub2apiAccounts(env) {
+  return parsePositiveIntEnv(env.MAX_SUB2API_ACCOUNTS, DEFAULT_MAX_SUB2API_ACCOUNTS, ABSOLUTE_MAX_SUB2API_ACCOUNTS);
+}
+
+function maxCpaFiles(env) {
+  return parsePositiveIntEnv(env.MAX_CPA_FILES, DEFAULT_MAX_CPA_FILES, ABSOLUTE_MAX_CPA_FILES);
 }
 
 async function createSessionToken(env) {
@@ -308,7 +333,7 @@ function getTargetConfig(env, target) {
   if (missing.length) {
     throw new HttpError(
       503,
-      `${target} 尚未配置。请在 Worker 环境变量中设置：${missing.join(", " )}。`,
+      `${target} 尚未配置。请在 Worker 环境变量中设置：${missing.join(", ")}。`,
       "TARGET_NOT_CONFIGURED",
       { target, missing },
     );

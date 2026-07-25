@@ -538,6 +538,21 @@
           <input type="checkbox" id="keepHeaders" checked />
           CPA 输出写入默认 grok-cli headers
         </label>
+        <div class="field" style="margin-top:12px">
+          <label>分批上传批次大小</label>
+          <div class="row">
+            <div style="flex:1 1 46%; min-width:140px">
+              <label for="batchSub2" style="display:block;font-size:11px;color:var(--muted);margin-bottom:5px">SUB2API 每批账号数</label>
+              <input type="number" id="batchSub2" value="100" min="1" step="1" />
+              <div class="hint" id="batchSub2Hint" style="margin-top:4px">范围 1–…，加载配置后更新</div>
+            </div>
+            <div style="flex:1 1 46%; min-width:140px">
+              <label for="batchCpa" style="display:block;font-size:11px;color:var(--muted);margin-bottom:5px">CPA 每批文件数</label>
+              <input type="number" id="batchCpa" value="20" min="1" step="1" />
+              <div class="hint" id="batchCpaHint" style="margin-top:4px">范围 1–…，加载配置后更新</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -673,6 +688,15 @@
     let runtimeTargetStatus = null;
     let activeUploadItemIds = null;
 
+    const DEFAULT_BATCH_SUB2API = 100;
+    const DEFAULT_BATCH_CPA = 20;
+    const FALLBACK_MAX_SUB2API = 100;
+    const FALLBACK_MAX_CPA = 20;
+    let serverLimits = {
+      maxSub2apiAccounts: FALLBACK_MAX_SUB2API,
+      maxCpaFiles: FALLBACK_MAX_CPA
+    };
+
     const TARGET_SUB2API = "SUB2API";
     const TARGET_CPA = "CPA";
     const UPLOAD_STATUS = Object.freeze({
@@ -776,6 +800,77 @@
       if (info?.configured) return `${target} 已配置；点击后会先验证服务器地址和管理员密钥`;
       const missing = info?.missing?.length ? info.missing.join(", ") : "对应环境变量";
       return `${target} 不可用：请在 Cloudflare Worker 环境变量中配置 ${missing}`;
+    }
+
+    function clampInt(value, min, max, fallback) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return fallback;
+      const floored = Math.floor(n);
+      if (floored < min) return min;
+      if (floored > max) return max;
+      return floored;
+    }
+
+    function currentMaxBatch(target) {
+      if (target === TARGET_SUB2API) {
+        return Math.max(1, Number(serverLimits.maxSub2apiAccounts) || FALLBACK_MAX_SUB2API);
+      }
+      return Math.max(1, Number(serverLimits.maxCpaFiles) || FALLBACK_MAX_CPA);
+    }
+
+    function defaultBatchSize(target) {
+      const max = currentMaxBatch(target);
+      const preferred = target === TARGET_SUB2API ? DEFAULT_BATCH_SUB2API : DEFAULT_BATCH_CPA;
+      return Math.min(preferred, max);
+    }
+
+    function updateBatchLimitHints() {
+      const maxSub2 = currentMaxBatch(TARGET_SUB2API);
+      const maxCpa = currentMaxBatch(TARGET_CPA);
+      const sub2Input = $("batchSub2");
+      const cpaInput = $("batchCpa");
+      sub2Input.min = "1";
+      sub2Input.max = String(maxSub2);
+      cpaInput.min = "1";
+      cpaInput.max = String(maxCpa);
+      $("batchSub2Hint").textContent = `可选范围 1–${maxSub2}（由 Worker 上限决定）`;
+      $("batchCpaHint").textContent = `可选范围 1–${maxCpa}（由 Worker 上限决定）`;
+      // 若当前值超出新上限，自动钳制到合法范围
+      sub2Input.value = String(clampInt(sub2Input.value, 1, maxSub2, defaultBatchSize(TARGET_SUB2API)));
+      cpaInput.value = String(clampInt(cpaInput.value, 1, maxCpa, defaultBatchSize(TARGET_CPA)));
+    }
+
+    function readBatchSize(target, { silent = false } = {}) {
+      const max = currentMaxBatch(target);
+      const input = target === TARGET_SUB2API ? $("batchSub2") : $("batchCpa");
+      const label = target === TARGET_SUB2API ? "SUB2API 每批账号数" : "CPA 每批文件数";
+      const raw = String(input.value ?? "").trim();
+      if (raw === "") {
+        if (!silent) showMsg(`${label} 不能为空，请输入 1–${max} 的整数。`, "err");
+        return null;
+      }
+      const n = Number(raw);
+      if (!Number.isFinite(n) || !Number.isInteger(n)) {
+        if (!silent) showMsg(`${label} 必须是整数，可选范围 1–${max}。`, "err");
+        return null;
+      }
+      if (n < 1 || n > max) {
+        if (!silent) showMsg(`${label} 超出范围：请输入 1–${max} 的整数。`, "err");
+        return null;
+      }
+      input.value = String(n);
+      return n;
+    }
+
+    function applyServerLimits(data) {
+      const limits = data?.limits || {};
+      const maxSub2 = Number(limits.maxSub2apiAccounts);
+      const maxCpa = Number(limits.maxCpaFiles);
+      serverLimits = {
+        maxSub2apiAccounts: Number.isFinite(maxSub2) && maxSub2 >= 1 ? Math.floor(maxSub2) : FALLBACK_MAX_SUB2API,
+        maxCpaFiles: Number.isFinite(maxCpa) && maxCpa >= 1 ? Math.floor(maxCpa) : FALLBACK_MAX_CPA
+      };
+      updateBatchLimitHints();
     }
 
     function refreshActionButtons() {
@@ -1703,10 +1798,12 @@
       try {
         const { data } = await fetchJson("/api/config/status", { method: "GET" }, 30000);
         runtimeTargetStatus = data;
+        applyServerLimits(data);
         updateRuntimeConfigUi();
         return data;
       } catch (error) {
         runtimeTargetStatus = null;
+        applyServerLimits(null);
         updateRuntimeConfigUi();
         if (showError) setConfigStatus(apiErrorMessage(error), "err");
         return null;
@@ -1961,6 +2058,11 @@
         showMsg(selectionMode ? "请先勾选要上传的账号" : "没有可上传的账号", "err");
         return;
       }
+      // 上传前确保已拿到服务端上限，并校验用户配置的批次大小
+      if (!showConfigOnly && !runtimeTargetStatus) await loadRuntimeConfigStatus(false);
+      const batchSize = showConfigOnly ? null : readBatchSize(target);
+      if (!showConfigOnly && !batchSize) return;
+
       const verified = await ensureVerifiedConfig(target, showConfigOnly);
       if (!verified) return;
 
@@ -1977,7 +2079,6 @@
       try {
         if (target === TARGET_SUB2API) {
           const entries = operationItems.map((item) => ({ item, account: convertItemTo(item, TARGET_SUB2API) }));
-          const batchSize = 300;
           const batchCount = Math.ceil(entries.length / batchSize);
           for (let i = 0, batchNumber = 1; i < entries.length; i += batchSize, batchNumber++) {
             throwIfUploadCancelled();
@@ -1985,7 +2086,6 @@
           }
         } else {
           const entries = uniqueCpaUploadEntries(operationItems);
-          const batchSize = 12;
           const batchCount = Math.ceil(entries.length / batchSize);
           for (let i = 0, batchNumber = 1; i < entries.length; i += batchSize, batchNumber++) {
             throwIfUploadCancelled();
@@ -2155,6 +2255,20 @@
       }
       renderTable();
     });
+
+    function bindBatchInput(inputId, target) {
+      const input = $(inputId);
+      const normalize = () => {
+        const max = currentMaxBatch(target);
+        const value = clampInt(input.value, 1, max, defaultBatchSize(target));
+        input.value = String(value);
+      };
+      input.addEventListener("change", normalize);
+      input.addEventListener("blur", normalize);
+    }
+    bindBatchInput("batchSub2", TARGET_SUB2API);
+    bindBatchInput("batchCpa", TARGET_CPA);
+    updateBatchLimitHints();
 
     $("btnCloseConfig").addEventListener("click", closeConfigDialog);
     $("btnCancelConfig").addEventListener("click", closeConfigDialog);
