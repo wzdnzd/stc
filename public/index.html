@@ -194,6 +194,7 @@
       font-weight: 600;
     }
     .field-tip {
+      position: relative;
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -211,10 +212,57 @@
       flex: 0 0 auto;
       background: rgba(255, 255, 255, 0.03);
     }
-    .field-tip:hover {
+    .field-tip:hover,
+    .field-tip:focus-visible {
       color: var(--text);
       border-color: var(--muted);
       background: rgba(255, 255, 255, 0.06);
+      outline: none;
+    }
+    .field-tip::after {
+      content: attr(data-tip);
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 8px);
+      transform: translateX(-50%);
+      width: max-content;
+      max-width: min(260px, 70vw);
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #1a2332;
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 1.45;
+      text-align: left;
+      white-space: normal;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity 0.12s ease, visibility 0.12s ease;
+      z-index: 30;
+    }
+    .field-tip::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 2px);
+      transform: translateX(-50%);
+      border: 6px solid transparent;
+      border-top-color: #1a2332;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.12s ease, visibility 0.12s ease;
+      z-index: 31;
+    }
+    .field-tip:hover::after,
+    .field-tip:hover::before,
+    .field-tip:focus-visible::after,
+    .field-tip:focus-visible::before {
+      opacity: 1;
+      visibility: visible;
     }
     .upload-progress {
       display: none;
@@ -299,7 +347,10 @@
       border-color: var(--accent);
       box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
     }
-    .field { margin-bottom: 12px; }
+    .field {
+      margin-bottom: 12px;
+      overflow: visible;
+    }
     .field:last-child { margin-bottom: 0; }
     .field label {
       display: block;
@@ -324,9 +375,11 @@
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 8px;
+      overflow: visible;
     }
     .triple > div {
       min-width: 0;
+      overflow: visible;
     }
     .batch-grid {
       display: grid;
@@ -766,21 +819,21 @@
             <div>
               <label class="field-mini-label" for="concurrency">
                 并发
-                <span class="field-tip" title="写入 SUB2API 账号的 concurrency：该账号在 SUB2API 内可同时处理的请求数">i</span>
+                <span class="field-tip" tabindex="0" data-tip="写入 SUB2API 账号的 concurrency：该账号在 SUB2API 内可同时处理的请求数">i</span>
               </label>
               <input type="number" id="concurrency" value="1" min="1" step="1" title="SUB2API 账号 concurrency" aria-label="SUB2API 账号并发" />
             </div>
             <div>
               <label class="field-mini-label" for="priority">
                 优先级
-                <span class="field-tip" title="写入 SUB2API 账号的 priority：该账号在 SUB2API 调度队列中的优先级，数值越大通常越优先被选用">i</span>
+                <span class="field-tip" tabindex="0" data-tip="写入 SUB2API 账号的 priority：该账号在 SUB2API 调度队列中的优先级，数值越大通常越优先被选用">i</span>
               </label>
               <input type="number" id="priority" value="1" min="0" step="1" title="SUB2API 账号 priority" aria-label="SUB2API 账号优先级" />
             </div>
             <div>
               <label class="field-mini-label" for="rateMultiplier">
                 速率倍率
-                <span class="field-tip" title="写入 SUB2API 账号的 rate_multiplier：该账号在 SUB2API 内的速率限额倍率，用于放大或缩小请求速率">i</span>
+                <span class="field-tip" tabindex="0" data-tip="写入 SUB2API 账号的 rate_multiplier：该账号在 SUB2API 内的速率限额倍率，用于放大或缩小请求速率">i</span>
               </label>
               <input type="number" id="rateMultiplier" value="1" min="0" step="0.1" title="SUB2API 账号 rate_multiplier" aria-label="SUB2API 账号速率倍率" />
             </div>
