@@ -99,7 +99,8 @@ async function handleApi(request, env, url) {
   if (url.pathname === "/api/config/verify" && request.method === "POST") {
     const body = await readJsonBody(request, 32 * 1024);
     const target = normalizeTarget(body?.target);
-    const result = await verifyTarget(env, target);
+    const override = extractConfigOverride(body);
+    const result = await verifyTarget(env, target, override);
     return jsonResponse({ ok: true, target, ...result });
   }
 
@@ -113,7 +114,15 @@ async function handleApi(request, env, url) {
     if (accounts.length > maxAccounts) {
       throw new HttpError(400, `单批最多上传 ${maxAccounts} 个 SUB2API 账号。`, "BATCH_TOO_LARGE");
     }
-    const result = await uploadSub2api(env, accounts, Boolean(body?.skipDefaultGroupBind), request.signal);
+    // 仅从 body.config 读取覆盖配置，避免把 accounts/files 误当配置源
+    const override = extractConfigOverride(body?.config);
+    const result = await uploadSub2api(
+      env,
+      accounts,
+      Boolean(body?.skipDefaultGroupBind),
+      request.signal,
+      override,
+    );
     return jsonResponse({ ok: true, target: "SUB2API", count: accounts.length, ...result });
   }
 
@@ -127,7 +136,8 @@ async function handleApi(request, env, url) {
     if (files.length > maxFiles) {
       throw new HttpError(400, `单批最多上传 ${maxFiles} 个 CPA 账号。`, "BATCH_TOO_LARGE");
     }
-    const results = await uploadCpaFiles(env, files, request.signal);
+    const override = extractConfigOverride(body?.config);
+    const results = await uploadCpaFiles(env, files, request.signal, override);
     return jsonResponse({
       ok: results.every((item) => item.ok),
       target: "CPA",
@@ -322,6 +332,36 @@ function targetEnvNames(target) {
     : { url: "CPA_BASE_URL", key: "CPA_MANAGEMENT_KEY" };
 }
 
+const MAX_OVERRIDE_BASE_URL_LENGTH = 2048;
+const MAX_OVERRIDE_API_KEY_LENGTH = 8 * 1024;
+
+function extractConfigOverride(source) {
+  if (!source || typeof source !== "object" || Array.isArray(source)) return null;
+  const baseUrl = String(source.baseUrl ?? source.base_url ?? "").trim();
+  const apiKey = String(source.apiKey ?? source.api_key ?? "").trim();
+  const cpaAuthModeRaw = source.cpaAuthMode ?? source.cpa_auth_mode;
+  const cpaAuthMode = cpaAuthModeRaw == null || String(cpaAuthModeRaw).trim() === ""
+    ? undefined
+    : String(cpaAuthModeRaw).trim();
+
+  // 原子覆盖：必须同时提供地址和密钥；只给一半时忽略，回退 env。
+  if (!baseUrl && !apiKey && cpaAuthMode === undefined) return null;
+  if (!baseUrl || !apiKey) {
+    throw new HttpError(
+      400,
+      "自定义配置必须同时提供 baseUrl 和 apiKey；否则请省略以使用 Worker 环境变量。",
+      "INVALID_CONFIG_OVERRIDE",
+    );
+  }
+  if (baseUrl.length > MAX_OVERRIDE_BASE_URL_LENGTH) {
+    throw new HttpError(400, "baseUrl 过长。", "INVALID_CONFIG_OVERRIDE");
+  }
+  if (apiKey.length > MAX_OVERRIDE_API_KEY_LENGTH) {
+    throw new HttpError(400, "apiKey 过长。", "INVALID_CONFIG_OVERRIDE");
+  }
+  return { baseUrl, apiKey, cpaAuthMode };
+}
+
 function getTargetConfig(env, target) {
   const names = targetEnvNames(target);
   const rawBaseUrl = String(env[names.url] || "").trim();
@@ -333,7 +373,7 @@ function getTargetConfig(env, target) {
   if (missing.length) {
     throw new HttpError(
       503,
-      `${target} 尚未配置。请在 Worker 环境变量中设置：${missing.join(", ")}。`,
+      `${target} 尚未配置。请在页面填写服务器地址和密钥，或在 Worker 环境变量中设置：${missing.join(", ")}。`,
       "TARGET_NOT_CONFIGURED",
       { target, missing },
     );
@@ -344,7 +384,23 @@ function getTargetConfig(env, target) {
     baseUrl: normalizeBaseUrl(rawBaseUrl, target, env),
     apiKey,
     cpaAuthMode: normalizeCpaAuthMode(env.CPA_AUTH_MODE),
+    source: "env",
   };
+}
+
+function resolveTargetConfig(env, target, override = null) {
+  if (override?.baseUrl && override?.apiKey) {
+    return {
+      target,
+      baseUrl: normalizeBaseUrl(override.baseUrl, target, env),
+      apiKey: String(override.apiKey).trim(),
+      cpaAuthMode: normalizeCpaAuthMode(
+        override.cpaAuthMode !== undefined ? override.cpaAuthMode : env.CPA_AUTH_MODE,
+      ),
+      source: "client",
+    };
+  }
+  return getTargetConfig(env, target);
 }
 
 function publicTargetStatus(env, target) {
@@ -367,6 +423,7 @@ function publicTargetStatus(env, target) {
 
   return {
     configured: missing.length === 0 && !urlError,
+    source: "env",
     baseUrl,
     missing,
     urlError,
@@ -417,13 +474,18 @@ function normalizeCpaAuthMode(value) {
   return ["auto", "bearer", "x-management-key"].includes(mode) ? mode : "auto";
 }
 
-async function verifyTarget(env, target) {
-  const config = getTargetConfig(env, target);
+async function verifyTarget(env, target, override = null) {
+  const config = resolveTargetConfig(env, target, override);
   if (target === "SUB2API") {
     const result = await sub2apiRequest(config, "/api/v1/admin/accounts?page=1&page_size=1&lite=1", {
       method: "GET",
     }, VERIFY_TIMEOUT_MS, 1);
-    return { baseUrl: config.baseUrl, message: "SUB2API 管理接口验证成功。", attempts: result.attempts };
+    return {
+      baseUrl: config.baseUrl,
+      source: config.source,
+      message: "SUB2API 管理接口验证成功。",
+      attempts: result.attempts,
+    };
   }
 
   const result = await cpaRequest(config, "/v0/management/auth-files", { method: "GET" }, VERIFY_TIMEOUT_MS, 1);
@@ -432,14 +494,15 @@ async function verifyTarget(env, target) {
   }
   return {
     baseUrl: config.baseUrl,
+    source: config.source,
     message: "CPA 管理接口验证成功。",
     authMode: result.authMode,
     attempts: result.attempts,
   };
 }
 
-async function uploadSub2api(env, accounts, skipDefaultGroupBind, clientSignal) {
-  const config = getTargetConfig(env, "SUB2API");
+async function uploadSub2api(env, accounts, skipDefaultGroupBind, clientSignal, override = null) {
+  const config = resolveTargetConfig(env, "SUB2API", override);
   const payload = {
     data: {
       exported_at: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
@@ -453,11 +516,15 @@ async function uploadSub2api(env, accounts, skipDefaultGroupBind, clientSignal) 
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   }, UPSTREAM_TIMEOUT_MS, 1, clientSignal);
-  return { attempts: result.attempts, data: result.data?.data ?? result.data };
+  return {
+    attempts: result.attempts,
+    source: config.source,
+    data: result.data?.data ?? result.data,
+  };
 }
 
-async function uploadCpaFiles(env, files, clientSignal) {
-  const config = getTargetConfig(env, "CPA");
+async function uploadCpaFiles(env, files, clientSignal, override = null) {
+  const config = resolveTargetConfig(env, "CPA", override);
   const normalized = files.map((entry, index) => {
     if (!entry || typeof entry !== "object" || !entry.account || typeof entry.account !== "object") {
       throw new HttpError(400, `files[${index}] 缺少 account 对象。`, "INVALID_PAYLOAD");

@@ -4,7 +4,8 @@
 
 - 浏览器只访问同源 `/api/*`；
 - Worker 在服务端请求 SUB2API 和 CPA，因此不受浏览器 CORS 限制；
-- 服务器地址和管理员密钥只存在于 Worker 环境变量/Secret 中，不下发到浏览器；
+- 目标服务器地址/密钥：**本机 localStorage 优先**，没有本机配置时回退 Worker 环境变量；
+- 上传前会验证配置有效性；无效或缺失时弹窗引导填写并保存；
 - 页面由内置密码登录保护，登录态使用签名的 HttpOnly Cookie；
 - SUB2API 与 CPA 都带失败重试，CPA 会返回每个账号的独立上传结果。
 
@@ -53,9 +54,32 @@ npx wrangler secret put SESSION_SECRET
 SESSION_TTL_HOURS=168
 ```
 
-## 三、配置 SUB2API（可选）
+## 三、目标服务器配置（本机优先 / 环境变量回退）
 
-只有需要“上传到 SUB2API”时才配置：
+上传到 SUB2API 或 CPA 时，配置解析顺序为：
+
+1. **浏览器 localStorage 本机配置**（页面「服务器配置」弹窗中验证并保存）
+2. 若无本机配置，则使用 **Worker 环境变量**
+3. 两者都无效时，点击上传会弹出配置窗引导填写
+
+本机配置以 target 为单位**成对覆盖**（必须同时有地址和密钥），不会与 env 半套混拼。
+
+安全说明：
+
+- 上游请求仍由 Worker 中转，浏览器不直连 SUB2API/CPA；
+- 本机密钥以**明文**保存在 `localStorage`（键名 `cpa2sub.targetConfig.v1`），存在同机共用与 XSS 风险，请勿在公用设备长期保存；
+- Worker **不会**通过 status 接口下发环境变量中的密钥；
+- 使用本机配置上传/验证时，密钥仅出现在当次请求体中，Worker 不持久化。
+
+### 3.1 在页面配置（推荐个人使用）
+
+登录后点击顶栏「服务器配置」，或直接点「上传到 SUB2API / CPA」：
+
+- 填写服务器地址与管理员密钥；
+- 点击「验证并保存」——验证成功后写入本机；
+- 「清除本机配置」后回退到环境变量（若有）。
+
+### 3.2 用环境变量配置 SUB2API（可选回退）
 
 | 名称 | 类型 | 示例 |
 |---|---|---|
@@ -66,7 +90,7 @@ Worker 会验证：
 
 ```http
 GET /api/v1/admin/accounts?page=1&page_size=1&lite=1
-x-api-key: <SUB2API_ADMIN_API_KEY>
+x-api-key: <API_KEY>
 ```
 
 上传使用：
@@ -77,9 +101,9 @@ POST /api/v1/admin/accounts/data
 
 前端可在页面配置每批账号数，且不得超过 Worker 的 `MAX_SUB2API_ACCOUNTS` 上限（默认 100，硬上限 5000）。SUB2API 批量导入为非幂等写操作，Worker 对该 POST 不自动重试，避免重复创建账号。
 
-## 四、配置 CPA（可选）
+### 3.3 用环境变量配置 CPA（可选回退）
 
-这里的 CPA 指 CLIProxyAPI。只有需要“上传到 CPA”时才配置：
+这里的 CPA 指 CLIProxyAPI：
 
 | 名称 | 类型 | 示例 |
 |---|---|---|
@@ -91,13 +115,13 @@ Worker 会验证：
 
 ```http
 GET /v0/management/auth-files
-Authorization: Bearer <CPA_MANAGEMENT_KEY>
+Authorization: Bearer <MANAGEMENT_KEY>
 ```
 
-`CPA_AUTH_MODE=auto` 时，若 Bearer 鉴权返回 401/403，会自动尝试：
+`CPA_AUTH_MODE=auto`（或本机配置选择 auto）时，若 Bearer 鉴权返回 401/403，会自动尝试：
 
 ```http
-X-Management-Key: <CPA_MANAGEMENT_KEY>
+X-Management-Key: <MANAGEMENT_KEY>
 ```
 
 上传使用官方支持的单文件原始 JSON 方式：
@@ -161,7 +185,7 @@ npm run dev
 | `MAX_SUB2API_ACCOUNTS` | 否 | 普通变量，默认 `100`，范围 1–5000 |
 | `MAX_CPA_FILES` | 否 | 普通变量，默认 `20`，范围 1–100 |
 
-SUB2API 和 CPA 均为可选目标，但每个目标的地址和密钥必须成对配置。页面会显示配置状态；点击上传时还会实时调用对应管理接口验证有效性。
+SUB2API 和 CPA 均为可选目标。每个目标的地址和密钥必须成对出现（本机配置或环境变量各自成对）。页面顶栏徽章会显示「本机 / 环境变量 / 未配置」；点击上传时会先验证，失败则打开配置窗。
 
 单批上限说明：
 
@@ -183,7 +207,9 @@ SUB2API 和 CPA 均为可选目标，但每个目标的地址和密钥必须成�
 
 ## 上传行为说明（v2）
 
-- 上传按钮会按 Worker 环境变量配置状态独立启用；未配置的目标保持禁用，并通过悬浮提示缺少的变量。
+- 有可上传账号时，上传按钮始终可点；无有效配置时点击会弹出对应目标的配置窗，验证保存成功后继续上传。
+- 上传前无论本机还是 env，都会先调用 `/api/config/verify`；失败则引导修正配置。
+- 本机配置上传时，请求体会附带 `config: { baseUrl, apiKey, cpaAuthMode? }`；纯 env 时不附带，由 Worker 读环境变量。
 - 上传期间仅当前目标按钮显示旋转状态，另一个目标按钮仅禁用；同时显示“取消上传”。
 - 页面可配置分批上传批次大小：SUB2API 默认 100 / 批，CPA 默认 20 / 批；不得超过 Worker 通过 `/api/config/status` 返回的 `limits` 上限。
 - Worker 单批上限可由环境变量调整：`MAX_SUB2API_ACCOUNTS`（默认 100，硬上限 5000）、`MAX_CPA_FILES`（默认 20，硬上限 100）。

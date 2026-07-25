@@ -477,11 +477,11 @@
     </div>
 
     <div class="runtime-bar">
-      <span>上传请求由 Worker 服务端转发，管理员密钥不会进入浏览器。</span>
+      <span>上传经 Worker 中转；可使用本机配置（localStorage）或 Worker 环境变量回退。</span>
       <span class="runtime-badge" id="badgeSub2Config">SUB2API：检测中</span>
       <span class="runtime-badge" id="badgeCpaConfig">CPA：检测中</span>
       <span class="toolbar-spacer"></span>
-      <button class="btn-ghost" id="btnRuntimeConfig" type="button">环境配置</button>
+      <button class="btn-ghost" id="btnRuntimeConfig" type="button">服务器配置</button>
       <form method="post" action="/auth/logout" style="margin:0"><button class="btn-danger" type="submit">退出登录</button></form>
     </div>
 
@@ -618,8 +618,8 @@
         <button class="btn-primary" id="btnConvert" disabled>转换全部</button>
         <button class="btn-ok" id="btnExportSub2" disabled>导出 SUB2API 合并包</button>
         <button class="btn-ok" id="btnExportCpaZip" disabled>导出 CPA 多文件 ZIP</button>
-        <button class="btn-primary" id="btnUploadSub2" disabled title="服务器地址和管理员密钥由 Worker 环境变量管理；Shift + 点击查看配置状态">上传到 SUB2API</button>
-        <button class="btn-primary" id="btnUploadCpa" disabled title="服务器地址和管理员密钥由 Worker 环境变量管理；Shift + 点击查看配置状态">上传到 CPA</button>
+        <button class="btn-primary" id="btnUploadSub2" disabled title="点击后先验证配置；Shift + 点击仅打开配置">上传到 SUB2API</button>
+        <button class="btn-primary" id="btnUploadCpa" disabled title="点击后先验证配置；Shift + 点击仅打开配置">上传到 CPA</button>
         <button class="btn-danger" id="btnCancelUpload" type="button" hidden>取消上传</button>
         <button class="btn-ghost" id="btnExportCpaEach" disabled>逐个下载 CPA JSON</button>
         <button class="btn-danger" id="btnClear" disabled>清空</button>
@@ -629,7 +629,8 @@
         映射说明：access/refresh/id_token、base_url、token_type 直接迁移；
         client_id / scope / sub / expires 从 JWT 解码补齐；
         CPA 固定补 redirect_uri / token_endpoint / headers；
-        SUB2API 的 usage_snapshot / proxies 不反向生成。服务器地址与管理员密钥仅保存在 Worker 环境变量/Secret 中，不会下发到浏览器。
+        SUB2API 的 usage_snapshot / proxies 不反向生成。
+        服务器配置优先使用本机 localStorage，其次回退 Worker 环境变量；上传前会验证有效性。本机密钥为明文存储，请注意同机与 XSS 风险。
       </div>
     </div>
   </div>
@@ -638,26 +639,57 @@
   <div class="modal-backdrop" id="serverConfigModal" role="dialog" aria-modal="true" aria-labelledby="serverConfigTitle">
     <div class="modal">
       <div class="modal-head">
-        <h3 id="serverConfigTitle">Worker 环境配置</h3>
+        <h3 id="serverConfigTitle">服务器配置</h3>
         <button class="icon-btn" id="btnCloseConfig" type="button" aria-label="关闭">×</button>
       </div>
       <div class="modal-body">
         <div class="hint" id="configHint">
-          页面只能读取“是否已配置”和服务器地址，无法读取管理员密钥。密钥必须在 Cloudflare 中以 Secret 类型保存。
+          优先使用本机配置（保存在浏览器 localStorage），没有本机配置时回退 Worker 环境变量。
+          请求仍由 Worker 中转；本机密钥为明文，请勿在公用设备上保存。
         </div>
-        <div class="env-grid" id="envConfigGrid"></div>
+        <div class="row" style="margin:10px 0 12px">
+          <button class="btn-ghost" type="button" id="cfgTabSub2" data-cfg-target="SUB2API">SUB2API</button>
+          <button class="btn-ghost" type="button" id="cfgTabCpa" data-cfg-target="CPA">CPA</button>
+        </div>
+        <div class="field">
+          <label for="cfgBaseUrl">服务器地址</label>
+          <input id="cfgBaseUrl" type="text" autocomplete="off" placeholder="https://example.com" />
+        </div>
+        <div class="field">
+          <label for="cfgApiKey">管理员密钥</label>
+          <div class="secret-row">
+            <input id="cfgApiKey" type="password" autocomplete="off" placeholder="输入 API Key / Management Key" />
+          </div>
+          <div class="hint" id="cfgApiKeyHint" style="margin-top:4px">本机未保存密钥</div>
+        </div>
+        <div class="field" id="cfgAuthModeField" hidden>
+          <label for="cfgAuthMode">CPA 鉴权模式</label>
+          <select id="cfgAuthMode">
+            <option value="auto">auto（先 Bearer 再 X-Management-Key）</option>
+            <option value="bearer">bearer</option>
+            <option value="x-management-key">x-management-key</option>
+          </select>
+        </div>
+        <div class="env-target" id="cfgEnvFallback" style="margin-top:8px">
+          <div class="env-target-head"><span>环境变量回退</span><span class="tag tag-upload-none" id="cfgEnvTag">检测中</span></div>
+          <dl>
+            <dt>状态</dt><dd id="cfgEnvStatus">-</dd>
+            <dt>地址</dt><dd id="cfgEnvBaseUrl">-</dd>
+            <dt>变量</dt><dd id="cfgEnvVars">-</dd>
+          </dl>
+        </div>
         <div class="env-help">
-          配置位置：<b>Cloudflare Dashboard → Workers &amp; Pages → 当前 Worker → Settings → Variables and Secrets</b><br>
-          普通变量：<code>SUB2API_BASE_URL</code>、<code>CPA_BASE_URL</code><br>
-          Secret：<code>SUB2API_ADMIN_API_KEY</code>、<code>CPA_MANAGEMENT_KEY</code><br>
-          CPA 可选变量：<code>CPA_AUTH_MODE=auto|bearer|x-management-key</code>。<br>
-          保存变量后需要部署新版本，再点击“重新检测”。
+          可选：在 Cloudflare Worker 中配置环境变量作为回退。<br>
+          SUB2API：<code>SUB2API_BASE_URL</code> + Secret <code>SUB2API_ADMIN_API_KEY</code><br>
+          CPA：<code>CPA_BASE_URL</code> + Secret <code>CPA_MANAGEMENT_KEY</code>，可选 <code>CPA_AUTH_MODE</code>
         </div>
         <div class="config-status" id="configStatus"></div>
       </div>
       <div class="modal-foot">
+        <button class="btn-danger" id="btnClearLocalConfig" type="button">清除本机配置</button>
+        <span class="toolbar-spacer"></span>
         <button class="btn-ghost" id="btnCancelConfig" type="button">关闭</button>
-        <button class="btn-primary" id="btnRefreshConfig" type="button">重新检测</button>
+        <button class="btn-primary" id="btnSaveVerifyConfig" type="button">验证并保存</button>
       </div>
     </div>
   </div>
@@ -687,11 +719,15 @@
     let uploadCancelRequested = false;
     let runtimeTargetStatus = null;
     let activeUploadItemIds = null;
+    let configDialogTarget = "SUB2API";
+    let configDialogResolver = null;
+    let configDialogMode = "manage"; // manage | ensure
 
     const DEFAULT_BATCH_SUB2API = 100;
     const DEFAULT_BATCH_CPA = 20;
     const FALLBACK_MAX_SUB2API = 100;
     const FALLBACK_MAX_CPA = 20;
+    const LOCAL_CONFIG_STORAGE_KEY = "cpa2sub.targetConfig.v1";
     let serverLimits = {
       maxSub2apiAccounts: FALLBACK_MAX_SUB2API,
       maxCpaFiles: FALLBACK_MAX_CPA
@@ -790,16 +826,96 @@
       return runtimeTargetStatus?.targets?.[target] || null;
     }
 
-    function targetConfigReady(target) {
-      return Boolean(targetConfigInfo(target)?.configured);
+    function readAllLocalConfigs() {
+      try {
+        const raw = localStorage.getItem(LOCAL_CONFIG_STORAGE_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+      } catch {
+        try { localStorage.removeItem(LOCAL_CONFIG_STORAGE_KEY); } catch {}
+        return {};
+      }
+    }
+
+    function writeAllLocalConfigs(all) {
+      localStorage.setItem(LOCAL_CONFIG_STORAGE_KEY, JSON.stringify(all || {}));
+    }
+
+    function loadLocalTarget(target) {
+      const entry = readAllLocalConfigs()[target];
+      if (!entry || typeof entry !== "object") return null;
+      const baseUrl = String(entry.baseUrl || "").trim();
+      const apiKey = String(entry.apiKey || "").trim();
+      if (!baseUrl || !apiKey) return null;
+      const cfg = { baseUrl, apiKey, savedAt: entry.savedAt || "" };
+      if (target === TARGET_CPA) {
+        const mode = String(entry.cpaAuthMode || "auto").toLowerCase();
+        cfg.cpaAuthMode = ["auto", "bearer", "x-management-key"].includes(mode) ? mode : "auto";
+      }
+      return cfg;
+    }
+
+    function saveLocalTarget(target, cfg) {
+      const all = readAllLocalConfigs();
+      const next = {
+        baseUrl: String(cfg.baseUrl || "").trim(),
+        apiKey: String(cfg.apiKey || "").trim(),
+        savedAt: new Date().toISOString()
+      };
+      if (!next.baseUrl || !next.apiKey) {
+        throw new Error("本机配置必须同时包含服务器地址和密钥");
+      }
+      if (target === TARGET_CPA) {
+        next.cpaAuthMode = String(cfg.cpaAuthMode || "auto");
+      }
+      all[target] = next;
+      writeAllLocalConfigs(all);
+      return next;
+    }
+
+    function clearLocalTarget(target) {
+      const all = readAllLocalConfigs();
+      delete all[target];
+      writeAllLocalConfigs(all);
+    }
+
+    function getEffectiveClientConfig(target) {
+      const local = loadLocalTarget(target);
+      if (local) {
+        return {
+          source: "local",
+          baseUrl: local.baseUrl,
+          apiKey: local.apiKey,
+          cpaAuthMode: local.cpaAuthMode
+        };
+      }
+      if (targetConfigInfo(target)?.configured) {
+        return { source: "env" };
+      }
+      return null;
+    }
+
+    function uploadConfigPayload(effective) {
+      if (!effective || effective.source !== "local") return undefined;
+      const payload = {
+        baseUrl: effective.baseUrl,
+        apiKey: effective.apiKey
+      };
+      if (effective.cpaAuthMode) payload.cpaAuthMode = effective.cpaAuthMode;
+      return payload;
     }
 
     function targetConfigTooltip(target) {
-      const info = targetConfigInfo(target);
-      if (!runtimeTargetStatus) return "正在读取 Worker 环境变量配置…";
-      if (info?.configured) return `${target} 已配置；点击后会先验证服务器地址和管理员密钥`;
-      const missing = info?.missing?.length ? info.missing.join(", ") : "对应环境变量";
-      return `${target} 不可用：请在 Cloudflare Worker 环境变量中配置 ${missing}`;
+      const effective = getEffectiveClientConfig(target);
+      if (effective?.source === "local") {
+        return `${target} 使用本机配置（${effective.baseUrl}）；点击后会先验证`;
+      }
+      if (effective?.source === "env") {
+        const baseUrl = targetConfigInfo(target)?.baseUrl || "";
+        return `${target} 使用 Worker 环境变量${baseUrl ? `（${baseUrl}）` : ""}；点击后会先验证`;
+      }
+      return `${target} 尚未配置；点击上传将引导填写本机配置，也可依赖 Worker 环境变量`;
     }
 
     function clampInt(value, min, max, fallback) {
@@ -878,8 +994,9 @@
       const hasItems = operationItems.length > 0;
       const idleUsable = hasItems && !uploadBusy;
       $("btnConvert").disabled = !idleUsable;
-      $("btnUploadSub2").disabled = !idleUsable || !targetConfigReady(TARGET_SUB2API);
-      $("btnUploadCpa").disabled = !idleUsable || !targetConfigReady(TARGET_CPA);
+      // 无配置时也可点击，点击后弹窗引导配置
+      $("btnUploadSub2").disabled = !idleUsable;
+      $("btnUploadCpa").disabled = !idleUsable;
       $("btnUploadSub2").title = targetConfigTooltip(TARGET_SUB2API);
       $("btnUploadCpa").title = targetConfigTooltip(TARGET_CPA);
       $("btnClear").disabled = !items.length || uploadBusy;
@@ -1752,45 +1869,33 @@
       throw lastError;
     }
 
-    function configStateHtml(target, info) {
-      const configured = !!info?.configured;
-      const statusClass = configured ? "tag-upload-ok" : "tag-upload-fail";
-      const statusText = configured ? "已配置" : "未配置";
-      const missing = info?.missing?.length ? info.missing.join(", ") : "-";
-      const urlError = info?.urlError || "";
-      return `<div class="env-target">
-        <div class="env-target-head"><span>${target}</span><span class="tag ${statusClass}">${statusText}</span></div>
-        <dl>
-          <dt>服务器地址</dt><dd>${escapeHtml(info?.baseUrl || "未设置")}</dd>
-          <dt>缺少变量</dt><dd>${escapeHtml(missing)}</dd>
-          <dt>地址错误</dt><dd>${escapeHtml(urlError || "-")}</dd>
-          <dt>地址变量</dt><dd><code>${escapeHtml(info?.variables?.baseUrl || "-")}</code></dd>
-          <dt>密钥 Secret</dt><dd><code>${escapeHtml(info?.variables?.apiKey || "-")}</code></dd>
-        </dl>
-      </div>`;
-    }
-
     function updateRuntimeConfigUi() {
-      const targets = runtimeTargetStatus?.targets || {};
       for (const [target, badgeId] of [[TARGET_SUB2API, "badgeSub2Config"], [TARGET_CPA, "badgeCpaConfig"]]) {
-        const info = targets[target];
         const badge = $(badgeId);
-        if (!info) {
-          badge.textContent = `${target}：检测失败`;
-          badge.className = "runtime-badge bad";
-        } else if (info.configured) {
-          badge.textContent = `${target}：已配置`;
+        const local = loadLocalTarget(target);
+        const envInfo = targetConfigInfo(target);
+        if (local) {
+          badge.textContent = `${target}：已配置（本机）`;
           badge.className = "runtime-badge ok";
-          badge.title = info.baseUrl || "";
+          badge.title = local.baseUrl || "";
+        } else if (envInfo?.configured) {
+          badge.textContent = `${target}：已配置（环境变量）`;
+          badge.className = "runtime-badge ok";
+          badge.title = envInfo.baseUrl || "";
+        } else if (!runtimeTargetStatus) {
+          badge.textContent = `${target}：检测中`;
+          badge.className = "runtime-badge";
+          badge.title = "";
         } else {
           badge.textContent = `${target}：未配置`;
           badge.className = "runtime-badge bad";
-          badge.title = (info.missing || []).join(", ");
+          badge.title = (envInfo?.missing || []).join(", ");
         }
       }
-      $("envConfigGrid").innerHTML = [TARGET_SUB2API, TARGET_CPA]
-        .map((target) => configStateHtml(target, targets[target]))
-        .join("");
+      if ($("serverConfigModal").classList.contains("show")) {
+        // 仅刷新 env 回退信息，避免覆盖用户正在编辑的表单
+        refreshConfigEnvFallback(configDialogTarget);
+      }
       refreshActionButtons();
     }
 
@@ -1816,50 +1921,216 @@
       el.className = `config-status ${type}`.trim();
     }
 
-    function closeConfigDialog() {
-      $("serverConfigModal").classList.remove("show");
+    function settleConfigDialog(result) {
+      const resolver = configDialogResolver;
+      configDialogResolver = null;
+      if (resolver) resolver(result);
     }
 
-    async function openConfigDialog(reason = "") {
+    function closeConfigDialog(result = false) {
+      $("serverConfigModal").classList.remove("show");
+      settleConfigDialog(result);
+    }
+
+    function setConfigTargetTab(target) {
+      configDialogTarget = target === TARGET_CPA ? TARGET_CPA : TARGET_SUB2API;
+      $("cfgTabSub2").classList.toggle("btn-primary", configDialogTarget === TARGET_SUB2API);
+      $("cfgTabSub2").classList.toggle("btn-ghost", configDialogTarget !== TARGET_SUB2API);
+      $("cfgTabCpa").classList.toggle("btn-primary", configDialogTarget === TARGET_CPA);
+      $("cfgTabCpa").classList.toggle("btn-ghost", configDialogTarget !== TARGET_CPA);
+      $("serverConfigTitle").textContent = `${configDialogTarget} 服务器配置`;
+      $("cfgAuthModeField").hidden = configDialogTarget !== TARGET_CPA;
+      fillConfigDialogForm(configDialogTarget);
+    }
+
+    function refreshConfigEnvFallback(target) {
+      const envInfo = targetConfigInfo(target);
+      const envTag = $("cfgEnvTag");
+      if (envInfo?.configured) {
+        envTag.textContent = "可用";
+        envTag.className = "tag tag-upload-ok";
+        $("cfgEnvStatus").textContent = "Worker 环境变量已成对配置，可作回退";
+        $("cfgEnvBaseUrl").textContent = envInfo.baseUrl || "-";
+      } else if (!runtimeTargetStatus) {
+        envTag.textContent = "未知";
+        envTag.className = "tag tag-upload-none";
+        $("cfgEnvStatus").textContent = "尚未读取到环境变量状态";
+        $("cfgEnvBaseUrl").textContent = "-";
+      } else {
+        envTag.textContent = "不可用";
+        envTag.className = "tag tag-upload-fail";
+        const missing = envInfo?.missing?.length ? envInfo.missing.join(", ") : "未配置";
+        $("cfgEnvStatus").textContent = envInfo?.urlError ? `地址错误：${envInfo.urlError}` : `缺少：${missing}`;
+        $("cfgEnvBaseUrl").textContent = envInfo?.baseUrl || "未设置";
+      }
+      $("cfgEnvVars").innerHTML = envInfo?.variables
+        ? `<code>${escapeHtml(envInfo.variables.baseUrl)}</code> + <code>${escapeHtml(envInfo.variables.apiKey)}</code>`
+        : "-";
+    }
+
+    function fillConfigDialogForm(target) {
+      const local = loadLocalTarget(target);
+      const envInfo = targetConfigInfo(target);
+      // 无本机地址时，用 env 地址预填，方便改成本机配置；密钥仍需用户填写
+      $("cfgBaseUrl").value = local?.baseUrl || envInfo?.baseUrl || "";
+      $("cfgApiKey").value = "";
+      if (local?.apiKey) {
+        $("cfgApiKey").placeholder = "已保存本机密钥，留空则沿用";
+        $("cfgApiKeyHint").textContent = `本机已保存密钥（${local.apiKey.slice(0, 2)}***${local.apiKey.slice(-2)}），留空表示继续使用`;
+      } else {
+        $("cfgApiKey").placeholder = "输入 API Key / Management Key";
+        $("cfgApiKeyHint").textContent = envInfo?.configured
+          ? "本机未保存密钥；若只想用环境变量，可关闭本窗后直接上传"
+          : "本机未保存密钥";
+      }
+      if (target === TARGET_CPA) {
+        $("cfgAuthMode").value = local?.cpaAuthMode || "auto";
+      }
+      refreshConfigEnvFallback(target);
+    }
+
+    function openConfigDialog(options = {}) {
+      const {
+        target = TARGET_SUB2API,
+        reason = "",
+        mode = "manage"
+      } = options;
+      configDialogMode = mode;
+      if (configDialogResolver) settleConfigDialog(false);
       setConfigStatus(reason, reason ? "err" : "");
       $("serverConfigModal").classList.add("show");
-      if (!runtimeTargetStatus) await loadRuntimeConfigStatus(true);
-      updateRuntimeConfigUi();
+      const ready = (async () => {
+        if (!runtimeTargetStatus) await loadRuntimeConfigStatus(true);
+        setConfigTargetTab(target);
+        updateRuntimeConfigUi();
+      })();
+      return new Promise((resolve) => {
+        configDialogResolver = resolve;
+        ready.catch(() => {});
+      });
     }
 
-    async function verifyServerConfig(target) {
+    async function verifyServerConfig(target, override = null) {
+      const body = { target };
+      if (override?.baseUrl && override?.apiKey) {
+        body.baseUrl = override.baseUrl;
+        body.apiKey = override.apiKey;
+        if (override.cpaAuthMode) body.cpaAuthMode = override.cpaAuthMode;
+      }
       const { data } = await fetchJson(
         "/api/config/verify",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ target })
+          body: JSON.stringify(body)
         },
         60000
       );
       return data;
     }
 
-    async function ensureVerifiedConfig(target, forceShow = false) {
-      if (!runtimeTargetStatus) await loadRuntimeConfigStatus(false);
-      const info = runtimeTargetStatus?.targets?.[target];
-      if (forceShow) {
-        await openConfigDialog(`${target} 的地址和密钥由 Worker 环境变量管理。`);
+    async function saveAndVerifyCurrentConfigForm() {
+      const target = configDialogTarget;
+      const baseUrl = String($("cfgBaseUrl").value || "").trim();
+      const typedKey = String($("cfgApiKey").value || "");
+      const local = loadLocalTarget(target);
+      const apiKey = typedKey.trim() || local?.apiKey || "";
+      if (!baseUrl) {
+        setConfigStatus("请填写服务器地址。", "err");
         return false;
       }
-      if (!info?.configured) {
-        await openConfigDialog(`${target} 尚未配置，请按说明设置环境变量和 Secret。`);
+      if (!apiKey) {
+        setConfigStatus("请填写管理员密钥。", "err");
         return false;
       }
+      const override = { baseUrl, apiKey };
+      if (target === TARGET_CPA) override.cpaAuthMode = $("cfgAuthMode").value || "auto";
+
+      $("btnSaveVerifyConfig").disabled = true;
+      $("btnClearLocalConfig").disabled = true;
+      setConfigStatus(`正在验证 ${target} 配置…`);
       try {
-        showMsg(`正在验证 ${target} 服务器配置…`, "info");
-        const verified = await verifyServerConfig(target);
-        showMsg(verified.message || `${target} 配置验证成功`, "ok");
+        const verified = await verifyServerConfig(target, override);
+        saveLocalTarget(target, override);
+        updateRuntimeConfigUi();
+        setConfigStatus(verified.message || `${target} 验证成功，已保存到本机。`, "ok");
+        if (configDialogMode === "ensure") {
+          // 上传引导模式：保存成功后关闭并继续
+          closeConfigDialog(true);
+        }
         return true;
       } catch (error) {
-        await openConfigDialog(`${target} 已配置但验证失败：${apiErrorMessage(error)}`);
+        setConfigStatus(`${target} 验证失败：${apiErrorMessage(error)}`, "err");
+        return false;
+      } finally {
+        $("btnSaveVerifyConfig").disabled = false;
+        $("btnClearLocalConfig").disabled = false;
+      }
+    }
+
+    function clearCurrentLocalConfig() {
+      const target = configDialogTarget;
+      clearLocalTarget(target);
+      $("cfgApiKey").value = "";
+      fillConfigDialogForm(target);
+      updateRuntimeConfigUi();
+      const envReady = Boolean(targetConfigInfo(target)?.configured);
+      setConfigStatus(
+        envReady
+          ? `已清除 ${target} 本机配置，将回退到 Worker 环境变量。`
+          : `已清除 ${target} 本机配置，且环境变量也未配置。`,
+        envReady ? "ok" : "err"
+      );
+    }
+
+    async function ensureVerifiedConfig(target, forceShow = false) {
+      if (!runtimeTargetStatus) await loadRuntimeConfigStatus(false);
+      if (forceShow) {
+        await openConfigDialog({
+          target,
+          reason: `正在管理 ${target} 配置。本机优先，环境变量回退。`,
+          mode: "manage"
+        });
         return false;
       }
+
+      // 最多：缺配置引导一次 + 验证失败再引导一次；弹窗内「验证并保存」已含一次成功验证
+      for (let attempt = 0; attempt < 2; attempt++) {
+        let effective = getEffectiveClientConfig(target);
+        if (!effective) {
+          const saved = await openConfigDialog({
+            target,
+            reason: `${target} 尚未配置。请填写服务器地址和密钥并验证，或先在 Worker 中配置环境变量。`,
+            mode: "ensure"
+          });
+          // ensure 模式下验证并保存成功会关闭弹窗并返回 true（已验证）
+          if (saved) return true;
+          return false;
+        }
+
+        try {
+          showMsg(`正在验证 ${target} 服务器配置（${effective.source === "local" ? "本机" : "环境变量"}）…`, "info");
+          const override = effective.source === "local"
+            ? {
+                baseUrl: effective.baseUrl,
+                apiKey: effective.apiKey,
+                cpaAuthMode: effective.cpaAuthMode
+              }
+            : null;
+          const verified = await verifyServerConfig(target, override);
+          showMsg(verified.message || `${target} 配置验证成功`, "ok");
+          return true;
+        } catch (error) {
+          const saved = await openConfigDialog({
+            target,
+            reason: `${target} 配置验证失败：${apiErrorMessage(error)}。请修正后重新验证并保存。`,
+            mode: "ensure"
+          });
+          if (saved) return true;
+          return false;
+        }
+      }
+      return false;
     }
 
     function setItemUploadState(item, status, target, message = "", attempts = 0) {
@@ -1922,7 +2193,7 @@
       }
     }
 
-    async function uploadSub2Batch(entries, total, batchNumber, batchCount) {
+    async function uploadSub2Batch(entries, total, batchNumber, batchCount, configPayload) {
       throwIfUploadCancelled();
       for (const entry of entries) {
         setItemUploadState(
@@ -1935,15 +2206,17 @@
       uploadProgressMessage(TARGET_SUB2API, total);
       renderTable();
       try {
+        const body = {
+          accounts: entries.map((entry) => entry.account),
+          skipDefaultGroupBind: false
+        };
+        if (configPayload) body.config = configPayload;
         const { data } = await fetchJson(
           "/api/upload/sub2api",
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              accounts: entries.map((entry) => entry.account),
-              skipDefaultGroupBind: false
-            }),
+            body: JSON.stringify(body),
             signal: uploadAbortController?.signal
           },
           660000
@@ -1985,7 +2258,7 @@
       });
     }
 
-    async function uploadCpaBatch(entries, total, batchNumber, batchCount) {
+    async function uploadCpaBatch(entries, total, batchNumber, batchCount, configPayload) {
       throwIfUploadCancelled();
       for (const entry of entries) {
         setItemUploadState(
@@ -1999,14 +2272,16 @@
       uploadProgressMessage(TARGET_CPA, total);
       renderTable();
       try {
+        const body = {
+          files: entries.map((entry) => ({ name: entry.filename, account: entry.account }))
+        };
+        if (configPayload) body.config = configPayload;
         const { data } = await fetchJson(
           "/api/upload/cpa",
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              files: entries.map((entry) => ({ name: entry.filename, account: entry.account }))
-            }),
+            body: JSON.stringify(body),
             signal: uploadAbortController?.signal
           },
           180000
@@ -2066,6 +2341,13 @@
       const verified = await ensureVerifiedConfig(target, showConfigOnly);
       if (!verified) return;
 
+      const effective = getEffectiveClientConfig(target);
+      if (!effective) {
+        showMsg(`${target} 配置无效，已取消上传。`, "err");
+        return;
+      }
+      const configPayload = uploadConfigPayload(effective);
+
       activeUploadItemIds = new Set(operationItems.map((item) => item.id));
       uploadCancelRequested = false;
       uploadAbortController = new AbortController();
@@ -2082,14 +2364,26 @@
           const batchCount = Math.ceil(entries.length / batchSize);
           for (let i = 0, batchNumber = 1; i < entries.length; i += batchSize, batchNumber++) {
             throwIfUploadCancelled();
-            await uploadSub2Batch(entries.slice(i, i + batchSize), entries.length, batchNumber, batchCount);
+            await uploadSub2Batch(
+              entries.slice(i, i + batchSize),
+              entries.length,
+              batchNumber,
+              batchCount,
+              configPayload
+            );
           }
         } else {
           const entries = uniqueCpaUploadEntries(operationItems);
           const batchCount = Math.ceil(entries.length / batchSize);
           for (let i = 0, batchNumber = 1; i < entries.length; i += batchSize, batchNumber++) {
             throwIfUploadCancelled();
-            await uploadCpaBatch(entries.slice(i, i + batchSize), entries.length, batchNumber, batchCount);
+            await uploadCpaBatch(
+              entries.slice(i, i + batchSize),
+              entries.length,
+              batchNumber,
+              batchCount,
+              configPayload
+            );
           }
         }
         const success = operationItems.filter((item) => item.uploadStatus === UPLOAD_STATUS.SUCCESS).length;
@@ -2270,41 +2564,34 @@
     bindBatchInput("batchCpa", TARGET_CPA);
     updateBatchLimitHints();
 
-    $("btnCloseConfig").addEventListener("click", closeConfigDialog);
-    $("btnCancelConfig").addEventListener("click", closeConfigDialog);
+    $("btnCloseConfig").addEventListener("click", () => closeConfigDialog(false));
+    $("btnCancelConfig").addEventListener("click", () => closeConfigDialog(false));
     $("serverConfigModal").addEventListener("click", (event) => {
-      if (event.target === $("serverConfigModal")) closeConfigDialog();
+      if (event.target === $("serverConfigModal")) closeConfigDialog(false);
     });
-    $("btnRuntimeConfig").addEventListener("click", () => openConfigDialog());
-    $("btnRefreshConfig").addEventListener("click", async () => {
-      $("btnRefreshConfig").disabled = true;
-      setConfigStatus("正在重新读取并验证环境配置…");
-      await loadRuntimeConfigStatus(true);
-      const targets = [TARGET_SUB2API, TARGET_CPA];
-      const lines = [];
-      for (const target of targets) {
-        if (!runtimeTargetStatus?.targets?.[target]?.configured) {
-          lines.push(`${target}：未配置`);
-          continue;
-        }
-        try {
-          const result = await verifyServerConfig(target);
-          lines.push(`${target}：${result.message || "验证成功"}`);
-        } catch (error) {
-          lines.push(`${target}：${apiErrorMessage(error)}`);
-        }
-      }
-      const allOk = lines.every((line) => line.includes("成功"));
-      setConfigStatus(lines.join("\n"), allOk ? "ok" : "err");
-      $("btnRefreshConfig").disabled = false;
+    $("cfgTabSub2").addEventListener("click", () => setConfigTargetTab(TARGET_SUB2API));
+    $("cfgTabCpa").addEventListener("click", () => setConfigTargetTab(TARGET_CPA));
+    $("btnSaveVerifyConfig").addEventListener("click", () => {
+      saveAndVerifyCurrentConfigForm().catch((error) => {
+        setConfigStatus(apiErrorMessage(error), "err");
+      });
+    });
+    $("btnClearLocalConfig").addEventListener("click", () => clearCurrentLocalConfig());
+    $("btnRuntimeConfig").addEventListener("click", () => {
+      openConfigDialog({
+        target: configDialogTarget || TARGET_SUB2API,
+        reason: "",
+        mode: "manage"
+      });
     });
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape" && $("serverConfigModal").classList.contains("show")) {
-        closeConfigDialog();
+        closeConfigDialog(false);
       }
     });
 
     renderTable();
+    updateRuntimeConfigUi();
     loadRuntimeConfigStatus(false);
   </script>
 </body>
