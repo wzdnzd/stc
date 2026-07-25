@@ -647,10 +647,6 @@
           优先使用本机配置（保存在浏览器 localStorage），没有本机配置时回退 Worker 环境变量。
           请求仍由 Worker 中转；本机密钥为明文，请勿在公用设备上保存。
         </div>
-        <div class="row" style="margin:10px 0 12px">
-          <button class="btn-ghost" type="button" id="cfgTabSub2" data-cfg-target="SUB2API">SUB2API</button>
-          <button class="btn-ghost" type="button" id="cfgTabCpa" data-cfg-target="CPA">CPA</button>
-        </div>
         <div class="field">
           <label for="cfgBaseUrl">服务器地址</label>
           <input id="cfgBaseUrl" type="text" autocomplete="off" placeholder="https://example.com" />
@@ -678,10 +674,8 @@
             <dt>变量</dt><dd id="cfgEnvVars">-</dd>
           </dl>
         </div>
-        <div class="env-help">
-          可选：在 Cloudflare Worker 中配置环境变量作为回退。<br>
-          SUB2API：<code>SUB2API_BASE_URL</code> + Secret <code>SUB2API_ADMIN_API_KEY</code><br>
-          CPA：<code>CPA_BASE_URL</code> + Secret <code>CPA_MANAGEMENT_KEY</code>，可选 <code>CPA_AUTH_MODE</code>
+        <div class="env-help" id="cfgEnvHelp">
+          可选：在 Cloudflare Worker 中配置环境变量作为回退。
         </div>
         <div class="config-status" id="configStatus"></div>
       </div>
@@ -1794,7 +1788,17 @@
       if (!error) return "未知错误";
       if (error.name === "UploadCancelledError") return "用户已取消上传";
       if (error.name === "AbortError") return uploadCancelRequested ? "用户已取消上传" : "请求超时";
-      return error.message || String(error);
+      const raw = error.message || String(error);
+      // Cloudflare 边缘连不上源站时常返回 522；与密钥无关，本机 Postman 能通也常见
+      if (/\b522\b/.test(raw) || /error code:\s*522/i.test(raw)) {
+        return `${raw} —— 这是 Cloudflare 无法连接源站（Connection timed out），不是密钥错误。` +
+          `Worker 从公网边缘访问你的 SUB2API；本机 Postman 成功只说明你电脑能连，不代表 Cloudflare 能连。` +
+          `请确认地址是公网可达的 HTTPS 域名（勿用 127.0.0.1/localhost/内网 IP），源站防火墙放行 Cloudflare，或用 Cloudflare Tunnel 暴露。`;
+      }
+      if (/\b5(2[1-4]|30)\b/.test(raw)) {
+        return `${raw} —— 上游网络/网关错误，通常不是 API Key 问题；请检查目标是否对公网可达。`;
+      }
+      return raw;
     }
 
     async function fetchJson(url, options = {}, timeoutMs = 60000) {
@@ -1874,23 +1878,26 @@
         const badge = $(badgeId);
         const local = loadLocalTarget(target);
         const envInfo = targetConfigInfo(target);
+        const clickHint = `点击管理 ${target} 配置`;
         if (local) {
           badge.textContent = `${target}：已配置（本机）`;
           badge.className = "runtime-badge ok";
-          badge.title = local.baseUrl || "";
+          badge.title = `${local.baseUrl || "本机配置"} · ${clickHint}`;
         } else if (envInfo?.configured) {
           badge.textContent = `${target}：已配置（环境变量）`;
           badge.className = "runtime-badge ok";
-          badge.title = envInfo.baseUrl || "";
+          badge.title = `${envInfo.baseUrl || "环境变量"} · ${clickHint}`;
         } else if (!runtimeTargetStatus) {
           badge.textContent = `${target}：检测中`;
           badge.className = "runtime-badge";
-          badge.title = "";
+          badge.title = clickHint;
         } else {
           badge.textContent = `${target}：未配置`;
           badge.className = "runtime-badge bad";
-          badge.title = (envInfo?.missing || []).join(", ");
+          const missing = (envInfo?.missing || []).join(", ");
+          badge.title = missing ? `${missing} · ${clickHint}` : clickHint;
         }
+        badge.style.cursor = "pointer";
       }
       if ($("serverConfigModal").classList.contains("show")) {
         // 仅刷新 env 回退信息，避免覆盖用户正在编辑的表单
@@ -1932,14 +1939,17 @@
       settleConfigDialog(result);
     }
 
-    function setConfigTargetTab(target) {
+    function setConfigDialogTarget(target) {
+      // 单目标弹窗：按当前上传/管理的目标锁定，不提供 Tab 切换
       configDialogTarget = target === TARGET_CPA ? TARGET_CPA : TARGET_SUB2API;
-      $("cfgTabSub2").classList.toggle("btn-primary", configDialogTarget === TARGET_SUB2API);
-      $("cfgTabSub2").classList.toggle("btn-ghost", configDialogTarget !== TARGET_SUB2API);
-      $("cfgTabCpa").classList.toggle("btn-primary", configDialogTarget === TARGET_CPA);
-      $("cfgTabCpa").classList.toggle("btn-ghost", configDialogTarget !== TARGET_CPA);
       $("serverConfigTitle").textContent = `${configDialogTarget} 服务器配置`;
       $("cfgAuthModeField").hidden = configDialogTarget !== TARGET_CPA;
+      const help = $("cfgEnvHelp");
+      if (help) {
+        help.innerHTML = configDialogTarget === TARGET_CPA
+          ? `可选：在 Cloudflare Worker 中配置环境变量作为回退。<br>CPA：<code>CPA_BASE_URL</code> + Secret <code>CPA_MANAGEMENT_KEY</code>，可选 <code>CPA_AUTH_MODE</code>`
+          : `可选：在 Cloudflare Worker 中配置环境变量作为回退。<br>SUB2API：<code>SUB2API_BASE_URL</code> + Secret <code>SUB2API_ADMIN_API_KEY</code>`;
+      }
       fillConfigDialogForm(configDialogTarget);
     }
 
@@ -2001,7 +2011,7 @@
       $("serverConfigModal").classList.add("show");
       const ready = (async () => {
         if (!runtimeTargetStatus) await loadRuntimeConfigStatus(true);
-        setConfigTargetTab(target);
+        setConfigDialogTarget(target);
         updateRuntimeConfigUi();
       })();
       return new Promise((resolve) => {
@@ -2569,18 +2579,24 @@
     $("serverConfigModal").addEventListener("click", (event) => {
       if (event.target === $("serverConfigModal")) closeConfigDialog(false);
     });
-    $("cfgTabSub2").addEventListener("click", () => setConfigTargetTab(TARGET_SUB2API));
-    $("cfgTabCpa").addEventListener("click", () => setConfigTargetTab(TARGET_CPA));
     $("btnSaveVerifyConfig").addEventListener("click", () => {
       saveAndVerifyCurrentConfigForm().catch((error) => {
         setConfigStatus(apiErrorMessage(error), "err");
       });
     });
     $("btnClearLocalConfig").addEventListener("click", () => clearCurrentLocalConfig());
+    // 顶栏徽章点击：打开对应目标的单目标配置（无 Tab 切换）
+    $("badgeSub2Config").addEventListener("click", () => {
+      openConfigDialog({ target: TARGET_SUB2API, reason: "", mode: "manage" });
+    });
+    $("badgeCpaConfig").addEventListener("click", () => {
+      openConfigDialog({ target: TARGET_CPA, reason: "", mode: "manage" });
+    });
     $("btnRuntimeConfig").addEventListener("click", () => {
+      // 通用入口默认打开上次目标；也可点顶栏徽章直达某一目标
       openConfigDialog({
         target: configDialogTarget || TARGET_SUB2API,
-        reason: "",
+        reason: "可点顶栏「SUB2API / CPA」徽章分别管理对应目标配置。",
         mode: "manage"
       });
     });
