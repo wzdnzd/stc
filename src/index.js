@@ -1,6 +1,6 @@
 const COOKIE_NAME = "converter_session";
 const DEFAULT_SESSION_TTL_HOURS = 168;
-const MAX_SUB2API_ACCOUNTS = 100;
+const MAX_SUB2API_ACCOUNTS = 500;
 const MAX_CPA_FILES = 12;
 const UPSTREAM_TIMEOUT_MS = 10 * 60 * 1000;
 const VERIFY_TIMEOUT_MS = 30 * 1000;
@@ -106,7 +106,7 @@ async function handleApi(request, env, url) {
     if (accounts.length > MAX_SUB2API_ACCOUNTS) {
       throw new HttpError(400, `单批最多上传 ${MAX_SUB2API_ACCOUNTS} 个 SUB2API 账号。`, "BATCH_TOO_LARGE");
     }
-    const result = await uploadSub2api(env, accounts, Boolean(body?.skipDefaultGroupBind));
+    const result = await uploadSub2api(env, accounts, Boolean(body?.skipDefaultGroupBind), request.signal);
     return jsonResponse({ ok: true, target: "SUB2API", count: accounts.length, ...result });
   }
 
@@ -119,7 +119,7 @@ async function handleApi(request, env, url) {
     if (files.length > MAX_CPA_FILES) {
       throw new HttpError(400, `单批最多上传 ${MAX_CPA_FILES} 个 CPA 账号。`, "BATCH_TOO_LARGE");
     }
-    const results = await uploadCpaFiles(env, files);
+    const results = await uploadCpaFiles(env, files, request.signal);
     return jsonResponse({
       ok: results.every((item) => item.ok),
       target: "CPA",
@@ -142,6 +142,9 @@ async function handleLogin(request, env) {
   if (request.method === "GET") return htmlResponse(renderLoginPage(), 200);
   if (request.method !== "POST") throw new HttpError(405, "Method Not Allowed", "METHOD_NOT_ALLOWED");
 
+  // 登录请求不做严格 Origin 比对。Cloudflare Dashboard/Preview、自定义域名
+  // 或边缘代理可能使浏览器的 Origin 与 Worker 看到的 request.url 不完全一致，
+  // 从而误判为跨站。登录仍受访问密码、失败延迟和后续 SameSite 会话 Cookie 保护。
   const contentType = request.headers.get("content-type") || "";
   let password = "";
   if (contentType.includes("application/json")) {
@@ -253,46 +256,28 @@ function clearSessionCookie() {
 }
 
 function assertTrustedMutation(request) {
-  const fetchSite = String(
-    request.headers.get("Sec-Fetch-Site") || ""
-  ).toLowerCase();
+  const fetchSite = String(request.headers.get("Sec-Fetch-Site") || "").toLowerCase();
 
-  // 浏览器明确标记为跨站请求时拒绝。
-  // 允许 same-origin、same-site 和 none，以兼容 Cloudflare
-  // 自定义域名、预览域名以及 Dashboard 预览环境。
+  // 浏览器明确标记为 cross-site 时拒绝。允许 same-origin、same-site 和 none；
+  // 这比直接比较 Origin 与 request.url 更适合 Workers 的预览 URL、自定义域名
+  // 以及可能存在的边缘代理，同时仍可阻止普通跨站表单/Fetch 携带会话执行写操作。
   if (fetchSite === "cross-site") {
-    throw new HttpError(
-      403,
-      "拒绝跨站请求。",
-      "CROSS_SITE_REQUEST"
-    );
+    throw new HttpError(403, "拒绝跨站请求。", "CROSS_SITE_REQUEST");
   }
 
-  // 某些客户端不会发送 Sec-Fetch-Site。
-  // 这种情况下，有正常 Origin 时再执行传统同源检查。
+  // 某些非浏览器客户端不发送 Sec-Fetch-Site。此时若提供了正常 Origin，
+  // 仍进行传统同源检查；Origin: null 不参与判断，避免沙箱预览误伤。
   if (!fetchSite) {
     const origin = request.headers.get("Origin");
-
-    // Origin: null 常见于沙箱或特殊预览环境，不进行误拦截。
     if (origin && origin !== "null") {
       let parsedOrigin;
-
       try {
         parsedOrigin = new URL(origin).origin;
       } catch {
-        throw new HttpError(
-          403,
-          "拒绝跨站请求。",
-          "CROSS_SITE_REQUEST"
-        );
+        throw new HttpError(403, "拒绝跨站请求。", "CROSS_SITE_REQUEST");
       }
-
       if (parsedOrigin !== new URL(request.url).origin) {
-        throw new HttpError(
-          403,
-          "拒绝跨站请求。",
-          "CROSS_SITE_REQUEST"
-        );
+        throw new HttpError(403, "拒绝跨站请求。", "CROSS_SITE_REQUEST");
       }
     }
   }
@@ -428,7 +413,7 @@ async function verifyTarget(env, target) {
   };
 }
 
-async function uploadSub2api(env, accounts, skipDefaultGroupBind) {
+async function uploadSub2api(env, accounts, skipDefaultGroupBind, clientSignal) {
   const config = getTargetConfig(env, "SUB2API");
   const payload = {
     data: {
@@ -442,11 +427,11 @@ async function uploadSub2api(env, accounts, skipDefaultGroupBind) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
-  }, UPSTREAM_TIMEOUT_MS, 3);
+  }, UPSTREAM_TIMEOUT_MS, 1, clientSignal);
   return { attempts: result.attempts, data: result.data?.data ?? result.data };
 }
 
-async function uploadCpaFiles(env, files) {
+async function uploadCpaFiles(env, files, clientSignal) {
   const config = getTargetConfig(env, "CPA");
   const normalized = files.map((entry, index) => {
     if (!entry || typeof entry !== "object" || !entry.account || typeof entry.account !== "object") {
@@ -470,6 +455,7 @@ async function uploadCpaFiles(env, files) {
         },
         120000,
         3,
+        clientSignal,
       );
       return {
         name: entry.name,
@@ -496,7 +482,7 @@ function sanitizeJsonFilename(value) {
   return name || "account.json";
 }
 
-async function sub2apiRequest(config, path, init, timeoutMs, maxAttempts) {
+async function sub2apiRequest(config, path, init, timeoutMs, maxAttempts, clientSignal) {
   const headers = new Headers(init.headers || {});
   headers.set("Accept", "application/json");
   headers.set("x-api-key", config.apiKey);
@@ -509,10 +495,11 @@ async function sub2apiRequest(config, path, init, timeoutMs, maxAttempts) {
         throw new HttpError(400, message, "UPSTREAM_BUSINESS_ERROR", data);
       }
     },
+    clientSignal,
   });
 }
 
-async function cpaRequest(config, path, init, timeoutMs, maxAttempts) {
+async function cpaRequest(config, path, init, timeoutMs, maxAttempts, clientSignal) {
   const modes = cpaAuthModes(config.cpaAuthMode);
   let lastError;
   for (const mode of modes) {
@@ -525,6 +512,7 @@ async function cpaRequest(config, path, init, timeoutMs, maxAttempts) {
       const result = await requestJsonWithRetry(`${config.baseUrl}${path}`, { ...init, headers }, {
         timeoutMs,
         maxAttempts,
+        clientSignal,
       });
       return { ...result, authMode: mode };
     } catch (error) {
@@ -548,7 +536,10 @@ async function requestJsonWithRetry(url, init, options = {}) {
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      const response = await fetchWithTimeout(url, init, timeoutMs);
+      if (options.clientSignal?.aborted) {
+        throw new HttpError(499, "客户端已取消上传。", "CLIENT_ABORTED");
+      }
+      const response = await fetchWithTimeout(url, init, timeoutMs, options.clientSignal);
       const text = await response.text();
       const data = parseResponseBody(text);
       if (!response.ok) {
@@ -574,18 +565,32 @@ async function requestJsonWithRetry(url, init, options = {}) {
   throw lastError;
 }
 
-async function fetchWithTimeout(url, init, timeoutMs) {
+async function fetchWithTimeout(url, init, timeoutMs, clientSignal) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort("upstream timeout"), timeoutMs);
+  const timeoutError = new DOMException("upstream timeout", "TimeoutError");
+  const timer = setTimeout(() => controller.abort(timeoutError), timeoutMs);
+  const onClientAbort = () => {
+    controller.abort(new DOMException("client cancelled", "AbortError"));
+  };
+
+  if (clientSignal) {
+    if (clientSignal.aborted) onClientAbort();
+    else clientSignal.addEventListener("abort", onClientAbort, { once: true });
+  }
+
   try {
     return await fetch(url, { ...init, signal: controller.signal, redirect: "follow" });
   } catch (error) {
+    if (clientSignal?.aborted) {
+      throw new HttpError(499, "客户端已取消上传。", "CLIENT_ABORTED");
+    }
     if (controller.signal.aborted) {
-      throw new HttpError(504, "上游请求超时。", "UPSTREAM_TIMEOUT");
+      throw new HttpError(504, "上游请求超时；服务器可能已经接收并处理本批数据，请先核对后再重试。", "UPSTREAM_TIMEOUT");
     }
     throw error;
   } finally {
     clearTimeout(timer);
+    clientSignal?.removeEventListener?.("abort", onClientAbort);
   }
 }
 
