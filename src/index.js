@@ -4,6 +4,15 @@ const DEFAULT_MAX_SUB2API_ACCOUNTS = 100;
 const DEFAULT_MAX_CPA_FILES = 20;
 const ABSOLUTE_MAX_SUB2API_ACCOUNTS = 5000;
 const ABSOLUTE_MAX_CPA_FILES = 100;
+const DEFAULT_MAX_UPLOAD_CONCURRENCY_SUB2API = 3;
+const DEFAULT_MAX_UPLOAD_CONCURRENCY_CPA = 8;
+// 绝对上限默认值（可被 ABSOLUTE_MAX_UPLOAD_CONCURRENCY_* 环境变量覆盖）
+const DEFAULT_ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API = 50;
+const DEFAULT_ABSOLUTE_MAX_UPLOAD_CONCURRENCY_CPA = 150;
+// 环境变量可配置的绝对上限的平台天花板，防止误配过大
+const HARD_MAX_UPLOAD_CONCURRENCY = 1000;
+const DEFAULT_MAX_SUB2API_UPLOAD_ATTEMPTS = 3;
+const ABSOLUTE_MAX_SUB2API_UPLOAD_ATTEMPTS = 10;
 const UPSTREAM_TIMEOUT_MS = 10 * 60 * 1000;
 const VERIFY_TIMEOUT_MS = 30 * 1000;
 
@@ -92,6 +101,9 @@ async function handleApi(request, env, url) {
       limits: {
         maxSub2apiAccounts: maxSub2apiAccounts(env),
         maxCpaFiles: maxCpaFiles(env),
+        maxUploadConcurrencySub2api: maxUploadConcurrencySub2api(env),
+        maxUploadConcurrencyCpa: maxUploadConcurrencyCpa(env),
+        maxSub2apiUploadAttempts: maxSub2apiUploadAttempts(env),
       },
     });
   }
@@ -116,12 +128,20 @@ async function handleApi(request, env, url) {
     }
     // 仅从 body.config 读取覆盖配置，避免把 accounts/files 误当配置源
     const override = extractConfigOverride(body?.config);
+    const maxAttemptsLimit = maxSub2apiUploadAttempts(env);
+    const requestedAttempts = Number(body?.maxAttempts);
+    const maxAttempts = Number.isFinite(requestedAttempts)
+      ? Math.min(maxAttemptsLimit, Math.max(1, Math.floor(requestedAttempts)))
+      : Math.min(maxAttemptsLimit, DEFAULT_MAX_SUB2API_UPLOAD_ATTEMPTS);
+    const retryAmbiguous = body?.retryAmbiguous === true;
     const result = await uploadSub2api(
       env,
       accounts,
       Boolean(body?.skipDefaultGroupBind),
       request.signal,
       override,
+      maxAttempts,
+      retryAmbiguous,
     );
     return jsonResponse({ ok: true, target: "SUB2API", count: accounts.length, ...result });
   }
@@ -152,8 +172,122 @@ function getAccessSetupProblem(env) {
   const missing = [];
   if (!String(env.APP_PASSWORD || "").trim()) missing.push("APP_PASSWORD");
   if (!String(env.SESSION_SECRET || "").trim()) missing.push("SESSION_SECRET");
-  if (!missing.length) return "";
-  return `Worker 尚未配置访问控制密钥：${missing.join(", ")}。请在 Cloudflare Worker 的 Settings → Variables and Secrets 中以 Secret 类型添加。`;
+  if (missing.length) {
+    return `Worker 尚未配置访问控制密钥：${missing.join(", ")}。请在 Cloudflare Worker 的 Settings → Variables and Secrets 中以 Secret 类型添加。`;
+  }
+  // 上传并发相关环境变量：值必须有效，且默认并发上限 ≤ 绝对上限
+  return getUploadConcurrencyEnvProblem(env);
+}
+
+/**
+ * 解析并校验 ABSOLUTE_MAX_UPLOAD_CONCURRENCY_*。
+ * 未设置时用内置默认绝对上限；已设置则必须是 1–HARD 的整数，且 ≥ 对应 DEFAULT_MAX。
+ * @returns {{ value: number } | { error: string }}
+ */
+function parseAbsoluteUploadConcurrencyEnv(raw, defaultAbsolute, defaultMax, envName) {
+  if (defaultAbsolute < defaultMax) {
+    return {
+      error:
+        `内置配置错误：${envName} 默认绝对上限 ${defaultAbsolute} 小于默认并发上限 ${defaultMax}。`,
+    };
+  }
+
+  if (raw === undefined || raw === null || String(raw).trim() === "") {
+    return { value: defaultAbsolute };
+  }
+
+  const text = String(raw).trim();
+  const parsed = Number(text);
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
+    return {
+      error: `${envName} 必须是正整数（1–${HARD_MAX_UPLOAD_CONCURRENCY}），当前值无效：${text}`,
+    };
+  }
+  if (parsed < 1 || parsed > HARD_MAX_UPLOAD_CONCURRENCY) {
+    return {
+      error: `${envName}=${parsed} 超出允许范围，必须在 1–${HARD_MAX_UPLOAD_CONCURRENCY} 之间。`,
+    };
+  }
+  if (parsed < defaultMax) {
+    return {
+      error:
+        `${envName}=${parsed} 无效：绝对上限必须 ≥ 默认上传并发上限 ${defaultMax}` +
+        `（DEFAULT / MAX_UPLOAD_CONCURRENCY 未设置时的回退值）。`,
+    };
+  }
+  return { value: parsed };
+}
+
+function getUploadConcurrencyEnvProblem(env) {
+  const sub2Abs = parseAbsoluteUploadConcurrencyEnv(
+    env.ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API,
+    DEFAULT_ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API,
+    DEFAULT_MAX_UPLOAD_CONCURRENCY_SUB2API,
+    "ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API",
+  );
+  if (sub2Abs.error) return sub2Abs.error;
+
+  const cpaAbs = parseAbsoluteUploadConcurrencyEnv(
+    env.ABSOLUTE_MAX_UPLOAD_CONCURRENCY_CPA,
+    DEFAULT_ABSOLUTE_MAX_UPLOAD_CONCURRENCY_CPA,
+    DEFAULT_MAX_UPLOAD_CONCURRENCY_CPA,
+    "ABSOLUTE_MAX_UPLOAD_CONCURRENCY_CPA",
+  );
+  if (cpaAbs.error) return cpaAbs.error;
+
+  // 可选：若显式配置了 MAX_UPLOAD_CONCURRENCY_*，校验其为有效正整数且不超过绝对上限
+  const maxChecks = [
+    {
+      raw: env.MAX_UPLOAD_CONCURRENCY_SUB2API,
+      absolute: sub2Abs.value,
+      envName: "MAX_UPLOAD_CONCURRENCY_SUB2API",
+    },
+    {
+      raw: env.MAX_UPLOAD_CONCURRENCY_CPA,
+      absolute: cpaAbs.value,
+      envName: "MAX_UPLOAD_CONCURRENCY_CPA",
+    },
+  ];
+  for (const item of maxChecks) {
+    if (item.raw === undefined || item.raw === null || String(item.raw).trim() === "") continue;
+    const text = String(item.raw).trim();
+    const parsed = Number(text);
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
+      return `${item.envName} 必须是正整数，当前值无效：${text}`;
+    }
+    if (parsed < 1) {
+      return `${item.envName}=${parsed} 无效：必须 ≥ 1。`;
+    }
+    if (parsed > item.absolute) {
+      return (
+        `${item.envName}=${parsed} 超过绝对上限 ${item.absolute}。` +
+        `请调低该值，或提高对应的 ABSOLUTE_MAX_UPLOAD_CONCURRENCY_*。`
+      );
+    }
+  }
+
+  return "";
+}
+
+function absoluteMaxUploadConcurrencySub2api(env) {
+  const result = parseAbsoluteUploadConcurrencyEnv(
+    env.ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API,
+    DEFAULT_ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API,
+    DEFAULT_MAX_UPLOAD_CONCURRENCY_SUB2API,
+    "ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API",
+  );
+  // 启动校验已拦截 error；此处兜底回退默认绝对上限
+  return result.value || DEFAULT_ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API;
+}
+
+function absoluteMaxUploadConcurrencyCpa(env) {
+  const result = parseAbsoluteUploadConcurrencyEnv(
+    env.ABSOLUTE_MAX_UPLOAD_CONCURRENCY_CPA,
+    DEFAULT_ABSOLUTE_MAX_UPLOAD_CONCURRENCY_CPA,
+    DEFAULT_MAX_UPLOAD_CONCURRENCY_CPA,
+    "ABSOLUTE_MAX_UPLOAD_CONCURRENCY_CPA",
+  );
+  return result.value || DEFAULT_ABSOLUTE_MAX_UPLOAD_CONCURRENCY_CPA;
 }
 
 async function handleLogin(request, env) {
@@ -210,6 +344,27 @@ function maxSub2apiAccounts(env) {
 
 function maxCpaFiles(env) {
   return parsePositiveIntEnv(env.MAX_CPA_FILES, DEFAULT_MAX_CPA_FILES, ABSOLUTE_MAX_CPA_FILES);
+}
+
+function maxUploadConcurrencySub2api(env) {
+  const absolute = absoluteMaxUploadConcurrencySub2api(env);
+  // 默认并发不得超过当前绝对上限（启动校验已保证默认绝对 ≥ 默认并发）
+  const fallback = Math.min(DEFAULT_MAX_UPLOAD_CONCURRENCY_SUB2API, absolute);
+  return parsePositiveIntEnv(env.MAX_UPLOAD_CONCURRENCY_SUB2API, fallback, absolute);
+}
+
+function maxUploadConcurrencyCpa(env) {
+  const absolute = absoluteMaxUploadConcurrencyCpa(env);
+  const fallback = Math.min(DEFAULT_MAX_UPLOAD_CONCURRENCY_CPA, absolute);
+  return parsePositiveIntEnv(env.MAX_UPLOAD_CONCURRENCY_CPA, fallback, absolute);
+}
+
+function maxSub2apiUploadAttempts(env) {
+  return parsePositiveIntEnv(
+    env.MAX_SUB2API_UPLOAD_ATTEMPTS,
+    DEFAULT_MAX_SUB2API_UPLOAD_ATTEMPTS,
+    ABSOLUTE_MAX_SUB2API_UPLOAD_ATTEMPTS,
+  );
 }
 
 async function createSessionToken(env) {
@@ -501,7 +656,15 @@ async function verifyTarget(env, target, override = null) {
   };
 }
 
-async function uploadSub2api(env, accounts, skipDefaultGroupBind, clientSignal, override = null) {
+async function uploadSub2api(
+  env,
+  accounts,
+  skipDefaultGroupBind,
+  clientSignal,
+  override = null,
+  maxAttempts = 1,
+  retryAmbiguous = false,
+) {
   const config = resolveTargetConfig(env, "SUB2API", override);
   const payload = {
     data: {
@@ -511,11 +674,23 @@ async function uploadSub2api(env, accounts, skipDefaultGroupBind, clientSignal, 
     },
     skip_default_group_bind: skipDefaultGroupBind,
   };
-  const result = await sub2apiRequest(config, "/api/v1/admin/accounts/data", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  }, UPSTREAM_TIMEOUT_MS, 1, clientSignal);
+  // bulk 导入非幂等：默认只对“较安全”的失败重试；超时等模糊失败仅在 retryAmbiguous 时重试
+  const result = await sub2apiRequest(
+    config,
+    "/api/v1/admin/accounts/data",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+    UPSTREAM_TIMEOUT_MS,
+    Math.max(1, Math.floor(Number(maxAttempts) || 1)),
+    clientSignal,
+    {
+      retryAmbiguous: Boolean(retryAmbiguous),
+      writeOperation: true,
+    },
+  );
   return {
     attempts: result.attempts,
     source: config.source,
@@ -535,7 +710,8 @@ async function uploadCpaFiles(env, files, clientSignal, override = null) {
     };
   });
 
-  return mapWithConcurrency(normalized, 4, async (entry) => {
+  // Worker 批内串行单文件上传，总并发由前端上传并发控制，避免双重放大
+  return mapWithConcurrency(normalized, 1, async (entry) => {
     try {
       const result = await cpaRequest(
         config,
@@ -574,7 +750,7 @@ function sanitizeJsonFilename(value) {
   return name || "account.json";
 }
 
-async function sub2apiRequest(config, path, init, timeoutMs, maxAttempts, clientSignal) {
+async function sub2apiRequest(config, path, init, timeoutMs, maxAttempts, clientSignal, retryOptions = {}) {
   const headers = new Headers(init.headers || {});
   headers.set("Accept", "application/json");
   headers.set("x-api-key", config.apiKey);
@@ -588,6 +764,8 @@ async function sub2apiRequest(config, path, init, timeoutMs, maxAttempts, client
       }
     },
     clientSignal,
+    retryAmbiguous: retryOptions.retryAmbiguous === true,
+    writeOperation: retryOptions.writeOperation === true,
   });
 }
 
@@ -650,7 +828,10 @@ async function requestJsonWithRetry(url, init, options = {}) {
     } catch (error) {
       lastError = normalizeUpstreamError(error);
       lastError.attempts = attempt;
-      if (attempt >= maxAttempts || !isRetryable(lastError)) throw lastError;
+      const canRetry = options.writeOperation
+        ? isRetryableWrite(lastError, options.retryAmbiguous === true)
+        : isRetryable(lastError);
+      if (attempt >= maxAttempts || !canRetry) throw lastError;
       await sleep(700 * (2 ** (attempt - 1)) + Math.floor(Math.random() * 300));
     }
   }
@@ -694,6 +875,23 @@ function normalizeUpstreamError(error) {
 function isRetryable(error) {
   if (!error?.status) return true;
   return [408, 425, 429, 500, 502, 503, 504].includes(error.status);
+}
+
+// 写操作（尤其 SUB2API bulk）更保守：
+// - 安全重试：无 status 网络错误、429、502/503 等较可能未落库的情况
+// - 模糊重试（可选）：超时 504 / 500 —— 可能已写入，仅当调用方明确允许时重试
+function isRetryableWrite(error, retryAmbiguous = false) {
+  if (error?.code === "CLIENT_ABORTED" || error?.status === 499) return false;
+  if (error?.code === "UPSTREAM_BUSINESS_ERROR") return false;
+  if (error?.status && error.status >= 400 && error.status < 500 && ![408, 425, 429].includes(error.status)) {
+    return false;
+  }
+  if (!error?.status) return true;
+  if ([408, 425, 429, 502, 503].includes(error.status)) return true;
+  if (retryAmbiguous && [500, 504].includes(error.status)) return true;
+  if (error?.code === "UPSTREAM_TIMEOUT") return Boolean(retryAmbiguous);
+  if (error?.code === "UPSTREAM_NETWORK_ERROR") return true;
+  return false;
 }
 
 function parseResponseBody(text) {

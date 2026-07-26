@@ -7,7 +7,7 @@
 - 目标服务器地址/密钥：**本机 localStorage 优先**，没有本机配置时回退 Worker 环境变量；
 - 上传前会验证配置有效性；无效或缺失时弹窗引导填写并保存；
 - 页面由内置密码登录保护，登录态使用签名的 HttpOnly Cookie；
-- SUB2API 与 CPA 都带失败重试，CPA 会返回每个账号的独立上传结果。
+- 上传支持前端可配并发与自适应降并发；SUB2API 支持分类重试，CPA 会返回每个账号的独立上传结果。
 
 ## 一、部署
 
@@ -99,7 +99,7 @@ x-api-key: <API_KEY>
 POST /api/v1/admin/accounts/data
 ```
 
-前端可在页面配置每批账号数，且不得超过 Worker 的 `MAX_SUB2API_ACCOUNTS` 上限（默认 100，硬上限 5000）。SUB2API 批量导入为非幂等写操作，Worker 对该 POST 不自动重试，避免重复创建账号。
+前端可在页面配置每批账号数，且不得超过 Worker 的 `MAX_SUB2API_ACCOUNTS` 上限（默认 100，硬上限 5000）。也可配置前端并行批次数与重试策略（见下方「上传行为说明」）。SUB2API 批量导入为非幂等写操作；Worker 仅对较安全的失败自动重试，超时等模糊失败默认不重试。
 
 ### 3.3 用环境变量配置 CPA（可选回退）
 
@@ -184,14 +184,23 @@ npm run dev
 | `ALLOW_INSECURE_UPSTREAM` | 否 | 普通变量 |
 | `MAX_SUB2API_ACCOUNTS` | 否 | 普通变量，默认 `100`，范围 1–5000 |
 | `MAX_CPA_FILES` | 否 | 普通变量，默认 `20`，范围 1–100 |
+| `MAX_UPLOAD_CONCURRENCY_SUB2API` | 否 | 普通变量，默认 `3`，不得超过对应绝对上限 |
+| `MAX_UPLOAD_CONCURRENCY_CPA` | 否 | 普通变量，默认 `8`，不得超过对应绝对上限 |
+| `ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API` | 否 | 普通变量，默认 `50`，范围 1–1000，且 ≥ 默认并发 `3` |
+| `ABSOLUTE_MAX_UPLOAD_CONCURRENCY_CPA` | 否 | 普通变量，默认 `150`，范围 1–1000，且 ≥ 默认并发 `8` |
+| `MAX_SUB2API_UPLOAD_ATTEMPTS` | 否 | 普通变量，默认 `3`，范围 1–10 |
 
 SUB2API 和 CPA 均为可选目标。每个目标的地址和密钥必须成对出现（本机配置或环境变量各自成对）。页面顶栏徽章会显示「本机 / 环境变量 / 未配置」；点击上传时会先验证，失败则打开配置窗。
 
-单批上限说明：
+上传上限说明：
 
 - `MAX_SUB2API_ACCOUNTS` / `MAX_CPA_FILES` 控制 Worker 接口允许的单批最大数量。
-- 未设置、非数字、小于 1 时回退默认值；超过硬上限时钳制到硬上限。
-- 页面通过 `/api/config/status` 读取 `limits`，并限制用户可配置的批次大小不超过该上限。
+- `MAX_UPLOAD_CONCURRENCY_SUB2API` / `MAX_UPLOAD_CONCURRENCY_CPA` 控制前端可配置的并行批次数上限（页面可配项的上限来源）。
+- `ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API` / `ABSOLUTE_MAX_UPLOAD_CONCURRENCY_CPA` 控制上述并发上限的绝对天花板，便于按目标服务器承载能力调整。
+- `MAX_SUB2API_UPLOAD_ATTEMPTS` 控制 SUB2API 单批最大尝试次数上限（含首次）。
+- 启动时校验：绝对上限必须有效，且 `DEFAULT_MAX_UPLOAD_CONCURRENCY_* ≤ ABSOLUTE_MAX_UPLOAD_CONCURRENCY_*`；若显式设置了 `MAX_UPLOAD_CONCURRENCY_*`，也必须 ≤ 对应绝对上限。配置无效时页面会显示配置错误提示。
+- 未设置、非数字、小于 1 时：`MAX_*` 回退默认值并钳制到绝对上限；`ABSOLUTE_MAX_*` 回退内置默认绝对上限。
+- 页面通过 `/api/config/status` 读取 `limits`，并限制用户可配置项不超过对应上限。
 
 ## 登录后显示“拒绝跨站请求”
 
@@ -211,9 +220,14 @@ SUB2API 和 CPA 均为可选目标。每个目标的地址和密钥必须成对�
 - 上传前无论本机还是 env，都会先调用 `/api/config/verify`；失败则引导修正配置。
 - 本机配置上传时，请求体会附带 `config: { baseUrl, apiKey, cpaAuthMode? }`；纯 env 时不附带，由 Worker 读环境变量。
 - 上传期间仅当前目标按钮显示旋转状态，另一个目标按钮仅禁用；同时显示“取消上传”。
-- 页面可配置分批上传批次大小：SUB2API 默认 100 / 批，CPA 默认 20 / 批；不得超过 Worker 通过 `/api/config/status` 返回的 `limits` 上限。
-- Worker 单批上限可由环境变量调整：`MAX_SUB2API_ACCOUNTS`（默认 100，硬上限 5000）、`MAX_CPA_FILES`（默认 20，硬上限 100）。
-- SUB2API 的批量导入属于非幂等写操作。为避免响应丢失或超时后自动重试造成重复账号，Worker 对该 POST 不自动重试，前端也不再递归拆分重传。
-- “已确认成功”只统计已经收到 SUB2API 成功响应的批次；正在处理的批次可能已经在服务器端写入一部分，所以服务器列表数量短时间内可能领先页面确认进度。
+- 页面可配置项（方向、命名、调度参数、批次大小、上传并发、SUB2API 重试等）会保存到本机 `localStorage`（键名 `cpa2sub.uiSettings.v1`），下次打开自动恢复。
+- **批次大小**：SUB2API 默认 100 / 批，CPA 默认 20 / 批；不得超过 `MAX_SUB2API_ACCOUNTS` / `MAX_CPA_FILES`。
+- **上传并发**：前端可并行提交多个批次，默认均为 1；页面可配上限由 `MAX_UPLOAD_CONCURRENCY_SUB2API`（默认 3）与 `MAX_UPLOAD_CONCURRENCY_CPA`（默认 8）约束，二者再受 `ABSOLUTE_MAX_UPLOAD_CONCURRENCY_*`（默认 SUB2API 50 / CPA 150）钳制。遇到超时等模糊失败时会自适应降低并发并短暂冷却，连续成功后再逐步恢复。
+- **CPA**：官方 Management API 仅支持单文件上传。页面按批并发请求 Worker；Worker 批内按文件串行转发（并发 1），避免 Worker 内再放大。
+- **SUB2API 重试**：
+  - 页面可配最大尝试次数（含首次，默认 3），不得超过 `MAX_SUB2API_UPLOAD_ATTEMPTS`。
+  - 对网络抖动、部分 5xx 等较安全失败会在次数内自动重试。
+  - 超时 / 响应丢失等**模糊失败**策略可选：`不重试`（默认）/ `自动重试` / `等待确认`。模糊失败自动重试有重复创建账号风险。
+- “已确认成功”只统计已经收到目标服务器成功响应的条目；正在处理的批次可能已经在服务器端写入一部分，所以服务器列表数量短时间内可能领先页面确认进度。
 - 取消操作会停止后续批次并中断当前浏览器请求；若当前批次已经到达目标服务器，仍可能完成，因此取消后应先到目标服务器核对。
-- 网络中断、超时或 5xx 等无法确定服务端最终结果的情况会标记为“状态未知”，不要直接批量重试，以免重复导入。
+- 网络中断、超时或结果不明的情况会标记为“状态未知”；在未核对服务器前，不要对未知状态直接批量重试，以免重复导入。

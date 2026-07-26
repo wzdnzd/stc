@@ -19,3 +19,19 @@ ALLOW_INSECURE_UPSTREAM="false"
 # MAX_SUB2API_ACCOUNTS="100"
 # CPA 默认 20，硬上限 100
 # MAX_CPA_FILES="20"
+
+# 前端并行上传批次数上限（页面可配，不得超过对应绝对上限）
+# SUB2API 默认 3
+# MAX_UPLOAD_CONCURRENCY_SUB2API="3"
+# CPA 默认 8
+# MAX_UPLOAD_CONCURRENCY_CPA="8"
+
+# 上传并发绝对上限（可按目标服务器承载调整；启动时校验有效且 ≥ 默认并发）
+# SUB2API 默认 50，平台天花板 1000，且必须 ≥ 3
+# ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API="50"
+# CPA 默认 150，平台天花板 1000，且必须 ≥ 8
+# ABSOLUTE_MAX_UPLOAD_CONCURRENCY_CPA="150"
+
+# SUB2API 单批最大尝试次数上限（含首次；页面可配，默认 3）
+# 默认 3，硬上限 10
+# MAX_SUB2API_UPLOAD_ATTEMPTS="3"
