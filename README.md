@@ -169,6 +169,25 @@ npm run dev
 
 `.dev.vars` 已被 `.gitignore` 排除，不要提交真实密钥。
 
+### 代码规范与提交前检查
+
+项目使用 **ESLint**（规范）+ **Prettier**（格式）+ **husky / lint-staged**（提交拦截）：
+
+| 命令                   | 作用                             |
+| ---------------------- | -------------------------------- |
+| `npm run lint`         | ESLint 检查 `src/` 等 JS         |
+| `npm run lint:fix`     | 自动修复可修的 ESLint 问题       |
+| `npm run format`       | Prettier 格式化全库              |
+| `npm run format:check` | 仅检查格式，不改写               |
+| `npm run check`        | lint + 格式检查 + `node --check` |
+
+`npm install` 会通过 `prepare` 安装 husky。提交时 `.husky/pre-commit` 会执行 `npx lint-staged`：
+
+- 暂存的 `src/**/*.js`：`eslint --fix --max-warnings=0` + `prettier --write`
+- 暂存的 `public/**/*.{html,css,js}` 与常见配置/文档：`prettier --write`
+
+任一检查失败则 **commit 被拒绝**；修复后重新 `git add` 再提交。
+
 ## 七、环境变量汇总
 
 | 变量                                      | 必填 | 建议类型                                                                                                               |

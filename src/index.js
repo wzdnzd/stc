@@ -80,7 +80,10 @@ async function handleRequest(request, env) {
   const authenticated = await isAuthenticated(request, env);
   if (!authenticated) {
     if (url.pathname.startsWith("/api/")) {
-      return jsonResponse({ ok: false, code: "AUTH_REQUIRED", error: "登录状态已失效，请重新登录。" }, 401);
+      return jsonResponse(
+        { ok: false, code: "AUTH_REQUIRED", error: "登录状态已失效，请重新登录。" },
+        401
+      );
     }
     return htmlResponse(renderLoginPage(), 401);
   }
@@ -134,7 +137,7 @@ async function handleApi(request, env, url) {
     const maxAttempts = resolveRequestedAttempts(
       body?.maxAttempts,
       maxSub2apiUploadAttempts(env),
-      DEFAULT_MAX_SUB2API_UPLOAD_ATTEMPTS,
+      DEFAULT_MAX_SUB2API_UPLOAD_ATTEMPTS
     );
     const retryAmbiguous = body?.retryAmbiguous === true;
     const result = await uploadSub2api(
@@ -144,7 +147,7 @@ async function handleApi(request, env, url) {
       request.signal,
       override,
       maxAttempts,
-      retryAmbiguous,
+      retryAmbiguous
     );
     return jsonResponse({ ok: true, target: "SUB2API", count: accounts.length, ...result });
   }
@@ -163,7 +166,7 @@ async function handleApi(request, env, url) {
     const maxAttempts = resolveRequestedAttempts(
       body?.maxAttempts,
       maxCpaUploadAttempts(env),
-      DEFAULT_MAX_CPA_UPLOAD_ATTEMPTS,
+      DEFAULT_MAX_CPA_UPLOAD_ATTEMPTS
     );
     const results = await uploadCpaFiles(env, files, request.signal, override, maxAttempts);
     return jsonResponse({
@@ -309,7 +312,7 @@ function getLimitsEnvProblem(env) {
       spec.defaultAbsolute,
       spec.defaultMax,
       spec.hardMax,
-      spec.label,
+      spec.label
     );
     if (abs.error) return abs.error;
 
@@ -381,7 +384,7 @@ function resolveLimitDetail(env, spec) {
     spec.defaultAbsolute,
     spec.defaultMax,
     spec.hardMax,
-    spec.label,
+    spec.label
   );
   const absolute = abs.value || spec.defaultAbsolute;
   const fallback = Math.min(spec.defaultMax, absolute);
@@ -432,8 +435,10 @@ function buildPublicLimits(env) {
       ABSOLUTE_MAX_CPA_FILES: resolved[1].absoluteRaw,
       ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API: resolved[2].absoluteRaw,
       ABSOLUTE_MAX_UPLOAD_CONCURRENCY_CPA: resolved[3].absoluteRaw,
-      ABSOLUTE_MAX_SUB2API_UPLOAD_ATTEMPTS: firstEnv(env, "ABSOLUTE_MAX_SUB2API_UPLOAD_ATTEMPTS")?.raw || null,
-      ABSOLUTE_MAX_CPA_UPLOAD_ATTEMPTS: firstEnv(env, "ABSOLUTE_MAX_CPA_UPLOAD_ATTEMPTS")?.raw || null,
+      ABSOLUTE_MAX_SUB2API_UPLOAD_ATTEMPTS:
+        firstEnv(env, "ABSOLUTE_MAX_SUB2API_UPLOAD_ATTEMPTS")?.raw || null,
+      ABSOLUTE_MAX_CPA_UPLOAD_ATTEMPTS:
+        firstEnv(env, "ABSOLUTE_MAX_CPA_UPLOAD_ATTEMPTS")?.raw || null,
       ABSOLUTE_MAX_UPLOAD_ATTEMPTS: firstEnv(env, "ABSOLUTE_MAX_UPLOAD_ATTEMPTS")?.raw || null,
     },
   };
@@ -445,14 +450,6 @@ function maxSub2apiAccounts(env) {
 
 function maxCpaFiles(env) {
   return resolveLimit(env, limitSpecs()[1]);
-}
-
-function maxUploadConcurrencySub2api(env) {
-  return resolveLimit(env, limitSpecs()[2]);
-}
-
-function maxUploadConcurrencyCpa(env) {
-  return resolveLimit(env, limitSpecs()[3]);
 }
 
 function maxSub2apiUploadAttempts(env) {
@@ -473,13 +470,14 @@ function resolveRequestedAttempts(requested, limit, fallbackDefault) {
 
 async function handleLogin(request, env) {
   if (request.method === "GET") return htmlResponse(renderLoginPage(), 200);
-  if (request.method !== "POST") throw new HttpError(405, "Method Not Allowed", "METHOD_NOT_ALLOWED");
+  if (request.method !== "POST")
+    throw new HttpError(405, "Method Not Allowed", "METHOD_NOT_ALLOWED");
 
   // 登录请求不做严格 Origin 比对。Cloudflare Dashboard/Preview、自定义域名
   // 或边缘代理可能使浏览器的 Origin 与 Worker 看到的 request.url 不完全一致，
   // 从而误判为跨站。登录仍受访问密码、失败延迟和后续 SameSite 会话 Cookie 保护。
   const contentType = request.headers.get("content-type") || "";
-  let password = "";
+  let password;
   if (contentType.includes("application/json")) {
     const body = await readJsonBody(request, 16 * 1024);
     password = String(body?.password || "");
@@ -552,7 +550,7 @@ async function hmacSign(message, secret) {
     new TextEncoder().encode(secret),
     { name: "HMAC", hash: "SHA-256" },
     false,
-    ["sign"],
+    ["sign"]
   );
   const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(message));
   return base64urlEncode(new Uint8Array(signature));
@@ -574,7 +572,8 @@ function base64urlEncode(bytes) {
 }
 
 function base64urlDecode(value) {
-  const base64 = value.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - value.length % 4) % 4);
+  const base64 =
+    value.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - (value.length % 4)) % 4);
   const binary = atob(base64);
   return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }
@@ -584,7 +583,8 @@ function getCookie(request, name) {
   for (const part of cookie.split(";")) {
     const index = part.indexOf("=");
     if (index < 0) continue;
-    if (part.slice(0, index).trim() === name) return decodeURIComponent(part.slice(index + 1).trim());
+    if (part.slice(0, index).trim() === name)
+      return decodeURIComponent(part.slice(index + 1).trim());
   }
   return "";
 }
@@ -647,9 +647,10 @@ function extractConfigOverride(source) {
   const baseUrl = String(source.baseUrl ?? source.base_url ?? "").trim();
   const apiKey = String(source.apiKey ?? source.api_key ?? "").trim();
   const cpaAuthModeRaw = source.cpaAuthMode ?? source.cpa_auth_mode;
-  const cpaAuthMode = cpaAuthModeRaw == null || String(cpaAuthModeRaw).trim() === ""
-    ? undefined
-    : String(cpaAuthModeRaw).trim();
+  const cpaAuthMode =
+    cpaAuthModeRaw == null || String(cpaAuthModeRaw).trim() === ""
+      ? undefined
+      : String(cpaAuthModeRaw).trim();
 
   // 原子覆盖：必须同时提供地址和密钥；只给一半时忽略，回退 env。
   if (!baseUrl && !apiKey && cpaAuthMode === undefined) return null;
@@ -657,7 +658,7 @@ function extractConfigOverride(source) {
     throw new HttpError(
       400,
       "自定义配置必须同时提供 baseUrl 和 apiKey；否则请省略以使用 Worker 环境变量。",
-      "INVALID_CONFIG_OVERRIDE",
+      "INVALID_CONFIG_OVERRIDE"
     );
   }
   if (baseUrl.length > MAX_OVERRIDE_BASE_URL_LENGTH) {
@@ -682,7 +683,7 @@ function getTargetConfig(env, target) {
       503,
       `${target} 尚未配置。请在页面填写服务器地址和密钥，或在 Worker 环境变量中设置：${missing.join(", ")}。`,
       "TARGET_NOT_CONFIGURED",
-      { target, missing },
+      { target, missing }
     );
   }
 
@@ -702,7 +703,7 @@ function resolveTargetConfig(env, target, override = null) {
       baseUrl: normalizeBaseUrl(override.baseUrl, target, env),
       apiKey: String(override.apiKey).trim(),
       cpaAuthMode: normalizeCpaAuthMode(
-        override.cpaAuthMode !== undefined ? override.cpaAuthMode : env.CPA_AUTH_MODE,
+        override.cpaAuthMode !== undefined ? override.cpaAuthMode : env.CPA_AUTH_MODE
       ),
       source: "client",
     };
@@ -753,14 +754,17 @@ function normalizeBaseUrl(raw, target, env) {
     throw new HttpError(503, `${target} 服务器地址无效。`, "INVALID_BASE_URL");
   }
 
-  if (!['http:', 'https:'].includes(url.protocol)) {
+  if (!["http:", "https:"].includes(url.protocol)) {
     throw new HttpError(503, `${target} 服务器地址仅支持 HTTP/HTTPS。`, "INVALID_BASE_URL");
   }
-  if (url.protocol !== "https:" && String(env.ALLOW_INSECURE_UPSTREAM || "").toLowerCase() !== "true") {
+  if (
+    url.protocol !== "https:" &&
+    String(env.ALLOW_INSECURE_UPSTREAM || "").toLowerCase() !== "true"
+  ) {
     throw new HttpError(
       503,
       `${target} 服务器地址必须使用 HTTPS；确需 HTTP 时设置 ALLOW_INSECURE_UPSTREAM=true。`,
-      "INSECURE_UPSTREAM",
+      "INSECURE_UPSTREAM"
     );
   }
 
@@ -784,9 +788,15 @@ function normalizeCpaAuthMode(value) {
 async function verifyTarget(env, target, override = null) {
   const config = resolveTargetConfig(env, target, override);
   if (target === "SUB2API") {
-    const result = await sub2apiRequest(config, "/api/v1/admin/accounts?page=1&page_size=1&lite=1", {
-      method: "GET",
-    }, VERIFY_TIMEOUT_MS, 1);
+    const result = await sub2apiRequest(
+      config,
+      "/api/v1/admin/accounts?page=1&page_size=1&lite=1",
+      {
+        method: "GET",
+      },
+      VERIFY_TIMEOUT_MS,
+      1
+    );
     return {
       baseUrl: config.baseUrl,
       source: config.source,
@@ -795,7 +805,13 @@ async function verifyTarget(env, target, override = null) {
     };
   }
 
-  const result = await cpaRequest(config, "/v0/management/auth-files", { method: "GET" }, VERIFY_TIMEOUT_MS, 1);
+  const result = await cpaRequest(
+    config,
+    "/v0/management/auth-files",
+    { method: "GET" },
+    VERIFY_TIMEOUT_MS,
+    1
+  );
   if (!result.data || !Array.isArray(result.data.files)) {
     throw new HttpError(502, "CPA 返回了非预期的管理接口响应。", "INVALID_UPSTREAM_RESPONSE");
   }
@@ -815,7 +831,7 @@ async function uploadSub2api(
   clientSignal,
   override = null,
   maxAttempts = 1,
-  retryAmbiguous = false,
+  retryAmbiguous = false
 ) {
   const config = resolveTargetConfig(env, "SUB2API", override);
   const payload = {
@@ -841,7 +857,7 @@ async function uploadSub2api(
     {
       retryAmbiguous: Boolean(retryAmbiguous),
       writeOperation: true,
-    },
+    }
   );
   return {
     attempts: result.attempts,
@@ -850,10 +866,21 @@ async function uploadSub2api(
   };
 }
 
-async function uploadCpaFiles(env, files, clientSignal, override = null, maxAttempts = DEFAULT_MAX_CPA_UPLOAD_ATTEMPTS) {
+async function uploadCpaFiles(
+  env,
+  files,
+  clientSignal,
+  override = null,
+  maxAttempts = DEFAULT_MAX_CPA_UPLOAD_ATTEMPTS
+) {
   const config = resolveTargetConfig(env, "CPA", override);
   const normalized = files.map((entry, index) => {
-    if (!entry || typeof entry !== "object" || !entry.account || typeof entry.account !== "object") {
+    if (
+      !entry ||
+      typeof entry !== "object" ||
+      !entry.account ||
+      typeof entry.account !== "object"
+    ) {
       throw new HttpError(400, `files[${index}] 缺少 account 对象。`, "INVALID_PAYLOAD");
     }
     return {
@@ -876,7 +903,7 @@ async function uploadCpaFiles(env, files, clientSignal, override = null, maxAtte
         },
         120000,
         attempts,
-        clientSignal,
+        clientSignal
       );
       return {
         name: entry.name,
@@ -897,29 +924,44 @@ async function uploadCpaFiles(env, files, clientSignal, override = null, maxAtte
 }
 
 function sanitizeJsonFilename(value) {
-  let name = String(value || "").trim().replace(/[\\/:*?"<>|\x00-\x1f]/g, "_");
+  // 去掉路径分隔符、Windows 非法字符与 C0 控制字符（含 NUL）
+  let name = String(value || "")
+    .trim()
+    .replace(/[\\/:*?"<>|\x00-\x1f]/g, "_"); // eslint-disable-line no-control-regex -- 故意匹配控制字符
   if (!name.toLowerCase().endsWith(".json")) name += ".json";
   if (name.length > 180) name = `${name.slice(0, 175)}.json`;
   return name || "account.json";
 }
 
-async function sub2apiRequest(config, path, init, timeoutMs, maxAttempts, clientSignal, retryOptions = {}) {
+async function sub2apiRequest(
+  config,
+  path,
+  init,
+  timeoutMs,
+  maxAttempts,
+  clientSignal,
+  retryOptions = {}
+) {
   const headers = new Headers(init.headers || {});
   headers.set("Accept", "application/json");
   headers.set("x-api-key", config.apiKey);
-  return requestJsonWithRetry(`${config.baseUrl}${path}`, { ...init, headers }, {
-    timeoutMs,
-    maxAttempts,
-    validate(data) {
-      if (data && data.code !== undefined && data.code !== 0 && data.code !== "0") {
-        const message = data.message || `SUB2API 业务错误：${data.code}`;
-        throw new HttpError(400, message, "UPSTREAM_BUSINESS_ERROR", data);
-      }
-    },
-    clientSignal,
-    retryAmbiguous: retryOptions.retryAmbiguous === true,
-    writeOperation: retryOptions.writeOperation === true,
-  });
+  return requestJsonWithRetry(
+    `${config.baseUrl}${path}`,
+    { ...init, headers },
+    {
+      timeoutMs,
+      maxAttempts,
+      validate(data) {
+        if (data && data.code !== undefined && data.code !== 0 && data.code !== "0") {
+          const message = data.message || `SUB2API 业务错误：${data.code}`;
+          throw new HttpError(400, message, "UPSTREAM_BUSINESS_ERROR", data);
+        }
+      },
+      clientSignal,
+      retryAmbiguous: retryOptions.retryAmbiguous === true,
+      writeOperation: retryOptions.writeOperation === true,
+    }
+  );
 }
 
 async function cpaRequest(config, path, init, timeoutMs, maxAttempts, clientSignal) {
@@ -932,11 +974,15 @@ async function cpaRequest(config, path, init, timeoutMs, maxAttempts, clientSign
     else headers.set("Authorization", `Bearer ${config.apiKey}`);
 
     try {
-      const result = await requestJsonWithRetry(`${config.baseUrl}${path}`, { ...init, headers }, {
-        timeoutMs,
-        maxAttempts,
-        clientSignal,
-      });
+      const result = await requestJsonWithRetry(
+        `${config.baseUrl}${path}`,
+        { ...init, headers },
+        {
+          timeoutMs,
+          maxAttempts,
+          clientSignal,
+        }
+      );
       return { ...result, authMode: mode };
     } catch (error) {
       lastError = error;
@@ -966,12 +1012,13 @@ async function requestJsonWithRetry(url, init, options = {}) {
       const text = await response.text();
       const data = parseResponseBody(text);
       if (!response.ok) {
-        const detail = data?.message || data?.error || data?.code || data?.raw || response.statusText;
+        const detail =
+          data?.message || data?.error || data?.code || data?.raw || response.statusText;
         const error = new HttpError(
           response.status,
           `上游 HTTP ${response.status}: ${typeof detail === "string" ? detail : JSON.stringify(detail)}`,
           "UPSTREAM_HTTP_ERROR",
-          data,
+          data
         );
         error.attempts = attempt;
         throw error;
@@ -985,7 +1032,7 @@ async function requestJsonWithRetry(url, init, options = {}) {
         ? isRetryableWrite(lastError, options.retryAmbiguous === true)
         : isRetryable(lastError);
       if (attempt >= maxAttempts || !canRetry) throw lastError;
-      await sleep(700 * (2 ** (attempt - 1)) + Math.floor(Math.random() * 300));
+      await sleep(700 * 2 ** (attempt - 1) + Math.floor(Math.random() * 300));
     }
   }
   throw lastError;
@@ -1011,7 +1058,11 @@ async function fetchWithTimeout(url, init, timeoutMs, clientSignal) {
       throw new HttpError(499, "客户端已取消上传。", "CLIENT_ABORTED");
     }
     if (controller.signal.aborted) {
-      throw new HttpError(504, "上游请求超时；服务器可能已经接收并处理本批数据，请先核对后再重试。", "UPSTREAM_TIMEOUT");
+      throw new HttpError(
+        504,
+        "上游请求超时；服务器可能已经接收并处理本批数据，请先核对后再重试。",
+        "UPSTREAM_TIMEOUT"
+      );
     }
     throw error;
   } finally {
@@ -1022,7 +1073,11 @@ async function fetchWithTimeout(url, init, timeoutMs, clientSignal) {
 
 function normalizeUpstreamError(error) {
   if (error instanceof HttpError) return error;
-  return new HttpError(502, `无法连接上游服务器：${error?.message || String(error)}`, "UPSTREAM_NETWORK_ERROR");
+  return new HttpError(
+    502,
+    `无法连接上游服务器：${error?.message || String(error)}`,
+    "UPSTREAM_NETWORK_ERROR"
+  );
 }
 
 function isRetryable(error) {
@@ -1036,7 +1091,12 @@ function isRetryable(error) {
 function isRetryableWrite(error, retryAmbiguous = false) {
   if (error?.code === "CLIENT_ABORTED" || error?.status === 499) return false;
   if (error?.code === "UPSTREAM_BUSINESS_ERROR") return false;
-  if (error?.status && error.status >= 400 && error.status < 500 && ![408, 425, 429].includes(error.status)) {
+  if (
+    error?.status &&
+    error.status >= 400 &&
+    error.status < 500 &&
+    ![408, 425, 429].includes(error.status)
+  ) {
     return false;
   }
   if (!error?.status) return true;
@@ -1093,13 +1153,16 @@ function publicErrorMessage(error) {
 
 function errorResponse(error) {
   const status = error?.status || 500;
-  return jsonResponse({
-    ok: false,
-    code: error?.code || "INTERNAL_ERROR",
-    error: status >= 500 && !error?.message ? "服务器内部错误。" : publicErrorMessage(error),
-    details: error?.code === "TARGET_NOT_CONFIGURED" ? error?.details : undefined,
-    attempts: error?.attempts,
-  }, status);
+  return jsonResponse(
+    {
+      ok: false,
+      code: error?.code || "INTERNAL_ERROR",
+      error: status >= 500 && !error?.message ? "服务器内部错误。" : publicErrorMessage(error),
+      details: error?.code === "TARGET_NOT_CONFIGURED" ? error?.details : undefined,
+      attempts: error?.attempts,
+    },
+    status
+  );
 }
 
 function jsonResponse(data, status = 200) {
@@ -1128,12 +1191,17 @@ function withSecurityHeaders(response, privateAsset = false) {
   const headers = new Headers(response.headers);
   for (const [key, value] of Object.entries(securityHeaders())) headers.set(key, value);
   if (privateAsset) headers.set("Cache-Control", "private, no-store");
-  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }
 
 function securityHeaders() {
   return {
-    "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+    "Content-Security-Policy":
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "no-referrer",

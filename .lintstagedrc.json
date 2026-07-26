@@ -1,0 +1,6 @@
+{
+  "src/**/*.{js,mjs,cjs}": ["eslint --fix --max-warnings=0", "prettier --write"],
+  "public/**/*.{html,css,js}": ["prettier --write"],
+  "*.{json,jsonc,md,yml,yaml}": ["prettier --write"],
+  "eslint.config.js": ["eslint --fix --max-warnings=0", "prettier --write"]
+}
