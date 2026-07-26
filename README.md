@@ -198,13 +198,14 @@ SUB2API 和 CPA 均为可选目标。每个目标的地址和密钥必须成对�
 
 上传上限说明：
 
-- `MAX_SUB2API_ACCOUNTS` / `MAX_CPA_FILES` 控制 Worker 接口允许的单批最大数量，也是前端「上限 xxx」的来源。
+- `MAX_SUB2API_ACCOUNTS` / `MAX_CPA_FILES` 控制 Worker 接口允许的单批最大数量，也是前端「上限：xxx」的来源。
 - `MAX_UPLOAD_CONCURRENCY_*` 控制前端可配置的并行批次数上限。
 - `MAX_*_UPLOAD_ATTEMPTS` 控制 SUB2API / CPA 的最大尝试次数上限（含首次）。
-- `ABSOLUTE_MAX_*` 是上述各项的绝对天花板，便于按目标服务器承载能力调整。
-- 启动时校验：绝对上限必须有效，且内置默认上限 ≤ 绝对上限；若显式设置了 `MAX_*`，也必须 ≤ 对应绝对上限。配置无效时页面会显示配置错误提示。
+- `ABSOLUTE_MAX_*` 是可选的绝对天花板。**只配 `MAX_*` 即可**；此时绝对上限回退到平台 hardMax（例如并发 1000、SUB2API 单批 20000），不再被偏低的内置 defaultAbsolute 卡住。
+- 若同时设置了 `ABSOLUTE_MAX_*`，则 `MAX_*` 必须 ≤ 该绝对上限；绝对上限本身须 ≥ 代码默认 `MAX_*` 回退值。
+- 启动时校验：值必须是有效正整数；配置无效时页面会显示配置错误提示（503）。
 - 未设置时：`MAX_*` 回退代码默认值并钳制到绝对上限；`ABSOLUTE_MAX_*` 回退内置默认绝对上限。
-- 页面通过 `/api/config/status` 读取 `limits`，并限制用户可配置项不超过对应上限。**改环境变量后需重新部署 Worker 才会生效。**
+- 页面通过 `/api/config/status` 读取 `limits`。`limits` 另含诊断字段 `resolvedFrom` / `envSeen`，可确认 Worker 是否真正读到了 Dashboard 变量。**改环境变量后需重新部署 / 新版本生效后才会反映到 status。**
 
 ## 登录后显示“拒绝跨站请求”
 

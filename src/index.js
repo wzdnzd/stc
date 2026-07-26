@@ -107,14 +107,7 @@ async function handleApi(request, env, url) {
         protected: true,
         sessionTtlHours: sessionTtlHours(env),
       },
-      limits: {
-        maxSub2apiAccounts: maxSub2apiAccounts(env),
-        maxCpaFiles: maxCpaFiles(env),
-        maxUploadConcurrencySub2api: maxUploadConcurrencySub2api(env),
-        maxUploadConcurrencyCpa: maxUploadConcurrencyCpa(env),
-        maxSub2apiUploadAttempts: maxSub2apiUploadAttempts(env),
-        maxCpaUploadAttempts: maxCpaUploadAttempts(env),
-      },
+      limits: buildPublicLimits(env),
     });
   }
 
@@ -195,19 +188,44 @@ function getAccessSetupProblem(env) {
 }
 
 /**
- * 读取第一个非空环境变量。
- * 注意：Cloudflare Worker 的 env 是绑定代理，变量不一定是 own property，
- * 不能用 hasOwnProperty 判断；直接读 env[key] 即可。
+ * 读取单个环境变量原始值。
+ * Cloudflare Worker 的 env 是绑定代理：不能依赖 hasOwnProperty / ownKeys。
+ * 同时兼容 env[key]、Reflect.get，以及少数实现上的 env.get(key)。
  */
+function readEnvRaw(env, key) {
+  if (!env || !key) return undefined;
+
+  try {
+    if (typeof env.get === "function") {
+      const viaGet = env.get(key);
+      if (viaGet !== undefined && viaGet !== null) return viaGet;
+    }
+  } catch {
+    // ignore
+  }
+
+  try {
+    const viaIndex = env[key];
+    if (viaIndex !== undefined && viaIndex !== null) return viaIndex;
+  } catch {
+    // ignore
+  }
+
+  try {
+    const viaReflect = Reflect.get(env, key);
+    if (viaReflect !== undefined && viaReflect !== null) return viaReflect;
+  } catch {
+    // ignore
+  }
+
+  return undefined;
+}
+
+/** 读取第一个非空环境变量 */
 function firstEnv(env, ...keys) {
   if (!env) return null;
   for (const key of keys) {
-    let value;
-    try {
-      value = env[key];
-    } catch {
-      continue;
-    }
+    const value = readEnvRaw(env, key);
     if (value === undefined || value === null) continue;
     const text = String(value).trim();
     if (!text) continue;
@@ -216,49 +234,60 @@ function firstEnv(env, ...keys) {
   return null;
 }
 
+function parsePositiveIntText(raw, { min = 1, max = Number.MAX_SAFE_INTEGER } = {}) {
+  if (raw === undefined || raw === null) return null;
+  const text = String(raw).trim();
+  if (!text) return null;
+  // 允许 "100" / "100.0"；拒绝明显非数字
+  const parsed = Number(text);
+  if (!Number.isFinite(parsed)) return null;
+  const floored = Math.floor(parsed);
+  if (floored < min || floored > max) return null;
+  return floored;
+}
+
 /**
- * 解析绝对上限环境变量。
- * 未设置 → 内置默认绝对上限；已设置 → 必须是 1–hardMax 整数，且 ≥ defaultMax。
- * @returns {{ value: number } | { error: string }}
+ * 解析绝对上限。
+ * - 显式设置 ABSOLUTE_MAX_* → 用该值（须 1–hardMax，且 ≥ defaultMax）
+ * - 未设置但设置了 MAX_* → 用 hardMax，让单独配置 MAX_* 即可生效
+ * - 都未设置 → 用 defaultAbsolute
+ * @returns {{ value: number, source: "env"|"max-unbounded"|"default" } | { error: string }}
  */
-function parseAbsoluteLimitEnv(found, defaultAbsolute, defaultMax, hardMax, label) {
+function parseAbsoluteLimitEnv(absFound, maxFound, defaultAbsolute, defaultMax, hardMax, label) {
   if (defaultAbsolute < defaultMax) {
     return {
       error: `内置配置错误：${label} 默认绝对上限 ${defaultAbsolute} 小于默认上限 ${defaultMax}。`,
     };
   }
-  if (!found) return { value: defaultAbsolute };
 
-  const parsed = Number(found.raw);
-  if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
-    return {
-      error: `${found.key} 必须是正整数（1–${hardMax}），当前值无效：${found.raw}`,
-    };
+  if (absFound) {
+    const parsed = parsePositiveIntText(absFound.raw, { min: 1, max: hardMax });
+    if (parsed == null) {
+      return {
+        error: `${absFound.key} 必须是正整数（1–${hardMax}），当前值无效：${absFound.raw}`,
+      };
+    }
+    if (parsed < defaultMax) {
+      return {
+        error:
+          `${absFound.key}=${parsed} 无效：绝对上限必须 ≥ 默认上限 ${defaultMax}` +
+          `（未设置 MAX_* 时的回退值）。`,
+      };
+    }
+    return { value: parsed, source: "env" };
   }
-  if (parsed < 1 || parsed > hardMax) {
-    return {
-      error: `${found.key}=${parsed} 超出允许范围，必须在 1–${hardMax} 之间。`,
-    };
-  }
-  if (parsed < defaultMax) {
-    return {
-      error:
-        `${found.key}=${parsed} 无效：绝对上限必须 ≥ 默认上限 ${defaultMax}` +
-        `（未设置 MAX_* 时的回退值）。`,
-    };
-  }
-  return { value: parsed };
+
+  // 只配了 MAX_*：不再被偏低的 defaultAbsolute 卡住
+  if (maxFound) return { value: hardMax, source: "max-unbounded" };
+  return { value: defaultAbsolute, source: "default" };
 }
 
 /** 校验可选的 MAX_*：有效正整数且 ≤ 绝对上限 */
 function validateOptionalMaxEnv(found, absolute, label) {
   if (!found) return "";
-  const parsed = Number(found.raw);
-  if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
-    return `${found.key} 必须是正整数，当前值无效：${found.raw}`;
-  }
-  if (parsed < 1) {
-    return `${found.key}=${parsed} 无效：必须 ≥ 1。`;
+  const parsed = parsePositiveIntText(found.raw, { min: 1, max: Number.MAX_SAFE_INTEGER });
+  if (parsed == null) {
+    return `${found.key} 必须是 ≥ 1 的正整数，当前值无效：${found.raw}`;
   }
   if (parsed > absolute) {
     return (
@@ -273,8 +302,10 @@ function getLimitsEnvProblem(env) {
   const specs = limitSpecs();
   for (const spec of specs) {
     const absFound = firstEnv(env, ...spec.absoluteKeys);
+    const maxFound = firstEnv(env, ...spec.maxKeys);
     const abs = parseAbsoluteLimitEnv(
       absFound,
+      maxFound,
       spec.defaultAbsolute,
       spec.defaultMax,
       spec.hardMax,
@@ -282,7 +313,6 @@ function getLimitsEnvProblem(env) {
     );
     if (abs.error) return abs.error;
 
-    const maxFound = firstEnv(env, ...spec.maxKeys);
     const maxErr = validateOptionalMaxEnv(maxFound, abs.value, spec.label);
     if (maxErr) return maxErr;
   }
@@ -342,10 +372,12 @@ function limitSpecs() {
   ];
 }
 
-function resolveLimit(env, spec) {
+function resolveLimitDetail(env, spec) {
   const absFound = firstEnv(env, ...spec.absoluteKeys);
+  const maxFound = firstEnv(env, ...spec.maxKeys);
   const abs = parseAbsoluteLimitEnv(
     absFound,
+    maxFound,
     spec.defaultAbsolute,
     spec.defaultMax,
     spec.hardMax,
@@ -353,8 +385,58 @@ function resolveLimit(env, spec) {
   );
   const absolute = abs.value || spec.defaultAbsolute;
   const fallback = Math.min(spec.defaultMax, absolute);
-  const maxFound = firstEnv(env, ...spec.maxKeys);
-  return parsePositiveIntEnv(maxFound?.raw, fallback, absolute);
+  const value = parsePositiveIntEnv(maxFound?.raw, fallback, absolute);
+  return {
+    value,
+    absolute,
+    absoluteSource: abs.source || "default",
+    maxKey: maxFound?.key || spec.maxKeys[0],
+    maxRaw: maxFound?.raw || null,
+    absoluteKey: absFound?.key || spec.absoluteKeys[0],
+    absoluteRaw: absFound?.raw || null,
+    fromEnv: Boolean(maxFound),
+  };
+}
+
+function resolveLimit(env, spec) {
+  return resolveLimitDetail(env, spec).value;
+}
+
+function buildPublicLimits(env) {
+  const specs = limitSpecs();
+  const resolved = specs.map((spec) => resolveLimitDetail(env, spec));
+  return {
+    maxSub2apiAccounts: resolved[0].value,
+    maxCpaFiles: resolved[1].value,
+    maxUploadConcurrencySub2api: resolved[2].value,
+    maxUploadConcurrencyCpa: resolved[3].value,
+    maxSub2apiUploadAttempts: resolved[4].value,
+    maxCpaUploadAttempts: resolved[5].value,
+    // 诊断：确认 Worker 实际读到了哪些 MAX_*/ABSOLUTE_MAX_*（不含密钥）
+    resolvedFrom: {
+      maxSub2apiAccounts: resolved[0].fromEnv ? resolved[0].maxKey : "default",
+      maxCpaFiles: resolved[1].fromEnv ? resolved[1].maxKey : "default",
+      maxUploadConcurrencySub2api: resolved[2].fromEnv ? resolved[2].maxKey : "default",
+      maxUploadConcurrencyCpa: resolved[3].fromEnv ? resolved[3].maxKey : "default",
+      maxSub2apiUploadAttempts: resolved[4].fromEnv ? resolved[4].maxKey : "default",
+      maxCpaUploadAttempts: resolved[5].fromEnv ? resolved[5].maxKey : "default",
+    },
+    envSeen: {
+      MAX_SUB2API_ACCOUNTS: resolved[0].maxRaw,
+      MAX_CPA_FILES: resolved[1].maxRaw,
+      MAX_UPLOAD_CONCURRENCY_SUB2API: resolved[2].maxRaw,
+      MAX_UPLOAD_CONCURRENCY_CPA: resolved[3].maxRaw,
+      MAX_SUB2API_UPLOAD_ATTEMPTS: resolved[4].maxRaw,
+      MAX_CPA_UPLOAD_ATTEMPTS: resolved[5].maxRaw,
+      ABSOLUTE_MAX_SUB2API_ACCOUNTS: resolved[0].absoluteRaw,
+      ABSOLUTE_MAX_CPA_FILES: resolved[1].absoluteRaw,
+      ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API: resolved[2].absoluteRaw,
+      ABSOLUTE_MAX_UPLOAD_CONCURRENCY_CPA: resolved[3].absoluteRaw,
+      ABSOLUTE_MAX_SUB2API_UPLOAD_ATTEMPTS: firstEnv(env, "ABSOLUTE_MAX_SUB2API_UPLOAD_ATTEMPTS")?.raw || null,
+      ABSOLUTE_MAX_CPA_UPLOAD_ATTEMPTS: firstEnv(env, "ABSOLUTE_MAX_CPA_UPLOAD_ATTEMPTS")?.raw || null,
+      ABSOLUTE_MAX_UPLOAD_ATTEMPTS: firstEnv(env, "ABSOLUTE_MAX_UPLOAD_ATTEMPTS")?.raw || null,
+    },
+  };
 }
 
 function maxSub2apiAccounts(env) {
