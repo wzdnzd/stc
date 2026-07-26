@@ -30,9 +30,9 @@ Workers & Pages → cpa-sub2api-converter → Settings → Variables and Secrets
 
 添加以下两个 **Secret**：
 
-| 名称 | 用途 |
-|---|---|
-| `APP_PASSWORD` | 打开页面时使用的访问密码 |
+| 名称             | 用途                                    |
+| ---------------- | --------------------------------------- |
+| `APP_PASSWORD`   | 打开页面时使用的访问密码                |
 | `SESSION_SECRET` | 签名登录 Cookie；建议至少 32 字节随机值 |
 
 生成 `SESSION_SECRET`：
@@ -81,10 +81,10 @@ SESSION_TTL_HOURS=168
 
 ### 3.2 用环境变量配置 SUB2API（可选回退）
 
-| 名称 | 类型 | 示例 |
-|---|---|---|
-| `SUB2API_BASE_URL` | 普通变量或 Secret | `https://sapi.example.com` |
-| `SUB2API_ADMIN_API_KEY` | **Secret** | 管理员 API Key |
+| 名称                    | 类型              | 示例                       |
+| ----------------------- | ----------------- | -------------------------- |
+| `SUB2API_BASE_URL`      | 普通变量或 Secret | `https://sapi.example.com` |
+| `SUB2API_ADMIN_API_KEY` | **Secret**        | 管理员 API Key             |
 
 Worker 会验证：
 
@@ -105,11 +105,11 @@ POST /api/v1/admin/accounts/data
 
 这里的 CPA 指 CLIProxyAPI：
 
-| 名称 | 类型 | 示例 |
-|---|---|---|
-| `CPA_BASE_URL` | 普通变量或 Secret | `https://cpa.example.com` |
-| `CPA_MANAGEMENT_KEY` | **Secret** | CPA 管理密钥 |
-| `CPA_AUTH_MODE` | 普通变量，可选 | `auto`、`bearer` 或 `x-management-key` |
+| 名称                 | 类型              | 示例                                   |
+| -------------------- | ----------------- | -------------------------------------- |
+| `CPA_BASE_URL`       | 普通变量或 Secret | `https://cpa.example.com`              |
+| `CPA_MANAGEMENT_KEY` | **Secret**        | CPA 管理密钥                           |
+| `CPA_AUTH_MODE`      | 普通变量，可选    | `auto`、`bearer` 或 `x-management-key` |
 
 Worker 会验证：
 
@@ -171,28 +171,28 @@ npm run dev
 
 ## 七、环境变量汇总
 
-| 变量 | 必填 | 建议类型 |
-|---|---:|---|
-| `APP_PASSWORD` | 是 | Secret |
-| `SESSION_SECRET` | 是 | Secret |
-| `SESSION_TTL_HOURS` | 否 | 普通变量 |
-| `SUB2API_BASE_URL` | 否 | 普通变量 |
-| `SUB2API_ADMIN_API_KEY` | 否 | Secret |
-| `CPA_BASE_URL` | 否 | 普通变量 |
-| `CPA_MANAGEMENT_KEY` | 否 | Secret |
-| `CPA_AUTH_MODE` | 否 | 普通变量 |
-| `ALLOW_INSECURE_UPSTREAM` | 否 | 普通变量 |
-| `MAX_SUB2API_ACCOUNTS` | 否 | 普通变量，默认 `100`，不得超过 `ABSOLUTE_MAX_SUB2API_ACCOUNTS` |
-| `MAX_CPA_FILES` | 否 | 普通变量，默认 `20`，不得超过 `ABSOLUTE_MAX_CPA_FILES` |
-| `ABSOLUTE_MAX_SUB2API_ACCOUNTS` | 否 | 普通变量，默认 `5000`，平台天花板 20000 |
-| `ABSOLUTE_MAX_CPA_FILES` | 否 | 普通变量，默认 `500`，平台天花板 2000 |
-| `MAX_UPLOAD_CONCURRENCY_SUB2API` | 否 | 普通变量，默认 `3`，不得超过对应绝对上限 |
-| `MAX_UPLOAD_CONCURRENCY_CPA` | 否 | 普通变量，默认 `8`，不得超过对应绝对上限 |
-| `ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API` | 否 | 普通变量，默认 `50`，范围 1–1000，且 ≥ 默认并发 `3` |
-| `ABSOLUTE_MAX_UPLOAD_CONCURRENCY_CPA` | 否 | 普通变量，默认 `150`，范围 1–1000，且 ≥ 默认并发 `8` |
-| `MAX_SUB2API_UPLOAD_ATTEMPTS` | 否 | 普通变量，默认 `3`，不得超过对应绝对上限 |
-| `MAX_CPA_UPLOAD_ATTEMPTS` | 否 | 普通变量，默认 `3`，不得超过对应绝对上限 |
-| `ABSOLUTE_MAX_UPLOAD_ATTEMPTS` | 否 | 普通变量，默认 `10`，范围 1–30；也可分别设 `ABSOLUTE_MAX_SUB2API_UPLOAD_ATTEMPTS` / `ABSOLUTE_MAX_CPA_UPLOAD_ATTEMPTS` |
+| 变量                                      | 必填 | 建议类型                                                                                                               |
+| ----------------------------------------- | ---: | ---------------------------------------------------------------------------------------------------------------------- |
+| `APP_PASSWORD`                            |   是 | Secret                                                                                                                 |
+| `SESSION_SECRET`                          |   是 | Secret                                                                                                                 |
+| `SESSION_TTL_HOURS`                       |   否 | 普通变量                                                                                                               |
+| `SUB2API_BASE_URL`                        |   否 | 普通变量                                                                                                               |
+| `SUB2API_ADMIN_API_KEY`                   |   否 | Secret                                                                                                                 |
+| `CPA_BASE_URL`                            |   否 | 普通变量                                                                                                               |
+| `CPA_MANAGEMENT_KEY`                      |   否 | Secret                                                                                                                 |
+| `CPA_AUTH_MODE`                           |   否 | 普通变量                                                                                                               |
+| `ALLOW_INSECURE_UPSTREAM`                 |   否 | 普通变量                                                                                                               |
+| `MAX_SUB2API_ACCOUNTS`                    |   否 | 普通变量，默认 `100`，不得超过 `ABSOLUTE_MAX_SUB2API_ACCOUNTS`                                                         |
+| `MAX_CPA_FILES`                           |   否 | 普通变量，默认 `20`，不得超过 `ABSOLUTE_MAX_CPA_FILES`                                                                 |
+| `ABSOLUTE_MAX_SUB2API_ACCOUNTS`           |   否 | 普通变量，默认 `5000`，平台天花板 20000                                                                                |
+| `ABSOLUTE_MAX_CPA_FILES`                  |   否 | 普通变量，默认 `500`，平台天花板 2000                                                                                  |
+| `MAX_UPLOAD_CONCURRENCY_SUB2API`          |   否 | 普通变量，默认 `3`，不得超过对应绝对上限                                                                               |
+| `MAX_UPLOAD_CONCURRENCY_CPA`              |   否 | 普通变量，默认 `8`，不得超过对应绝对上限                                                                               |
+| `ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API` |   否 | 普通变量，默认 `50`，范围 1–1000，且 ≥ 默认并发 `3`                                                                    |
+| `ABSOLUTE_MAX_UPLOAD_CONCURRENCY_CPA`     |   否 | 普通变量，默认 `150`，范围 1–1000，且 ≥ 默认并发 `8`                                                                   |
+| `MAX_SUB2API_UPLOAD_ATTEMPTS`             |   否 | 普通变量，默认 `3`，不得超过对应绝对上限                                                                               |
+| `MAX_CPA_UPLOAD_ATTEMPTS`                 |   否 | 普通变量，默认 `3`，不得超过对应绝对上限                                                                               |
+| `ABSOLUTE_MAX_UPLOAD_ATTEMPTS`            |   否 | 普通变量，默认 `10`，范围 1–30；也可分别设 `ABSOLUTE_MAX_SUB2API_UPLOAD_ATTEMPTS` / `ABSOLUTE_MAX_CPA_UPLOAD_ATTEMPTS` |
 
 SUB2API 和 CPA 均为可选目标。每个目标的地址和密钥必须成对出现（本机配置或环境变量各自成对）。页面顶栏徽章会显示「本机 / 环境变量 / 未配置」；点击上传时会先验证，失败则打开配置窗。
 
@@ -218,7 +218,7 @@ SUB2API 和 CPA 均为可选目标。每个目标的地址和密钥必须成对�
 
 建议通过部署生成的 `workers.dev` 地址或自定义域名在浏览器新标签页中打开，不要在 Cloudflare Dashboard 的嵌入式预览框中完成登录，因为第三方 Cookie 策略仍可能阻止会话 Cookie。
 
-## 上传行为说明（v2）
+## 上传行为说明
 
 - 有可上传账号时，上传按钮始终可点；无有效配置时点击会弹出对应目标的配置窗，验证保存成功后继续上传。
 - 上传前无论本机还是 env，都会先调用 `/api/config/verify`；失败则引导修正配置。

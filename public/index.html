@@ -34,7 +34,7 @@
       min-height: 100vh;
       font-family: var(--font);
       color: var(--text);
-      line-height: 1.5;
+      line-height: 1.45;
       background:
         radial-gradient(980px 520px at 8% -12%, rgba(37, 99, 235, 0.18), transparent 55%),
         radial-gradient(820px 420px at 100% 0%, rgba(124, 58, 237, 0.12), transparent 48%),
@@ -43,27 +43,27 @@
     .wrap {
       max-width: 1280px;
       margin: 0 auto;
-      padding: 24px 18px 48px;
+      padding: 18px 18px 28px;
     }
     .page-header {
       display: flex;
-      align-items: flex-start;
+      align-items: center;
       justify-content: space-between;
-      gap: 16px;
+      gap: 12px;
       flex-wrap: wrap;
-      margin-bottom: 16px;
+      margin-bottom: 12px;
     }
     .page-header h1 {
       margin: 0;
-      font-size: 20px;
+      font-size: 17px;
       font-weight: 700;
       letter-spacing: -0.02em;
-      line-height: 1.35;
+      line-height: 1.3;
     }
     .page-header .sub {
-      margin: 6px 0 0;
+      margin: 4px 0 0;
       color: var(--muted);
-      font-size: 13px;
+      font-size: 12px;
     }
     .header-actions {
       display: flex;
@@ -76,8 +76,8 @@
       align-items: center;
       gap: 8px;
       flex-wrap: wrap;
-      margin-bottom: 16px;
-      padding: 10px 12px;
+      margin-bottom: 12px;
+      padding: 8px 12px;
       border: 1px solid var(--border-soft);
       border-radius: 10px;
       background: rgba(20, 28, 40, 0.78);
@@ -87,7 +87,7 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 5px 10px;
+      padding: 4px 9px;
       border: 1px solid var(--border);
       border-radius: 999px;
       background: rgba(255, 255, 255, 0.02);
@@ -105,8 +105,9 @@
     .grid {
       display: grid;
       grid-template-columns: 1.05fr 0.95fr;
-      gap: 14px;
-      margin-bottom: 14px;
+      gap: 12px;
+      margin-bottom: 12px;
+      align-items: stretch;
     }
     @media (max-width: 900px) {
       .grid { grid-template-columns: 1fr; }
@@ -115,12 +116,12 @@
       background: var(--panel);
       border: 1px solid var(--border-soft);
       border-radius: var(--radius);
-      padding: 16px 16px 14px;
+      padding: 14px 16px;
       box-shadow: var(--shadow);
     }
     .card h2 {
-      margin: 0 0 12px;
-      font-size: 12px;
+      margin: 0 0 10px;
+      font-size: 11px;
       font-weight: 700;
       color: var(--muted);
       letter-spacing: 0.08em;
@@ -131,17 +132,28 @@
       align-items: center;
       justify-content: space-between;
       gap: 10px;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
     }
     .card-title-row h2 { margin: 0; }
+    .card-import {
+      display: flex;
+      flex-direction: column;
+      min-height: 100%;
+    }
+    .card-import .drop { flex: 1 1 auto; }
     .drop {
       border: 1.5px dashed var(--border);
       border-radius: 10px;
-      padding: 42px 18px;
+      padding: 22px 16px;
       text-align: center;
       cursor: pointer;
       transition: 0.15s ease;
       background: rgba(255, 255, 255, 0.015);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 132px;
     }
     .drop:hover, .drop.dragover {
       border-color: var(--accent);
@@ -149,8 +161,8 @@
     }
     .drop strong {
       display: block;
-      margin-bottom: 6px;
-      font-size: 15px;
+      margin-bottom: 4px;
+      font-size: 14px;
       font-weight: 650;
     }
     .drop span {
@@ -161,12 +173,12 @@
     label.opt {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       margin: 0;
-      padding: 8px 10px;
+      padding: 6px 10px;
       border: 1px solid transparent;
       border-radius: 8px;
-      font-size: 13px;
+      font-size: 12px;
       cursor: pointer;
       color: var(--text);
     }
@@ -174,8 +186,12 @@
     label.opt input { margin: 0; }
     .opt-grid {
       display: grid;
-      gap: 4px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
       margin-top: 4px;
+    }
+    @media (max-width: 1100px) {
+      .opt-grid { grid-template-columns: 1fr; }
     }
     .opt-note {
       margin-left: 4px;
@@ -184,14 +200,12 @@
       font-weight: 500;
       opacity: 0.85;
     }
-    .field-mini-label {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      margin-bottom: 5px;
-      color: var(--muted);
-      font-size: 11px;
-      font-weight: 600;
+    .limit-hint {
+      color: #5f6f86;
+      font-size: 10.5px;
+      font-weight: 500;
+      letter-spacing: 0.01em;
+      white-space: nowrap;
     }
     .field-tip {
       position: relative;
@@ -266,8 +280,8 @@
     }
     .upload-progress {
       display: none;
-      margin-top: 12px;
-      padding: 12px;
+      margin-top: 8px;
+      padding: 10px;
       border: 1px solid var(--border-soft);
       border-radius: 10px;
       background: rgba(28, 39, 56, 0.55);
@@ -338,9 +352,10 @@
       border: 1px solid var(--border);
       color: var(--text);
       border-radius: 8px;
-      padding: 9px 11px;
+      padding: 7px 10px;
       font: inherit;
-      font-size: 13px;
+      font-size: 12.5px;
+      line-height: 1.35;
     }
     select:focus, input:focus {
       outline: none;
@@ -348,26 +363,36 @@
       box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
     }
     .field {
-      margin-bottom: 12px;
+      margin-bottom: 11px;
       overflow: visible;
     }
     .field:last-child { margin-bottom: 0; }
-    .field label {
+    .field > label {
       display: block;
-      font-size: 12px;
+      font-size: 11.5px;
       color: var(--muted);
-      margin-bottom: 6px;
+      margin-bottom: 4px;
       font-weight: 600;
     }
     .field-hint {
-      margin-top: 5px;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 10.5px;
+      line-height: 1.35;
+    }
+    label.field-mini-label {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-bottom: 4px;
       color: var(--muted);
       font-size: 11px;
-      line-height: 1.5;
+      font-weight: 600;
+      flex-wrap: wrap;
     }
     .row {
       display: flex;
-      gap: 10px;
+      gap: 8px;
       flex-wrap: wrap;
       align-items: center;
     }
@@ -398,9 +423,9 @@
     button {
       border: none;
       border-radius: 8px;
-      padding: 9px 14px;
+      padding: 8px 13px;
       font: inherit;
-      font-size: 13px;
+      font-size: 12.5px;
       font-weight: 650;
       cursor: pointer;
       transition: 0.15s ease;
@@ -430,14 +455,14 @@
     }
     .btn-danger:hover:not(:disabled) { background: rgba(239, 68, 68, 0.18); }
     .btn-sm {
-      padding: 7px 11px;
+      padding: 5px 9px;
       font-size: 12px;
     }
     .stats {
       display: grid;
       grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 8px;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
     }
     @media (max-width: 760px) {
       .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -445,16 +470,16 @@
     .stat {
       background: var(--panel-2);
       border: 1px solid var(--border-soft);
-      border-radius: 10px;
-      padding: 10px 12px;
-      font-size: 12px;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 11px;
       color: var(--muted);
     }
     .stat b {
       display: block;
-      margin-top: 2px;
+      margin-top: 1px;
       color: var(--text);
-      font-size: 18px;
+      font-size: 15px;
       font-weight: 700;
       font-variant-numeric: tabular-nums;
     }
@@ -477,7 +502,7 @@
     }
     th, td {
       text-align: left;
-      padding: 11px 10px;
+      padding: 9px 8px;
       border-bottom: 1px solid var(--border-soft);
       vertical-align: top;
     }
@@ -498,6 +523,12 @@
       border-radius: 10px;
       background: rgba(0, 0, 0, 0.12);
     }
+    body.is-empty .table-wrap {
+      max-height: none;
+    }
+    body.is-empty .table-wrap tbody td {
+      padding: 10px 8px;
+    }
     .email {
       color: #fff;
       word-break: break-all;
@@ -511,10 +542,10 @@
       font-size: 12px;
     }
     .msg {
-      margin-top: 12px;
-      padding: 10px 12px;
+      margin-top: 8px;
+      padding: 8px 10px;
       border-radius: 8px;
-      font-size: 12.5px;
+      font-size: 12px;
       white-space: pre-wrap;
       display: none;
     }
@@ -523,16 +554,16 @@
     .msg.err { background: var(--danger-soft); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.28); }
     .msg.ok { background: var(--ok-soft); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.28); }
     .hint {
-      margin-top: 10px;
+      margin-top: 8px;
       color: var(--muted);
       font-size: 12px;
-      line-height: 1.55;
+      line-height: 1.5;
     }
     .actions {
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
-      margin-top: 14px;
+      margin-top: 12px;
       align-items: center;
     }
     .actions-group {
@@ -750,11 +781,13 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     @media (max-width: 760px) {
-      .wrap { padding: 16px 12px 36px; }
-      th, td { padding: 9px 7px; }
+      .wrap { padding: 12px 10px 18px; }
+      th, td { padding: 8px 6px; }
       .toolbar-sep { display: none; }
       .table-wrap { max-height: 58vh; }
-      .page-header h1 { font-size: 20px; }
+      .page-header h1 { font-size: 16px; }
+      .drop { min-height: 96px; padding: 14px 12px; }
+      .opt-grid { grid-template-columns: 1fr; }
     }
     code {
       font-family: var(--mono);
@@ -786,7 +819,7 @@
     </div>
 
     <div class="grid">
-      <div class="card">
+      <div class="card card-import">
         <h2>导入</h2>
         <div class="drop" id="dropzone">
           <strong>拖入 JSON，或点击选择</strong>
@@ -798,20 +831,24 @@
       <div class="card">
         <h2>转换选项</h2>
         <div class="field">
-          <label for="direction">转换方向</label>
-          <select id="direction">
-            <option value="auto">自动 · 按源格式反向</option>
-            <option value="to-SUB2API">全部 → SUB2API</option>
-            <option value="to-cpa">全部 → CPA</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="nameStrategy">SUB2API 账号名</label>
-          <select id="nameStrategy">
-            <option value="email">使用 Email</option>
-            <option value="local">使用 Email 本地部分</option>
-            <option value="sub">使用 Sub</option>
-          </select>
+          <div class="batch-grid">
+            <div>
+              <label for="direction" class="field-mini-label">转换方向</label>
+              <select id="direction">
+                <option value="auto">自动 · 按源格式反向</option>
+                <option value="to-SUB2API">全部 → SUB2API</option>
+                <option value="to-cpa">全部 → CPA</option>
+              </select>
+            </div>
+            <div>
+              <label for="nameStrategy" class="field-mini-label">SUB2API 账号名</label>
+              <select id="nameStrategy">
+                <option value="email">使用 Email</option>
+                <option value="local">使用 Email 本地部分</option>
+                <option value="sub">使用 Sub</option>
+              </select>
+            </div>
+          </div>
         </div>
         <div class="field">
           <label>SUB2API 账号调度参数复写/补全</label>
@@ -858,14 +895,18 @@
           <label>上传批次大小</label>
           <div class="batch-grid">
             <div>
-              <label for="batchSub2" class="field-hint" style="margin:0 0 5px;display:block">SUB2API</label>
+              <label for="batchSub2" class="field-mini-label">
+                SUB2API
+                <span class="limit-hint" id="batchSub2Hint">上限：…</span>
+              </label>
               <input type="number" id="batchSub2" value="100" min="1" step="1" />
-              <div class="field-hint" id="batchSub2Hint">范围 1–…</div>
             </div>
             <div>
-              <label for="batchCpa" class="field-hint" style="margin:0 0 5px;display:block">CPA</label>
+              <label for="batchCpa" class="field-mini-label">
+                CPA
+                <span class="limit-hint" id="batchCpaHint">上限：…</span>
+              </label>
               <input type="number" id="batchCpa" value="20" min="1" step="1" />
-              <div class="field-hint" id="batchCpaHint">范围 1–…</div>
             </div>
           </div>
         </div>
@@ -873,20 +914,20 @@
           <label>上传并发</label>
           <div class="batch-grid">
             <div>
-              <label for="uploadConcurrencySub2" class="field-hint" style="margin:0 0 5px;display:block">
+              <label for="uploadConcurrencySub2" class="field-mini-label">
                 SUB2API
+                <span class="limit-hint" id="uploadConcurrencySub2Hint">上限：…</span>
                 <span class="field-tip" tabindex="0" data-tip="同时进行的 SUB2API 上传批次数，不是账号 concurrency 字段">i</span>
               </label>
               <input type="number" id="uploadConcurrencySub2" value="1" min="1" step="1" />
-              <div class="field-hint" id="uploadConcurrencySub2Hint">上限 …</div>
             </div>
             <div>
-              <label for="uploadConcurrencyCpa" class="field-hint" style="margin:0 0 5px;display:block">
+              <label for="uploadConcurrencyCpa" class="field-mini-label">
                 CPA
+                <span class="limit-hint" id="uploadConcurrencyCpaHint">上限：…</span>
                 <span class="field-tip" tabindex="0" data-tip="同时进行的 CPA 上传批次数；官方接口仍是单文件，Worker 批内串行扇出">i</span>
               </label>
               <input type="number" id="uploadConcurrencyCpa" value="1" min="1" step="1" />
-              <div class="field-hint" id="uploadConcurrencyCpaHint">上限 …</div>
             </div>
           </div>
         </div>
@@ -894,20 +935,20 @@
           <label>上传重试次数</label>
           <div class="batch-grid">
             <div>
-              <label for="sub2UploadAttempts" class="field-hint" style="margin:0 0 5px;display:block">
+              <label for="sub2UploadAttempts" class="field-mini-label">
                 SUB2API
+                <span class="limit-hint" id="sub2UploadAttemptsHint">含首次 · 上限：…</span>
                 <span class="field-tip" tabindex="0" data-tip="含首次请求；对连接失败/429 等较安全错误自动重试，业务 4XX 不重试">i</span>
               </label>
               <input type="number" id="sub2UploadAttempts" value="3" min="1" step="1" />
-              <div class="field-hint" id="sub2UploadAttemptsHint">含首次 · 上限 …</div>
             </div>
             <div>
-              <label for="cpaUploadAttempts" class="field-hint" style="margin:0 0 5px;display:block">
+              <label for="cpaUploadAttempts" class="field-mini-label">
                 CPA
+                <span class="limit-hint" id="cpaUploadAttemptsHint">含首次 · 上限：…</span>
                 <span class="field-tip" tabindex="0" data-tip="含首次请求；单文件上传失败时的 Worker 重试次数；对连接失败/429 等较安全错误自动重试，业务 4XX 不重试">i</span>
               </label>
               <input type="number" id="cpaUploadAttempts" value="3" min="1" step="1" />
-              <div class="field-hint" id="cpaUploadAttemptsHint">含首次 · 上限 …</div>
             </div>
           </div>
         </div>
@@ -1425,8 +1466,8 @@
       batchSub2.max = String(maxSub2);
       batchCpa.min = "1";
       batchCpa.max = String(maxCpa);
-      $("batchSub2Hint").textContent = `上限 ${maxSub2}`;
-      $("batchCpaHint").textContent = `上限 ${maxCpa}`;
+      $("batchSub2Hint").textContent = `上限：${maxSub2}`;
+      $("batchCpaHint").textContent = `上限：${maxCpa}`;
       batchSub2.value = String(clampInt(batchSub2.value, 1, maxSub2, defaultBatchSize(TARGET_SUB2API)));
       batchCpa.value = String(clampInt(batchCpa.value, 1, maxCpa, defaultBatchSize(TARGET_CPA)));
 
@@ -1436,8 +1477,8 @@
       concSub2.max = String(maxConcSub2);
       concCpa.min = "1";
       concCpa.max = String(maxConcCpa);
-      $("uploadConcurrencySub2Hint").textContent = `上限 ${maxConcSub2}`;
-      $("uploadConcurrencyCpaHint").textContent = `上限 ${maxConcCpa}`;
+      $("uploadConcurrencySub2Hint").textContent = `上限：${maxConcSub2}`;
+      $("uploadConcurrencyCpaHint").textContent = `上限：${maxConcCpa}`;
       concSub2.value = String(clampInt(concSub2.value, 1, maxConcSub2, DEFAULT_UPLOAD_CONCURRENCY));
       concCpa.value = String(clampInt(concCpa.value, 1, maxConcCpa, DEFAULT_UPLOAD_CONCURRENCY));
 
@@ -1447,8 +1488,8 @@
       attemptsSub2.max = String(maxAttemptsSub2);
       attemptsCpa.min = "1";
       attemptsCpa.max = String(maxAttemptsCpa);
-      $("sub2UploadAttemptsHint").textContent = `含首次 · 上限 ${maxAttemptsSub2}`;
-      $("cpaUploadAttemptsHint").textContent = `含首次 · 上限 ${maxAttemptsCpa}`;
+      $("sub2UploadAttemptsHint").textContent = `含首次 · 上限：${maxAttemptsSub2}`;
+      $("cpaUploadAttemptsHint").textContent = `含首次 · 上限：${maxAttemptsCpa}`;
       attemptsSub2.value = String(clampInt(attemptsSub2.value, 1, maxAttemptsSub2, Math.min(DEFAULT_UPLOAD_ATTEMPTS, maxAttemptsSub2)));
       attemptsCpa.value = String(clampInt(attemptsCpa.value, 1, maxAttemptsCpa, Math.min(DEFAULT_UPLOAD_ATTEMPTS, maxAttemptsCpa)));
     }
@@ -1960,6 +2001,7 @@
     }
 
     function renderTable() {
+      document.body.classList.toggle("is-empty", items.length === 0);
       syncTableControls();
       const visibleItems = getVisibleItems();
       if (!items.length) {

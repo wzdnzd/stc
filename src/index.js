@@ -194,11 +194,20 @@ function getAccessSetupProblem(env) {
   return getLimitsEnvProblem(env);
 }
 
-/** 读取第一个非空环境变量 */
+/**
+ * 读取第一个非空环境变量。
+ * 注意：Cloudflare Worker 的 env 是绑定代理，变量不一定是 own property，
+ * 不能用 hasOwnProperty 判断；直接读 env[key] 即可。
+ */
 function firstEnv(env, ...keys) {
+  if (!env) return null;
   for (const key of keys) {
-    if (!Object.prototype.hasOwnProperty.call(env, key)) continue;
-    const value = env[key];
+    let value;
+    try {
+      value = env[key];
+    } catch {
+      continue;
+    }
     if (value === undefined || value === null) continue;
     const text = String(value).trim();
     if (!text) continue;
