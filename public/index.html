@@ -230,6 +230,8 @@
         font-size: 12px;
         cursor: pointer;
         color: var(--text);
+        white-space: nowrap;
+        min-width: 0;
       }
 
       label.opt:hover {
@@ -241,16 +243,11 @@
       }
 
       .opt-grid {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
         gap: 6px;
         margin-top: 4px;
-      }
-
-      @media (max-width: 1100px) {
-        .opt-grid {
-          grid-template-columns: 1fr;
-        }
       }
 
       .opt-note {
@@ -259,6 +256,7 @@
         font-size: 11px;
         font-weight: 500;
         opacity: 0.85;
+        flex-shrink: 0;
       }
 
       .limit-hint {
@@ -297,6 +295,7 @@
         outline: none;
       }
 
+      /* field-tip 仍用伪元素；表格内标签用 body 级 floating-tip，避免 overflow 裁切 */
       .field-tip::after {
         content: attr(data-tip);
         position: absolute;
@@ -304,7 +303,7 @@
         bottom: calc(100% + 8px);
         transform: translateX(-50%);
         width: max-content;
-        max-width: min(260px, 70vw);
+        max-width: min(280px, 70vw);
         padding: 8px 10px;
         border-radius: 8px;
         border: 1px solid var(--border);
@@ -322,7 +321,7 @@
         transition:
           opacity 0.12s ease,
           visibility 0.12s ease;
-        z-index: 30;
+        z-index: 40;
       }
 
       .field-tip::before {
@@ -338,7 +337,7 @@
         transition:
           opacity 0.12s ease,
           visibility 0.12s ease;
-        z-index: 31;
+        z-index: 41;
       }
 
       .field-tip:hover::after,
@@ -347,6 +346,62 @@
       .field-tip:focus-visible::before {
         opacity: 1;
         visibility: visible;
+      }
+
+      .tag[data-tip] {
+        cursor: help;
+      }
+
+      .floating-tip {
+        position: fixed;
+        z-index: 2000;
+        max-width: min(320px, calc(100vw - 24px));
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: #1a2332;
+        color: var(--text);
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1.45;
+        text-align: left;
+        white-space: normal;
+        word-break: break-word;
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        /* 默认：水平居中锚点，垂直在上方 */
+        transform: translate(-50%, calc(-100% - 10px));
+        transition:
+          opacity 0.12s ease,
+          visibility 0.12s ease;
+      }
+
+      .floating-tip.show {
+        opacity: 1;
+        visibility: visible;
+      }
+
+      .floating-tip.is-below {
+        transform: translate(-50%, 10px);
+      }
+
+      /* 贴右/贴左时改为对齐边缘，避免出屏被裁 */
+      .floating-tip.align-start {
+        transform: translate(0, calc(-100% - 10px));
+      }
+
+      .floating-tip.align-start.is-below {
+        transform: translate(0, 10px);
+      }
+
+      .floating-tip.align-end {
+        transform: translate(-100%, calc(-100% - 10px));
+      }
+
+      .floating-tip.align-end.is-below {
+        transform: translate(-100%, 10px);
       }
 
       .upload-progress {
@@ -647,6 +702,7 @@
 
       table {
         width: 100%;
+        table-layout: fixed;
         border-collapse: collapse;
         font-size: 12.5px;
       }
@@ -654,9 +710,10 @@
       th,
       td {
         text-align: left;
-        padding: 9px 8px;
+        padding: 8px 6px;
         border-bottom: 1px solid var(--border-soft);
-        vertical-align: top;
+        vertical-align: middle;
+        overflow: hidden;
       }
 
       th {
@@ -667,6 +724,46 @@
         background: rgba(20, 28, 40, 0.96);
         backdrop-filter: blur(6px);
         z-index: 1;
+        white-space: nowrap;
+      }
+
+      /* 列宽：百分比均分，源文件/邮箱占主要弹性空间，避免中间大片空白 */
+      col.col-idx {
+        width: 6%;
+      }
+      col.col-file {
+        width: 22%;
+      }
+      col.col-src {
+        width: 8%;
+      }
+      col.col-dst {
+        width: 9%;
+      }
+      col.col-email {
+        width: 29%;
+      }
+      col.col-account {
+        width: 9%;
+      }
+      col.col-convert {
+        width: 8%;
+      }
+      col.col-upload {
+        width: 9%;
+      }
+
+      td.cell-file,
+      td.email {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      td.cell-tag {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       tbody tr:hover td {
@@ -675,7 +772,8 @@
 
       .table-wrap {
         max-height: min(52vh, 520px);
-        overflow: auto;
+        overflow-x: hidden;
+        overflow-y: auto;
         border: 1px solid var(--border-soft);
         border-radius: 10px;
         background: rgba(0, 0, 0, 0.12);
@@ -686,12 +784,11 @@
       }
 
       body.is-empty .table-wrap tbody td {
-        padding: 10px 8px;
+        padding: 10px 6px;
       }
 
       .email {
         color: #fff;
-        word-break: break-all;
         font-family: var(--mono);
         font-size: 12px;
       }
@@ -699,7 +796,6 @@
       .mono {
         font-family: var(--mono);
         color: var(--muted);
-        word-break: break-all;
         font-size: 12px;
       }
 
@@ -744,16 +840,30 @@
       .actions {
         display: flex;
         gap: 8px;
-        flex-wrap: wrap;
         margin-top: 12px;
-        align-items: center;
+        width: 100%;
+        align-items: stretch;
       }
 
       .actions-group {
         display: flex;
         gap: 8px;
-        flex-wrap: wrap;
-        align-items: center;
+        flex: 1 1 0;
+        min-width: 0;
+        align-items: stretch;
+      }
+
+      .actions-group button {
+        flex: 1 1 0;
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      /* hidden 的取消按钮不参与均分 */
+      .actions-group button[hidden] {
+        display: none !important;
       }
 
       .actions-group + .actions-group {
@@ -763,6 +873,14 @@
       }
 
       @media (max-width: 720px) {
+        .actions {
+          flex-wrap: wrap;
+        }
+
+        .actions-group {
+          flex: 1 1 100%;
+        }
+
         .actions-group + .actions-group {
           padding-left: 0;
           margin-left: 0;
@@ -1139,10 +1257,6 @@
           min-height: 96px;
           padding: 14px 12px;
         }
-
-        .opt-grid {
-          grid-template-columns: 1fr;
-        }
       }
 
       code {
@@ -1435,6 +1549,18 @@
             <button class="btn-danger btn-sm" id="btnExitSelection" type="button">退出多选</button>
             <span class="toolbar-sep"></span>
             <div class="selection-filter-group">
+              <span class="toolbar-label">账号状态</span>
+              <label class="status-select"
+                ><input type="checkbox" data-account-select="valid" />有效</label
+              >
+              <label class="status-select"
+                ><input type="checkbox" data-account-select="expired" />失效</label
+              >
+              <label class="status-select"
+                ><input type="checkbox" data-account-select="unknown" />未知</label
+              >
+            </div>
+            <div class="selection-filter-group">
               <span class="toolbar-label">上传状态</span>
               <label class="status-select"
                 ><input type="checkbox" data-upload-select="failed" />失败</label
@@ -1455,18 +1581,6 @@
                 ><input type="checkbox" data-upload-select="cancelled" />已取消</label
               >
             </div>
-            <div class="selection-filter-group">
-              <span class="toolbar-label">账号状态</span>
-              <label class="status-select"
-                ><input type="checkbox" data-account-select="valid" />有效</label
-              >
-              <label class="status-select"
-                ><input type="checkbox" data-account-select="expired" />失效</label
-              >
-              <label class="status-select"
-                ><input type="checkbox" data-account-select="unknown" />未知</label
-              >
-            </div>
           </div>
           <div class="search-toolbar" id="searchToolbar">
             <input
@@ -1482,9 +1596,19 @@
 
         <div class="table-wrap">
           <table>
+            <colgroup>
+              <col class="col-idx" />
+              <col class="col-file" />
+              <col class="col-src" />
+              <col class="col-dst" />
+              <col class="col-email" />
+              <col class="col-account" />
+              <col class="col-convert" />
+              <col class="col-upload" />
+            </colgroup>
             <thead>
               <tr>
-                <th style="width: 96px">
+                <th>
                   <div class="head-tools">
                     <span>#</span>
                     <button
@@ -1812,16 +1936,16 @@
         if (item.error || !item.account) {
           return `<span class="tag tag-account-unknown">—</span>`;
         }
-        const title = item.expiresAt
+        const tip = item.expiresAt
           ? `过期时间 ${formatExpiryDisplay(item.expiresAt) || item.expiresAt}`
           : "未解析到过期时间";
         if (item.accountStatus === ACCOUNT_STATUS.VALID) {
-          return `<span class="tag tag-account-valid" title="${escapeHtml(title)}">有效</span>`;
+          return `<span class="tag tag-account-valid" data-tip="${escapeHtml(tip)}" tabindex="0">有效</span>`;
         }
         if (item.accountStatus === ACCOUNT_STATUS.EXPIRED) {
-          return `<span class="tag tag-account-expired" title="${escapeHtml(title)}">失效</span>`;
+          return `<span class="tag tag-account-expired" data-tip="${escapeHtml(tip)}" tabindex="0">失效</span>`;
         }
-        return `<span class="tag tag-account-unknown" title="${escapeHtml(title)}">未知</span>`;
+        return `<span class="tag tag-account-unknown" data-tip="${escapeHtml(tip)}" tabindex="0">未知</span>`;
       }
 
       function shouldSkipExpiredAccounts() {
@@ -2773,13 +2897,13 @@
         if (item.uploadStatus === UPLOAD_STATUS.CANCELLED) {
           return `<span class="tag tag-upload-cancelled">${escapeHtml(item.uploadTarget || "")} 已取消</span>${detail}`;
         }
-        // 失效账号自动跳过：只显示标签，详细原因放 title 悬停提示
+        // 失效账号自动跳过：只显示标签，详细原因放深色 data-tip
         if (item.uploadMessage && String(item.uploadMessage).startsWith("已跳过")) {
           const tip =
             String(item.uploadMessage)
               .replace(/^已跳过\s*[·•-]?\s*/, "")
               .trim() || "账号已过期";
-          return `<span class="tag tag-account-expired" title="${escapeHtml(tip)}">已跳过</span>`;
+          return `<span class="tag tag-account-expired" data-tip="${escapeHtml(tip)}" tabindex="0">已跳过</span>`;
         }
         return `<span class="tag tag-upload-none">未上传</span>`;
       }
@@ -2834,14 +2958,14 @@
               ? `<label class="row-select-cell"><input type="checkbox" class="row-check" data-item-id="${escapeHtml(item.id)}" ${item.selected ? "checked" : ""} /><span>${index + 1}</span></label>`
               : `${index + 1}`;
             return `<tr class="${item.selected && selectionMode ? "selected-row" : ""}">
-            <td>${firstCell}</td>
-            <td class="mono">${escapeHtml(item.sourceFile)}</td>
-            <td>${srcTag}</td>
-            <td>${target}</td>
-            <td class="email">${escapeHtml(accountLabel(item))}</td>
-            <td>${accountStatusHtml(item)}</td>
-            <td>${status}</td>
-            <td>${uploadStatusHtml(item)}</td>
+            <td class="cell-tag">${firstCell}</td>
+            <td class="mono cell-file" title="${escapeHtml(item.sourceFile)}">${escapeHtml(item.sourceFile)}</td>
+            <td class="cell-tag">${srcTag}</td>
+            <td class="cell-tag">${target}</td>
+            <td class="email" title="${escapeHtml(accountLabel(item))}">${escapeHtml(accountLabel(item))}</td>
+            <td class="cell-tag">${accountStatusHtml(item)}</td>
+            <td class="cell-tag">${status}</td>
+            <td class="cell-tag">${uploadStatusHtml(item)}</td>
           </tr>`;
           })
           .join("");
@@ -4447,6 +4571,137 @@
         if (event.key === "Escape" && $("serverConfigModal").classList.contains("show")) {
           closeConfigDialog(false);
         }
+      });
+
+      // 表格内 data-tip 使用 fixed 浮层，避免 .table-wrap overflow 裁切
+      const floatingTipEl = document.createElement("div");
+      floatingTipEl.className = "floating-tip";
+      floatingTipEl.setAttribute("role", "tooltip");
+      document.body.appendChild(floatingTipEl);
+      let floatingTipAnchor = null;
+
+      function hideFloatingTip() {
+        floatingTipAnchor = null;
+        floatingTipEl.classList.remove("show", "is-below", "align-start", "align-end");
+        floatingTipEl.textContent = "";
+        floatingTipEl.style.maxWidth = "";
+      }
+
+      function positionFloatingTip(anchor) {
+        if (!anchor || !floatingTipEl.classList.contains("show")) return;
+        const rect = anchor.getBoundingClientRect();
+        // 优先钳在表格容器内，避免 tip 伸出卡片边缘
+        const wrap = anchor.closest(".table-wrap");
+        const bounds = wrap ? wrap.getBoundingClientRect() : null;
+        const margin = 8;
+        const minX = Math.max(margin, bounds ? bounds.left + margin : margin);
+        const maxX = Math.min(
+          window.innerWidth - margin,
+          bounds ? bounds.right - margin : window.innerWidth - margin
+        );
+        const available = Math.max(120, maxX - minX);
+        floatingTipEl.style.maxWidth = `${Math.min(320, available)}px`;
+
+        const tipWidth = floatingTipEl.offsetWidth || Math.min(200, available);
+        const tipHeight = floatingTipEl.offsetHeight || 36;
+        const gap = 10;
+        const centerX = rect.left + rect.width / 2;
+        const half = tipWidth / 2;
+
+        floatingTipEl.classList.remove("align-start", "align-end");
+        let left = centerX;
+        // 贴右/贴左时改为边缘对齐，保证整段 tip 落在表格可视区内
+        if (centerX + half > maxX) {
+          floatingTipEl.classList.add("align-end");
+          left = Math.min(rect.right, maxX);
+          if (left - tipWidth < minX) left = minX + tipWidth;
+        } else if (centerX - half < minX) {
+          floatingTipEl.classList.add("align-start");
+          left = Math.max(rect.left, minX);
+          if (left + tipWidth > maxX) left = Math.max(minX, maxX - tipWidth);
+        }
+
+        const spaceAbove = rect.top - (bounds ? bounds.top : 0);
+        const placeBelow = spaceAbove < tipHeight + gap + margin;
+        floatingTipEl.classList.toggle("is-below", placeBelow);
+        const top = placeBelow ? rect.bottom : rect.top;
+        floatingTipEl.style.left = `${Math.round(left)}px`;
+        floatingTipEl.style.top = `${Math.round(top)}px`;
+      }
+
+      function showFloatingTip(anchor) {
+        const tip = anchor?.getAttribute?.("data-tip");
+        if (!tip) {
+          hideFloatingTip();
+          return;
+        }
+        floatingTipAnchor = anchor;
+        floatingTipEl.textContent = tip;
+        floatingTipEl.classList.add("show");
+        floatingTipEl.classList.remove("is-below", "align-start", "align-end");
+        positionFloatingTip(anchor);
+        // 二次定位：内容写入后宽高更准
+        requestAnimationFrame(() => positionFloatingTip(anchor));
+      }
+
+      function floatingTipTargetFrom(node) {
+        if (!node || node.nodeType !== 1) return null;
+        return node.closest?.(".tag[data-tip], [data-tip].tag") || null;
+      }
+
+      document.addEventListener(
+        "mouseover",
+        (event) => {
+          const target = floatingTipTargetFrom(event.target);
+          if (!target) return;
+          if (target === floatingTipAnchor) return;
+          showFloatingTip(target);
+        },
+        true
+      );
+
+      document.addEventListener(
+        "mouseout",
+        (event) => {
+          if (!floatingTipAnchor) return;
+          const related = event.relatedTarget;
+          if (related && floatingTipAnchor.contains(related)) return;
+          if (floatingTipTargetFrom(related) === floatingTipAnchor) return;
+          if (event.target === floatingTipAnchor || floatingTipAnchor.contains(event.target)) {
+            hideFloatingTip();
+          }
+        },
+        true
+      );
+
+      document.addEventListener(
+        "focusin",
+        (event) => {
+          const target = floatingTipTargetFrom(event.target);
+          if (target) showFloatingTip(target);
+        },
+        true
+      );
+
+      document.addEventListener(
+        "focusout",
+        (event) => {
+          if (!floatingTipAnchor) return;
+          if (event.target === floatingTipAnchor) hideFloatingTip();
+        },
+        true
+      );
+
+      window.addEventListener(
+        "scroll",
+        () => {
+          if (floatingTipAnchor) positionFloatingTip(floatingTipAnchor);
+        },
+        true
+      );
+
+      window.addEventListener("resize", () => {
+        if (floatingTipAnchor) positionFloatingTip(floatingTipAnchor);
       });
 
       renderTable();
