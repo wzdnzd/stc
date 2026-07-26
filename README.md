@@ -182,25 +182,29 @@ npm run dev
 | `CPA_MANAGEMENT_KEY` | 否 | Secret |
 | `CPA_AUTH_MODE` | 否 | 普通变量 |
 | `ALLOW_INSECURE_UPSTREAM` | 否 | 普通变量 |
-| `MAX_SUB2API_ACCOUNTS` | 否 | 普通变量，默认 `100`，范围 1–5000 |
-| `MAX_CPA_FILES` | 否 | 普通变量，默认 `20`，范围 1–100 |
+| `MAX_SUB2API_ACCOUNTS` | 否 | 普通变量，默认 `100`，不得超过 `ABSOLUTE_MAX_SUB2API_ACCOUNTS` |
+| `MAX_CPA_FILES` | 否 | 普通变量，默认 `20`，不得超过 `ABSOLUTE_MAX_CPA_FILES` |
+| `ABSOLUTE_MAX_SUB2API_ACCOUNTS` | 否 | 普通变量，默认 `5000`，平台天花板 20000 |
+| `ABSOLUTE_MAX_CPA_FILES` | 否 | 普通变量，默认 `500`，平台天花板 2000 |
 | `MAX_UPLOAD_CONCURRENCY_SUB2API` | 否 | 普通变量，默认 `3`，不得超过对应绝对上限 |
 | `MAX_UPLOAD_CONCURRENCY_CPA` | 否 | 普通变量，默认 `8`，不得超过对应绝对上限 |
 | `ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API` | 否 | 普通变量，默认 `50`，范围 1–1000，且 ≥ 默认并发 `3` |
 | `ABSOLUTE_MAX_UPLOAD_CONCURRENCY_CPA` | 否 | 普通变量，默认 `150`，范围 1–1000，且 ≥ 默认并发 `8` |
-| `MAX_SUB2API_UPLOAD_ATTEMPTS` | 否 | 普通变量，默认 `3`，范围 1–10 |
+| `MAX_SUB2API_UPLOAD_ATTEMPTS` | 否 | 普通变量，默认 `3`，不得超过对应绝对上限 |
+| `MAX_CPA_UPLOAD_ATTEMPTS` | 否 | 普通变量，默认 `3`，不得超过对应绝对上限 |
+| `ABSOLUTE_MAX_UPLOAD_ATTEMPTS` | 否 | 普通变量，默认 `10`，范围 1–30；也可分别设 `ABSOLUTE_MAX_SUB2API_UPLOAD_ATTEMPTS` / `ABSOLUTE_MAX_CPA_UPLOAD_ATTEMPTS` |
 
 SUB2API 和 CPA 均为可选目标。每个目标的地址和密钥必须成对出现（本机配置或环境变量各自成对）。页面顶栏徽章会显示「本机 / 环境变量 / 未配置」；点击上传时会先验证，失败则打开配置窗。
 
 上传上限说明：
 
-- `MAX_SUB2API_ACCOUNTS` / `MAX_CPA_FILES` 控制 Worker 接口允许的单批最大数量。
-- `MAX_UPLOAD_CONCURRENCY_SUB2API` / `MAX_UPLOAD_CONCURRENCY_CPA` 控制前端可配置的并行批次数上限（页面可配项的上限来源）。
-- `ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API` / `ABSOLUTE_MAX_UPLOAD_CONCURRENCY_CPA` 控制上述并发上限的绝对天花板，便于按目标服务器承载能力调整。
-- `MAX_SUB2API_UPLOAD_ATTEMPTS` 控制 SUB2API 单批最大尝试次数上限（含首次）。
-- 启动时校验：绝对上限必须有效，且 `DEFAULT_MAX_UPLOAD_CONCURRENCY_* ≤ ABSOLUTE_MAX_UPLOAD_CONCURRENCY_*`；若显式设置了 `MAX_UPLOAD_CONCURRENCY_*`，也必须 ≤ 对应绝对上限。配置无效时页面会显示配置错误提示。
-- 未设置、非数字、小于 1 时：`MAX_*` 回退默认值并钳制到绝对上限；`ABSOLUTE_MAX_*` 回退内置默认绝对上限。
-- 页面通过 `/api/config/status` 读取 `limits`，并限制用户可配置项不超过对应上限。
+- `MAX_SUB2API_ACCOUNTS` / `MAX_CPA_FILES` 控制 Worker 接口允许的单批最大数量，也是前端「上限 xxx」的来源。
+- `MAX_UPLOAD_CONCURRENCY_*` 控制前端可配置的并行批次数上限。
+- `MAX_*_UPLOAD_ATTEMPTS` 控制 SUB2API / CPA 的最大尝试次数上限（含首次）。
+- `ABSOLUTE_MAX_*` 是上述各项的绝对天花板，便于按目标服务器承载能力调整。
+- 启动时校验：绝对上限必须有效，且内置默认上限 ≤ 绝对上限；若显式设置了 `MAX_*`，也必须 ≤ 对应绝对上限。配置无效时页面会显示配置错误提示。
+- 未设置时：`MAX_*` 回退代码默认值并钳制到绝对上限；`ABSOLUTE_MAX_*` 回退内置默认绝对上限。
+- 页面通过 `/api/config/status` 读取 `limits`，并限制用户可配置项不超过对应上限。**改环境变量后需重新部署 Worker 才会生效。**
 
 ## 登录后显示“拒绝跨站请求”
 
@@ -220,14 +224,14 @@ SUB2API 和 CPA 均为可选目标。每个目标的地址和密钥必须成对�
 - 上传前无论本机还是 env，都会先调用 `/api/config/verify`；失败则引导修正配置。
 - 本机配置上传时，请求体会附带 `config: { baseUrl, apiKey, cpaAuthMode? }`；纯 env 时不附带，由 Worker 读环境变量。
 - 上传期间仅当前目标按钮显示旋转状态，另一个目标按钮仅禁用；同时显示“取消上传”。
-- 页面可配置项（方向、命名、调度参数、批次大小、上传并发、SUB2API 重试等）会保存到本机 `localStorage`（键名 `cpa2sub.uiSettings.v1`），下次打开自动恢复。
-- **批次大小**：SUB2API 默认 100 / 批，CPA 默认 20 / 批；不得超过 `MAX_SUB2API_ACCOUNTS` / `MAX_CPA_FILES`。
-- **上传并发**：前端可并行提交多个批次，默认均为 1；页面可配上限由 `MAX_UPLOAD_CONCURRENCY_SUB2API`（默认 3）与 `MAX_UPLOAD_CONCURRENCY_CPA`（默认 8）约束，二者再受 `ABSOLUTE_MAX_UPLOAD_CONCURRENCY_*`（默认 SUB2API 50 / CPA 150）钳制。遇到超时等模糊失败时会自适应降低并发并短暂冷却，连续成功后再逐步恢复。
+- 页面可配置项（方向、命名、调度参数、批次大小、上传并发、重试次数等）会保存到本机 `localStorage`（键名 `cpa2sub.uiSettings.v1`），下次打开自动恢复。
+- **批次大小**：SUB2API 默认 100 / 批，CPA 默认 20 / 批；不得超过 Worker 下发的 `limits.maxSub2apiAccounts` / `limits.maxCpaFiles`（来自 `MAX_*`）。
+- **上传并发**：前端可并行提交多个批次，默认均为 1；页面可配上限由 `MAX_UPLOAD_CONCURRENCY_*` 约束，再受 `ABSOLUTE_MAX_UPLOAD_CONCURRENCY_*` 钳制。遇到超时等模糊失败时会自适应降低并发并短暂冷却，连续成功后再逐步恢复。
 - **CPA**：官方 Management API 仅支持单文件上传。页面按批并发请求 Worker；Worker 批内按文件串行转发（并发 1），避免 Worker 内再放大。
-- **SUB2API 重试**：
-  - 页面可配最大尝试次数（含首次，默认 3），不得超过 `MAX_SUB2API_UPLOAD_ATTEMPTS`。
-  - 对网络抖动、部分 5xx 等较安全失败会在次数内自动重试。
-  - 超时 / 响应丢失等**模糊失败**策略可选：`不重试`（默认）/ `自动重试` / `等待确认`。模糊失败自动重试有重复创建账号风险。
+- **上传重试**（SUB2API / CPA 均可配）：
+  - 页面可分别配置最大尝试次数（含首次，默认 3），不得超过对应 `MAX_*_UPLOAD_ATTEMPTS`。
+  - 对网络抖动、部分 5xx 等较安全失败会在次数内自动重试；业务 4XX 不重试。
+  - SUB2API 另有超时 / 响应丢失等**模糊失败**策略：`不重试`（默认）/ `自动重试` / `等待确认`。模糊失败自动重试有重复创建账号风险。
 - “已确认成功”只统计已经收到目标服务器成功响应的条目；正在处理的批次可能已经在服务器端写入一部分，所以服务器列表数量短时间内可能领先页面确认进度。
 - 取消操作会停止后续批次并中断当前浏览器请求；若当前批次已经到达目标服务器，仍可能完成，因此取消后应先到目标服务器核对。
 - 网络中断、超时或结果不明的情况会标记为“状态未知”；在未核对服务器前，不要对未知状态直接批量重试，以免重复导入。

@@ -1,18 +1,27 @@
 const COOKIE_NAME = "converter_session";
 const DEFAULT_SESSION_TTL_HOURS = 168;
+
+// 单批数量：代码默认 / 绝对上限默认（均可被环境变量覆盖）
 const DEFAULT_MAX_SUB2API_ACCOUNTS = 100;
 const DEFAULT_MAX_CPA_FILES = 20;
-const ABSOLUTE_MAX_SUB2API_ACCOUNTS = 5000;
-const ABSOLUTE_MAX_CPA_FILES = 100;
+const DEFAULT_ABSOLUTE_MAX_SUB2API_ACCOUNTS = 5000;
+const DEFAULT_ABSOLUTE_MAX_CPA_FILES = 500;
+const HARD_MAX_BATCH_SUB2API = 20000;
+const HARD_MAX_BATCH_CPA = 2000;
+
+// 上传并发
 const DEFAULT_MAX_UPLOAD_CONCURRENCY_SUB2API = 3;
 const DEFAULT_MAX_UPLOAD_CONCURRENCY_CPA = 8;
-// 绝对上限默认值（可被 ABSOLUTE_MAX_UPLOAD_CONCURRENCY_* 环境变量覆盖）
 const DEFAULT_ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API = 50;
 const DEFAULT_ABSOLUTE_MAX_UPLOAD_CONCURRENCY_CPA = 150;
-// 环境变量可配置的绝对上限的平台天花板，防止误配过大
 const HARD_MAX_UPLOAD_CONCURRENCY = 1000;
+
+// 上传重试次数（含首次）
 const DEFAULT_MAX_SUB2API_UPLOAD_ATTEMPTS = 3;
-const ABSOLUTE_MAX_SUB2API_UPLOAD_ATTEMPTS = 10;
+const DEFAULT_MAX_CPA_UPLOAD_ATTEMPTS = 3;
+const DEFAULT_ABSOLUTE_MAX_UPLOAD_ATTEMPTS = 10;
+const HARD_MAX_UPLOAD_ATTEMPTS = 30;
+
 const UPSTREAM_TIMEOUT_MS = 10 * 60 * 1000;
 const VERIFY_TIMEOUT_MS = 30 * 1000;
 
@@ -104,6 +113,7 @@ async function handleApi(request, env, url) {
         maxUploadConcurrencySub2api: maxUploadConcurrencySub2api(env),
         maxUploadConcurrencyCpa: maxUploadConcurrencyCpa(env),
         maxSub2apiUploadAttempts: maxSub2apiUploadAttempts(env),
+        maxCpaUploadAttempts: maxCpaUploadAttempts(env),
       },
     });
   }
@@ -128,11 +138,11 @@ async function handleApi(request, env, url) {
     }
     // 仅从 body.config 读取覆盖配置，避免把 accounts/files 误当配置源
     const override = extractConfigOverride(body?.config);
-    const maxAttemptsLimit = maxSub2apiUploadAttempts(env);
-    const requestedAttempts = Number(body?.maxAttempts);
-    const maxAttempts = Number.isFinite(requestedAttempts)
-      ? Math.min(maxAttemptsLimit, Math.max(1, Math.floor(requestedAttempts)))
-      : Math.min(maxAttemptsLimit, DEFAULT_MAX_SUB2API_UPLOAD_ATTEMPTS);
+    const maxAttempts = resolveRequestedAttempts(
+      body?.maxAttempts,
+      maxSub2apiUploadAttempts(env),
+      DEFAULT_MAX_SUB2API_UPLOAD_ATTEMPTS,
+    );
     const retryAmbiguous = body?.retryAmbiguous === true;
     const result = await uploadSub2api(
       env,
@@ -157,7 +167,12 @@ async function handleApi(request, env, url) {
       throw new HttpError(400, `单批最多上传 ${maxFiles} 个 CPA 账号。`, "BATCH_TOO_LARGE");
     }
     const override = extractConfigOverride(body?.config);
-    const results = await uploadCpaFiles(env, files, request.signal, override);
+    const maxAttempts = resolveRequestedAttempts(
+      body?.maxAttempts,
+      maxCpaUploadAttempts(env),
+      DEFAULT_MAX_CPA_UPLOAD_ATTEMPTS,
+    );
+    const results = await uploadCpaFiles(env, files, request.signal, override, maxAttempts);
     return jsonResponse({
       ok: results.every((item) => item.ok),
       target: "CPA",
@@ -175,119 +190,194 @@ function getAccessSetupProblem(env) {
   if (missing.length) {
     return `Worker 尚未配置访问控制密钥：${missing.join(", ")}。请在 Cloudflare Worker 的 Settings → Variables and Secrets 中以 Secret 类型添加。`;
   }
-  // 上传并发相关环境变量：值必须有效，且默认并发上限 ≤ 绝对上限
-  return getUploadConcurrencyEnvProblem(env);
+  // 批次/并发/重试相关环境变量：值必须有效，且默认上限 ≤ 绝对上限
+  return getLimitsEnvProblem(env);
+}
+
+/** 读取第一个非空环境变量 */
+function firstEnv(env, ...keys) {
+  for (const key of keys) {
+    if (!Object.prototype.hasOwnProperty.call(env, key)) continue;
+    const value = env[key];
+    if (value === undefined || value === null) continue;
+    const text = String(value).trim();
+    if (!text) continue;
+    return { key, raw: text };
+  }
+  return null;
 }
 
 /**
- * 解析并校验 ABSOLUTE_MAX_UPLOAD_CONCURRENCY_*。
- * 未设置时用内置默认绝对上限；已设置则必须是 1–HARD 的整数，且 ≥ 对应 DEFAULT_MAX。
+ * 解析绝对上限环境变量。
+ * 未设置 → 内置默认绝对上限；已设置 → 必须是 1–hardMax 整数，且 ≥ defaultMax。
  * @returns {{ value: number } | { error: string }}
  */
-function parseAbsoluteUploadConcurrencyEnv(raw, defaultAbsolute, defaultMax, envName) {
+function parseAbsoluteLimitEnv(found, defaultAbsolute, defaultMax, hardMax, label) {
   if (defaultAbsolute < defaultMax) {
     return {
-      error:
-        `内置配置错误：${envName} 默认绝对上限 ${defaultAbsolute} 小于默认并发上限 ${defaultMax}。`,
+      error: `内置配置错误：${label} 默认绝对上限 ${defaultAbsolute} 小于默认上限 ${defaultMax}。`,
     };
   }
+  if (!found) return { value: defaultAbsolute };
 
-  if (raw === undefined || raw === null || String(raw).trim() === "") {
-    return { value: defaultAbsolute };
-  }
-
-  const text = String(raw).trim();
-  const parsed = Number(text);
+  const parsed = Number(found.raw);
   if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
     return {
-      error: `${envName} 必须是正整数（1–${HARD_MAX_UPLOAD_CONCURRENCY}），当前值无效：${text}`,
+      error: `${found.key} 必须是正整数（1–${hardMax}），当前值无效：${found.raw}`,
     };
   }
-  if (parsed < 1 || parsed > HARD_MAX_UPLOAD_CONCURRENCY) {
+  if (parsed < 1 || parsed > hardMax) {
     return {
-      error: `${envName}=${parsed} 超出允许范围，必须在 1–${HARD_MAX_UPLOAD_CONCURRENCY} 之间。`,
+      error: `${found.key}=${parsed} 超出允许范围，必须在 1–${hardMax} 之间。`,
     };
   }
   if (parsed < defaultMax) {
     return {
       error:
-        `${envName}=${parsed} 无效：绝对上限必须 ≥ 默认上传并发上限 ${defaultMax}` +
-        `（DEFAULT / MAX_UPLOAD_CONCURRENCY 未设置时的回退值）。`,
+        `${found.key}=${parsed} 无效：绝对上限必须 ≥ 默认上限 ${defaultMax}` +
+        `（未设置 MAX_* 时的回退值）。`,
     };
   }
   return { value: parsed };
 }
 
-function getUploadConcurrencyEnvProblem(env) {
-  const sub2Abs = parseAbsoluteUploadConcurrencyEnv(
-    env.ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API,
-    DEFAULT_ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API,
-    DEFAULT_MAX_UPLOAD_CONCURRENCY_SUB2API,
-    "ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API",
-  );
-  if (sub2Abs.error) return sub2Abs.error;
-
-  const cpaAbs = parseAbsoluteUploadConcurrencyEnv(
-    env.ABSOLUTE_MAX_UPLOAD_CONCURRENCY_CPA,
-    DEFAULT_ABSOLUTE_MAX_UPLOAD_CONCURRENCY_CPA,
-    DEFAULT_MAX_UPLOAD_CONCURRENCY_CPA,
-    "ABSOLUTE_MAX_UPLOAD_CONCURRENCY_CPA",
-  );
-  if (cpaAbs.error) return cpaAbs.error;
-
-  // 可选：若显式配置了 MAX_UPLOAD_CONCURRENCY_*，校验其为有效正整数且不超过绝对上限
-  const maxChecks = [
-    {
-      raw: env.MAX_UPLOAD_CONCURRENCY_SUB2API,
-      absolute: sub2Abs.value,
-      envName: "MAX_UPLOAD_CONCURRENCY_SUB2API",
-    },
-    {
-      raw: env.MAX_UPLOAD_CONCURRENCY_CPA,
-      absolute: cpaAbs.value,
-      envName: "MAX_UPLOAD_CONCURRENCY_CPA",
-    },
-  ];
-  for (const item of maxChecks) {
-    if (item.raw === undefined || item.raw === null || String(item.raw).trim() === "") continue;
-    const text = String(item.raw).trim();
-    const parsed = Number(text);
-    if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
-      return `${item.envName} 必须是正整数，当前值无效：${text}`;
-    }
-    if (parsed < 1) {
-      return `${item.envName}=${parsed} 无效：必须 ≥ 1。`;
-    }
-    if (parsed > item.absolute) {
-      return (
-        `${item.envName}=${parsed} 超过绝对上限 ${item.absolute}。` +
-        `请调低该值，或提高对应的 ABSOLUTE_MAX_UPLOAD_CONCURRENCY_*。`
-      );
-    }
+/** 校验可选的 MAX_*：有效正整数且 ≤ 绝对上限 */
+function validateOptionalMaxEnv(found, absolute, label) {
+  if (!found) return "";
+  const parsed = Number(found.raw);
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
+    return `${found.key} 必须是正整数，当前值无效：${found.raw}`;
   }
-
+  if (parsed < 1) {
+    return `${found.key}=${parsed} 无效：必须 ≥ 1。`;
+  }
+  if (parsed > absolute) {
+    return (
+      `${found.key}=${parsed} 超过绝对上限 ${absolute}（${label}）。` +
+      `请调低该值，或提高对应的 ABSOLUTE_MAX_*。`
+    );
+  }
   return "";
 }
 
-function absoluteMaxUploadConcurrencySub2api(env) {
-  const result = parseAbsoluteUploadConcurrencyEnv(
-    env.ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API,
-    DEFAULT_ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API,
-    DEFAULT_MAX_UPLOAD_CONCURRENCY_SUB2API,
-    "ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API",
-  );
-  // 启动校验已拦截 error；此处兜底回退默认绝对上限
-  return result.value || DEFAULT_ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API;
+function getLimitsEnvProblem(env) {
+  const specs = limitSpecs();
+  for (const spec of specs) {
+    const absFound = firstEnv(env, ...spec.absoluteKeys);
+    const abs = parseAbsoluteLimitEnv(
+      absFound,
+      spec.defaultAbsolute,
+      spec.defaultMax,
+      spec.hardMax,
+      spec.label,
+    );
+    if (abs.error) return abs.error;
+
+    const maxFound = firstEnv(env, ...spec.maxKeys);
+    const maxErr = validateOptionalMaxEnv(maxFound, abs.value, spec.label);
+    if (maxErr) return maxErr;
+  }
+  return "";
 }
 
-function absoluteMaxUploadConcurrencyCpa(env) {
-  const result = parseAbsoluteUploadConcurrencyEnv(
-    env.ABSOLUTE_MAX_UPLOAD_CONCURRENCY_CPA,
-    DEFAULT_ABSOLUTE_MAX_UPLOAD_CONCURRENCY_CPA,
-    DEFAULT_MAX_UPLOAD_CONCURRENCY_CPA,
-    "ABSOLUTE_MAX_UPLOAD_CONCURRENCY_CPA",
+function limitSpecs() {
+  return [
+    {
+      label: "SUB2API 单批账号数",
+      defaultMax: DEFAULT_MAX_SUB2API_ACCOUNTS,
+      defaultAbsolute: DEFAULT_ABSOLUTE_MAX_SUB2API_ACCOUNTS,
+      hardMax: HARD_MAX_BATCH_SUB2API,
+      maxKeys: ["MAX_SUB2API_ACCOUNTS"],
+      absoluteKeys: ["ABSOLUTE_MAX_SUB2API_ACCOUNTS"],
+    },
+    {
+      label: "CPA 单批文件数",
+      defaultMax: DEFAULT_MAX_CPA_FILES,
+      defaultAbsolute: DEFAULT_ABSOLUTE_MAX_CPA_FILES,
+      hardMax: HARD_MAX_BATCH_CPA,
+      maxKeys: ["MAX_CPA_FILES"],
+      absoluteKeys: ["ABSOLUTE_MAX_CPA_FILES"],
+    },
+    {
+      label: "SUB2API 上传并发",
+      defaultMax: DEFAULT_MAX_UPLOAD_CONCURRENCY_SUB2API,
+      defaultAbsolute: DEFAULT_ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API,
+      hardMax: HARD_MAX_UPLOAD_CONCURRENCY,
+      maxKeys: ["MAX_UPLOAD_CONCURRENCY_SUB2API"],
+      absoluteKeys: ["ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API"],
+    },
+    {
+      label: "CPA 上传并发",
+      defaultMax: DEFAULT_MAX_UPLOAD_CONCURRENCY_CPA,
+      defaultAbsolute: DEFAULT_ABSOLUTE_MAX_UPLOAD_CONCURRENCY_CPA,
+      hardMax: HARD_MAX_UPLOAD_CONCURRENCY,
+      maxKeys: ["MAX_UPLOAD_CONCURRENCY_CPA"],
+      absoluteKeys: ["ABSOLUTE_MAX_UPLOAD_CONCURRENCY_CPA"],
+    },
+    {
+      label: "SUB2API 上传重试次数",
+      defaultMax: DEFAULT_MAX_SUB2API_UPLOAD_ATTEMPTS,
+      defaultAbsolute: DEFAULT_ABSOLUTE_MAX_UPLOAD_ATTEMPTS,
+      hardMax: HARD_MAX_UPLOAD_ATTEMPTS,
+      maxKeys: ["MAX_SUB2API_UPLOAD_ATTEMPTS"],
+      absoluteKeys: ["ABSOLUTE_MAX_SUB2API_UPLOAD_ATTEMPTS", "ABSOLUTE_MAX_UPLOAD_ATTEMPTS"],
+    },
+    {
+      label: "CPA 上传重试次数",
+      defaultMax: DEFAULT_MAX_CPA_UPLOAD_ATTEMPTS,
+      defaultAbsolute: DEFAULT_ABSOLUTE_MAX_UPLOAD_ATTEMPTS,
+      hardMax: HARD_MAX_UPLOAD_ATTEMPTS,
+      maxKeys: ["MAX_CPA_UPLOAD_ATTEMPTS"],
+      absoluteKeys: ["ABSOLUTE_MAX_CPA_UPLOAD_ATTEMPTS", "ABSOLUTE_MAX_UPLOAD_ATTEMPTS"],
+    },
+  ];
+}
+
+function resolveLimit(env, spec) {
+  const absFound = firstEnv(env, ...spec.absoluteKeys);
+  const abs = parseAbsoluteLimitEnv(
+    absFound,
+    spec.defaultAbsolute,
+    spec.defaultMax,
+    spec.hardMax,
+    spec.label,
   );
-  return result.value || DEFAULT_ABSOLUTE_MAX_UPLOAD_CONCURRENCY_CPA;
+  const absolute = abs.value || spec.defaultAbsolute;
+  const fallback = Math.min(spec.defaultMax, absolute);
+  const maxFound = firstEnv(env, ...spec.maxKeys);
+  return parsePositiveIntEnv(maxFound?.raw, fallback, absolute);
+}
+
+function maxSub2apiAccounts(env) {
+  return resolveLimit(env, limitSpecs()[0]);
+}
+
+function maxCpaFiles(env) {
+  return resolveLimit(env, limitSpecs()[1]);
+}
+
+function maxUploadConcurrencySub2api(env) {
+  return resolveLimit(env, limitSpecs()[2]);
+}
+
+function maxUploadConcurrencyCpa(env) {
+  return resolveLimit(env, limitSpecs()[3]);
+}
+
+function maxSub2apiUploadAttempts(env) {
+  return resolveLimit(env, limitSpecs()[4]);
+}
+
+function maxCpaUploadAttempts(env) {
+  return resolveLimit(env, limitSpecs()[5]);
+}
+
+function resolveRequestedAttempts(requested, limit, fallbackDefault) {
+  const requestedAttempts = Number(requested);
+  if (Number.isFinite(requestedAttempts)) {
+    return Math.min(limit, Math.max(1, Math.floor(requestedAttempts)));
+  }
+  return Math.min(limit, fallbackDefault);
 }
 
 async function handleLogin(request, env) {
@@ -336,35 +426,6 @@ function parsePositiveIntEnv(raw, fallback, absoluteMax) {
   const floored = Math.floor(parsed);
   if (floored < 1) return fallback;
   return Math.min(absoluteMax, floored);
-}
-
-function maxSub2apiAccounts(env) {
-  return parsePositiveIntEnv(env.MAX_SUB2API_ACCOUNTS, DEFAULT_MAX_SUB2API_ACCOUNTS, ABSOLUTE_MAX_SUB2API_ACCOUNTS);
-}
-
-function maxCpaFiles(env) {
-  return parsePositiveIntEnv(env.MAX_CPA_FILES, DEFAULT_MAX_CPA_FILES, ABSOLUTE_MAX_CPA_FILES);
-}
-
-function maxUploadConcurrencySub2api(env) {
-  const absolute = absoluteMaxUploadConcurrencySub2api(env);
-  // 默认并发不得超过当前绝对上限（启动校验已保证默认绝对 ≥ 默认并发）
-  const fallback = Math.min(DEFAULT_MAX_UPLOAD_CONCURRENCY_SUB2API, absolute);
-  return parsePositiveIntEnv(env.MAX_UPLOAD_CONCURRENCY_SUB2API, fallback, absolute);
-}
-
-function maxUploadConcurrencyCpa(env) {
-  const absolute = absoluteMaxUploadConcurrencyCpa(env);
-  const fallback = Math.min(DEFAULT_MAX_UPLOAD_CONCURRENCY_CPA, absolute);
-  return parsePositiveIntEnv(env.MAX_UPLOAD_CONCURRENCY_CPA, fallback, absolute);
-}
-
-function maxSub2apiUploadAttempts(env) {
-  return parsePositiveIntEnv(
-    env.MAX_SUB2API_UPLOAD_ATTEMPTS,
-    DEFAULT_MAX_SUB2API_UPLOAD_ATTEMPTS,
-    ABSOLUTE_MAX_SUB2API_UPLOAD_ATTEMPTS,
-  );
 }
 
 async function createSessionToken(env) {
@@ -698,7 +759,7 @@ async function uploadSub2api(
   };
 }
 
-async function uploadCpaFiles(env, files, clientSignal, override = null) {
+async function uploadCpaFiles(env, files, clientSignal, override = null, maxAttempts = DEFAULT_MAX_CPA_UPLOAD_ATTEMPTS) {
   const config = resolveTargetConfig(env, "CPA", override);
   const normalized = files.map((entry, index) => {
     if (!entry || typeof entry !== "object" || !entry.account || typeof entry.account !== "object") {
@@ -710,6 +771,7 @@ async function uploadCpaFiles(env, files, clientSignal, override = null) {
     };
   });
 
+  const attempts = Math.max(1, Math.floor(Number(maxAttempts) || DEFAULT_MAX_CPA_UPLOAD_ATTEMPTS));
   // Worker 批内串行单文件上传，总并发由前端上传并发控制，避免双重放大
   return mapWithConcurrency(normalized, 1, async (entry) => {
     try {
@@ -722,7 +784,7 @@ async function uploadCpaFiles(env, files, clientSignal, override = null) {
           body: JSON.stringify(entry.account),
         },
         120000,
-        3,
+        attempts,
         clientSignal,
       );
       return {

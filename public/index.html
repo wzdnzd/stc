@@ -891,12 +891,25 @@
           </div>
         </div>
         <div class="field">
-          <label for="sub2UploadAttempts">
-            SUB2API 上传重试次数
-            <span class="field-tip" tabindex="0" data-tip="含首次请求；对连接失败/429 等较安全错误自动重试，业务 4xx 不重试">i</span>
-          </label>
-          <input type="number" id="sub2UploadAttempts" value="3" min="1" step="1" />
-          <div class="field-hint" id="sub2UploadAttemptsHint">默认 3，受 Worker 上限约束</div>
+          <label>上传重试次数</label>
+          <div class="batch-grid">
+            <div>
+              <label for="sub2UploadAttempts" class="field-hint" style="margin:0 0 5px;display:block">
+                SUB2API
+                <span class="field-tip" tabindex="0" data-tip="含首次请求；对连接失败/429 等较安全错误自动重试，业务 4XX 不重试">i</span>
+              </label>
+              <input type="number" id="sub2UploadAttempts" value="3" min="1" step="1" />
+              <div class="field-hint" id="sub2UploadAttemptsHint">含首次 · 上限 …</div>
+            </div>
+            <div>
+              <label for="cpaUploadAttempts" class="field-hint" style="margin:0 0 5px;display:block">
+                CPA
+                <span class="field-tip" tabindex="0" data-tip="含首次请求；单文件上传失败时的 Worker 重试次数；对连接失败/429 等较安全错误自动重试，业务 4XX 不重试">i</span>
+              </label>
+              <input type="number" id="cpaUploadAttempts" value="3" min="1" step="1" />
+              <div class="field-hint" id="cpaUploadAttemptsHint">含首次 · 上限 …</div>
+            </div>
+          </div>
         </div>
         <div class="field">
           <label for="sub2AmbiguousRetry">
@@ -1085,13 +1098,13 @@
     const DEFAULT_BATCH_SUB2API = 100;
     const DEFAULT_BATCH_CPA = 20;
     const DEFAULT_UPLOAD_CONCURRENCY = 1;
-    const DEFAULT_SUB2_UPLOAD_ATTEMPTS = 3;
+    const DEFAULT_UPLOAD_ATTEMPTS = 3;
     const DEFAULT_SUB2_AMBIGUOUS_RETRY = "none";
     const FALLBACK_MAX_SUB2API = 100;
     const FALLBACK_MAX_CPA = 20;
     const FALLBACK_MAX_UPLOAD_CONCURRENCY_SUB2 = 3;
     const FALLBACK_MAX_UPLOAD_CONCURRENCY_CPA = 8;
-    const FALLBACK_MAX_SUB2_UPLOAD_ATTEMPTS = 3;
+    const FALLBACK_MAX_UPLOAD_ATTEMPTS = 3;
     const LOCAL_CONFIG_STORAGE_KEY = "cpa2sub.targetConfig.v1";
     const LOCAL_UI_SETTINGS_KEY = "cpa2sub.uiSettings.v1";
     let serverLimits = {
@@ -1099,7 +1112,8 @@
       maxCpaFiles: FALLBACK_MAX_CPA,
       maxUploadConcurrencySub2api: FALLBACK_MAX_UPLOAD_CONCURRENCY_SUB2,
       maxUploadConcurrencyCpa: FALLBACK_MAX_UPLOAD_CONCURRENCY_CPA,
-      maxSub2apiUploadAttempts: FALLBACK_MAX_SUB2_UPLOAD_ATTEMPTS
+      maxSub2apiUploadAttempts: FALLBACK_MAX_UPLOAD_ATTEMPTS,
+      maxCpaUploadAttempts: FALLBACK_MAX_UPLOAD_ATTEMPTS
     };
     let uiSettingsSaveTimer = null;
     let adaptiveUploadConcurrency = 1;
@@ -1313,8 +1327,11 @@
       return Math.max(1, Number(serverLimits.maxUploadConcurrencyCpa) || FALLBACK_MAX_UPLOAD_CONCURRENCY_CPA);
     }
 
-    function currentMaxSub2UploadAttempts() {
-      return Math.max(1, Number(serverLimits.maxSub2apiUploadAttempts) || FALLBACK_MAX_SUB2_UPLOAD_ATTEMPTS);
+    function currentMaxUploadAttempts(target) {
+      if (target === TARGET_SUB2API) {
+        return Math.max(1, Number(serverLimits.maxSub2apiUploadAttempts) || FALLBACK_MAX_UPLOAD_ATTEMPTS);
+      }
+      return Math.max(1, Number(serverLimits.maxCpaUploadAttempts) || FALLBACK_MAX_UPLOAD_ATTEMPTS);
     }
 
     function defaultBatchSize(target) {
@@ -1349,7 +1366,8 @@
         batchCpa: $("batchCpa")?.value || String(DEFAULT_BATCH_CPA),
         uploadConcurrencySub2: $("uploadConcurrencySub2")?.value || String(DEFAULT_UPLOAD_CONCURRENCY),
         uploadConcurrencyCpa: $("uploadConcurrencyCpa")?.value || String(DEFAULT_UPLOAD_CONCURRENCY),
-        sub2UploadAttempts: $("sub2UploadAttempts")?.value || String(DEFAULT_SUB2_UPLOAD_ATTEMPTS),
+        sub2UploadAttempts: $("sub2UploadAttempts")?.value || String(DEFAULT_UPLOAD_ATTEMPTS),
+        cpaUploadAttempts: $("cpaUploadAttempts")?.value || String(DEFAULT_UPLOAD_ATTEMPTS),
         sub2AmbiguousRetry: $("sub2AmbiguousRetry")?.value || DEFAULT_SUB2_AMBIGUOUS_RETRY,
         savedAt: new Date().toISOString()
       };
@@ -1385,7 +1403,8 @@
       setVal("batchCpa", settings.batchCpa ?? String(defaultBatchSize(TARGET_CPA)));
       setVal("uploadConcurrencySub2", settings.uploadConcurrencySub2 ?? String(DEFAULT_UPLOAD_CONCURRENCY));
       setVal("uploadConcurrencyCpa", settings.uploadConcurrencyCpa ?? String(DEFAULT_UPLOAD_CONCURRENCY));
-      setVal("sub2UploadAttempts", settings.sub2UploadAttempts ?? String(DEFAULT_SUB2_UPLOAD_ATTEMPTS));
+      setVal("sub2UploadAttempts", settings.sub2UploadAttempts ?? String(DEFAULT_UPLOAD_ATTEMPTS));
+      setVal("cpaUploadAttempts", settings.cpaUploadAttempts ?? String(DEFAULT_UPLOAD_ATTEMPTS));
       const ambiguous = String(settings.sub2AmbiguousRetry || DEFAULT_SUB2_AMBIGUOUS_RETRY);
       $("sub2AmbiguousRetry").value = ["none", "auto", "confirm"].includes(ambiguous)
         ? ambiguous
@@ -1397,7 +1416,8 @@
       const maxCpa = currentMaxBatch(TARGET_CPA);
       const maxConcSub2 = currentMaxUploadConcurrency(TARGET_SUB2API);
       const maxConcCpa = currentMaxUploadConcurrency(TARGET_CPA);
-      const maxAttempts = currentMaxSub2UploadAttempts();
+      const maxAttemptsSub2 = currentMaxUploadAttempts(TARGET_SUB2API);
+      const maxAttemptsCpa = currentMaxUploadAttempts(TARGET_CPA);
 
       const batchSub2 = $("batchSub2");
       const batchCpa = $("batchCpa");
@@ -1421,11 +1441,16 @@
       concSub2.value = String(clampInt(concSub2.value, 1, maxConcSub2, DEFAULT_UPLOAD_CONCURRENCY));
       concCpa.value = String(clampInt(concCpa.value, 1, maxConcCpa, DEFAULT_UPLOAD_CONCURRENCY));
 
-      const attempts = $("sub2UploadAttempts");
-      attempts.min = "1";
-      attempts.max = String(maxAttempts);
-      $("sub2UploadAttemptsHint").textContent = `含首次 · 上限 ${maxAttempts}`;
-      attempts.value = String(clampInt(attempts.value, 1, maxAttempts, Math.min(DEFAULT_SUB2_UPLOAD_ATTEMPTS, maxAttempts)));
+      const attemptsSub2 = $("sub2UploadAttempts");
+      const attemptsCpa = $("cpaUploadAttempts");
+      attemptsSub2.min = "1";
+      attemptsSub2.max = String(maxAttemptsSub2);
+      attemptsCpa.min = "1";
+      attemptsCpa.max = String(maxAttemptsCpa);
+      $("sub2UploadAttemptsHint").textContent = `含首次 · 上限 ${maxAttemptsSub2}`;
+      $("cpaUploadAttemptsHint").textContent = `含首次 · 上限 ${maxAttemptsCpa}`;
+      attemptsSub2.value = String(clampInt(attemptsSub2.value, 1, maxAttemptsSub2, Math.min(DEFAULT_UPLOAD_ATTEMPTS, maxAttemptsSub2)));
+      attemptsCpa.value = String(clampInt(attemptsCpa.value, 1, maxAttemptsCpa, Math.min(DEFAULT_UPLOAD_ATTEMPTS, maxAttemptsCpa)));
     }
 
     function readPositiveIntInput(input, label, max, { silent = false, min = 1 } = {}) {
@@ -1461,9 +1486,11 @@
       return readPositiveIntInput(input, label, max, { silent });
     }
 
-    function readSub2UploadAttempts({ silent = false } = {}) {
-      const max = currentMaxSub2UploadAttempts();
-      return readPositiveIntInput($("sub2UploadAttempts"), "SUB2API 上传重试次数", max, { silent });
+    function readUploadAttempts(target, { silent = false } = {}) {
+      const max = currentMaxUploadAttempts(target);
+      const input = target === TARGET_SUB2API ? $("sub2UploadAttempts") : $("cpaUploadAttempts");
+      const label = target === TARGET_SUB2API ? "SUB2API 上传重试次数" : "CPA 上传重试次数";
+      return readPositiveIntInput(input, label, max, { silent });
     }
 
     function readSub2AmbiguousRetry() {
@@ -1477,7 +1504,8 @@
       const maxCpa = Number(limits.maxCpaFiles);
       const maxConcSub2 = Number(limits.maxUploadConcurrencySub2api);
       const maxConcCpa = Number(limits.maxUploadConcurrencyCpa);
-      const maxAttempts = Number(limits.maxSub2apiUploadAttempts);
+      const maxAttemptsSub2 = Number(limits.maxSub2apiUploadAttempts);
+      const maxAttemptsCpa = Number(limits.maxCpaUploadAttempts);
       serverLimits = {
         maxSub2apiAccounts: Number.isFinite(maxSub2) && maxSub2 >= 1 ? Math.floor(maxSub2) : FALLBACK_MAX_SUB2API,
         maxCpaFiles: Number.isFinite(maxCpa) && maxCpa >= 1 ? Math.floor(maxCpa) : FALLBACK_MAX_CPA,
@@ -1487,9 +1515,12 @@
         maxUploadConcurrencyCpa: Number.isFinite(maxConcCpa) && maxConcCpa >= 1
           ? Math.floor(maxConcCpa)
           : FALLBACK_MAX_UPLOAD_CONCURRENCY_CPA,
-        maxSub2apiUploadAttempts: Number.isFinite(maxAttempts) && maxAttempts >= 1
-          ? Math.floor(maxAttempts)
-          : FALLBACK_MAX_SUB2_UPLOAD_ATTEMPTS
+        maxSub2apiUploadAttempts: Number.isFinite(maxAttemptsSub2) && maxAttemptsSub2 >= 1
+          ? Math.floor(maxAttemptsSub2)
+          : FALLBACK_MAX_UPLOAD_ATTEMPTS,
+        maxCpaUploadAttempts: Number.isFinite(maxAttemptsCpa) && maxAttemptsCpa >= 1
+          ? Math.floor(maxAttemptsCpa)
+          : FALLBACK_MAX_UPLOAD_ATTEMPTS
       };
       updateUploadLimitHints();
       saveUiSettingsSoon();
@@ -2885,7 +2916,7 @@
       uploadProgressMessage(TARGET_SUB2API, total);
       renderTable();
 
-      const maxAttempts = Math.max(1, Number(uploadOptions.maxAttempts) || DEFAULT_SUB2_UPLOAD_ATTEMPTS);
+      const maxAttempts = Math.max(1, Number(uploadOptions.maxAttempts) || DEFAULT_UPLOAD_ATTEMPTS);
       const ambiguousPolicy = uploadOptions.ambiguousRetry || DEFAULT_SUB2_AMBIGUOUS_RETRY;
       // Worker 侧：安全错误可重试；模糊错误仅 auto 时自动重试
       let retryAmbiguous = ambiguousPolicy === "auto";
@@ -2982,7 +3013,7 @@
       });
     }
 
-    async function uploadCpaBatch(entries, total, batchNumber, batchCount, configPayload) {
+    async function uploadCpaBatch(entries, total, batchNumber, batchCount, configPayload, uploadOptions = {}) {
       throwIfUploadCancelled();
       for (const entry of entries) {
         setItemUploadState(
@@ -2997,7 +3028,8 @@
       renderTable();
       try {
         const body = {
-          files: entries.map((entry) => ({ name: entry.filename, account: entry.account }))
+          files: entries.map((entry) => ({ name: entry.filename, account: entry.account })),
+          maxAttempts: Math.max(1, Number(uploadOptions.maxAttempts) || DEFAULT_UPLOAD_ATTEMPTS)
         };
         if (configPayload) body.config = configPayload;
         const { data } = await fetchJson(
@@ -3067,8 +3099,8 @@
       if (!showConfigOnly && !batchSize) return;
       const uploadConcurrency = showConfigOnly ? null : readUploadConcurrency(target);
       if (!showConfigOnly && !uploadConcurrency) return;
-      const sub2Attempts = showConfigOnly || target !== TARGET_SUB2API ? null : readSub2UploadAttempts();
-      if (!showConfigOnly && target === TARGET_SUB2API && !sub2Attempts) return;
+      const uploadAttempts = showConfigOnly ? null : readUploadAttempts(target);
+      if (!showConfigOnly && !uploadAttempts) return;
       const ambiguousRetry = target === TARGET_SUB2API ? readSub2AmbiguousRetry() : DEFAULT_SUB2_AMBIGUOUS_RETRY;
       saveUiSettingsSoon();
 
@@ -3109,7 +3141,7 @@
               index + 1,
               batches.length,
               configPayload,
-              { maxAttempts: sub2Attempts, ambiguousRetry }
+              { maxAttempts: uploadAttempts, ambiguousRetry }
             )
           );
         } else {
@@ -3126,7 +3158,8 @@
               entries.length,
               index + 1,
               batches.length,
-              configPayload
+              configPayload,
+              { maxAttempts: uploadAttempts }
             )
           );
         }
@@ -3311,7 +3344,8 @@
     bindClampedNumber("batchCpa", () => currentMaxBatch(TARGET_CPA), (max) => Math.min(DEFAULT_BATCH_CPA, max));
     bindClampedNumber("uploadConcurrencySub2", () => currentMaxUploadConcurrency(TARGET_SUB2API), () => DEFAULT_UPLOAD_CONCURRENCY);
     bindClampedNumber("uploadConcurrencyCpa", () => currentMaxUploadConcurrency(TARGET_CPA), () => DEFAULT_UPLOAD_CONCURRENCY);
-    bindClampedNumber("sub2UploadAttempts", () => currentMaxSub2UploadAttempts(), (max) => Math.min(DEFAULT_SUB2_UPLOAD_ATTEMPTS, max));
+    bindClampedNumber("sub2UploadAttempts", () => currentMaxUploadAttempts(TARGET_SUB2API), (max) => Math.min(DEFAULT_UPLOAD_ATTEMPTS, max));
+    bindClampedNumber("cpaUploadAttempts", () => currentMaxUploadAttempts(TARGET_CPA), (max) => Math.min(DEFAULT_UPLOAD_ATTEMPTS, max));
 
     for (const id of ["nameStrategy", "concurrency", "priority", "rateMultiplier", "sub2AmbiguousRetry"]) {
       $(id).addEventListener("change", saveUiSettingsSoon);

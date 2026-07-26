@@ -14,24 +14,27 @@ CPA_AUTH_MODE="auto"
 SESSION_TTL_HOURS="168"
 ALLOW_INSECURE_UPSTREAM="false"
 
-# 单批上传上限（可选；未设置/无效值回退默认，超过硬上限时钳制）
-# SUB2API 默认 100，硬上限 5000
+# ---------- 上传上限（可选）----------
+# 改完后需重新部署 / 重启 wrangler，前端通过 /api/config/status 的 limits 动态显示上限。
+
+# 单批上传上限
+# SUB2API 默认 100，绝对上限默认 5000（平台天花板 20000）
 # MAX_SUB2API_ACCOUNTS="100"
-# CPA 默认 20，硬上限 100
+# ABSOLUTE_MAX_SUB2API_ACCOUNTS="5000"
+# CPA 默认 20，绝对上限默认 500（平台天花板 2000）
 # MAX_CPA_FILES="20"
+# ABSOLUTE_MAX_CPA_FILES="500"
 
 # 前端并行上传批次数上限（页面可配，不得超过对应绝对上限）
-# SUB2API 默认 3
+# SUB2API 默认 3，绝对上限默认 50
 # MAX_UPLOAD_CONCURRENCY_SUB2API="3"
-# CPA 默认 8
-# MAX_UPLOAD_CONCURRENCY_CPA="8"
-
-# 上传并发绝对上限（可按目标服务器承载调整；启动时校验有效且 ≥ 默认并发）
-# SUB2API 默认 50，平台天花板 1000，且必须 ≥ 3
 # ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API="50"
-# CPA 默认 150，平台天花板 1000，且必须 ≥ 8
+# CPA 默认 8，绝对上限默认 150
+# MAX_UPLOAD_CONCURRENCY_CPA="8"
 # ABSOLUTE_MAX_UPLOAD_CONCURRENCY_CPA="150"
 
-# SUB2API 单批最大尝试次数上限（含首次；页面可配，默认 3）
-# 默认 3，硬上限 10
+# 上传重试次数上限（含首次；页面可配，默认 3）
+# 绝对上限默认 10（平台天花板 30）
 # MAX_SUB2API_UPLOAD_ATTEMPTS="3"
+# MAX_CPA_UPLOAD_ATTEMPTS="3"
+# ABSOLUTE_MAX_UPLOAD_ATTEMPTS="10"
