@@ -152,6 +152,14 @@ async function handleApi(request, env, url) {
     return jsonResponse({ ok: true, target: "SUB2API", count: accounts.length, ...result });
   }
 
+  // 拉取 SUB2API 全部代理列表，供前端上传前校验 proxy_id
+  if (url.pathname === "/api/sub2api/proxies" && request.method === "POST") {
+    const body = await readJsonBody(request, 32 * 1024);
+    const override = extractConfigOverride(body?.config ?? body);
+    const result = await listSub2apiProxies(env, override, request.signal);
+    return jsonResponse({ ok: true, target: "SUB2API", ...result });
+  }
+
   if (url.pathname === "/api/upload/cpa" && request.method === "POST") {
     const body = await readJsonBody(request, 20 * 1024 * 1024);
     const files = body?.files;
@@ -821,6 +829,57 @@ async function verifyTarget(env, target, override = null) {
     message: "CPA 管理接口验证成功。",
     authMode: result.authMode,
     attempts: result.attempts,
+  };
+}
+
+function extractProxyIdEntries(payload) {
+  const root = payload?.data !== undefined ? payload.data : payload;
+  if (Array.isArray(root)) return root;
+  if (!root || typeof root !== "object") return [];
+  if (Array.isArray(root.proxies)) return root.proxies;
+  if (Array.isArray(root.items)) return root.items;
+  if (Array.isArray(root.list)) return root.list;
+  if (Array.isArray(root.records)) return root.records;
+  if (Array.isArray(root.ids)) return root.ids;
+  return [];
+}
+
+/** 仅提取代理 ID，不向客户端回传主机/账号等详细配置 */
+function extractProxyIds(payload) {
+  const ids = [];
+  const seen = new Set();
+  for (const entry of extractProxyIdEntries(payload)) {
+    const raw =
+      entry == null
+        ? null
+        : typeof entry === "object"
+          ? (entry.id ?? entry.proxy_id ?? entry.proxyId)
+          : entry;
+    const id = Number(raw);
+    if (!Number.isFinite(id) || !Number.isInteger(id) || id < 0 || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
+async function listSub2apiProxies(env, override = null, clientSignal = undefined) {
+  const config = resolveTargetConfig(env, "SUB2API", override);
+  const result = await sub2apiRequest(
+    config,
+    "/api/v1/admin/proxies/all",
+    { method: "GET" },
+    VERIFY_TIMEOUT_MS,
+    1,
+    clientSignal
+  );
+  const proxyIds = extractProxyIds(result.data);
+  return {
+    baseUrl: config.baseUrl,
+    source: config.source,
+    attempts: result.attempts,
+    count: proxyIds.length,
+    proxyIds,
   };
 }
 

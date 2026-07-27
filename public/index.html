@@ -554,7 +554,15 @@
         overflow: visible;
       }
 
-      .triple > div {
+      .quad {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+        overflow: visible;
+      }
+
+      .triple > div,
+      .quad > div {
         min-width: 0;
         overflow: visible;
       }
@@ -565,8 +573,15 @@
         gap: 10px;
       }
 
+      @media (max-width: 720px) {
+        .quad {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
       @media (max-width: 560px) {
         .triple,
+        .quad,
         .batch-grid {
           grid-template-columns: 1fr;
         }
@@ -729,28 +744,31 @@
 
       /* 列宽：百分比均分，源文件/邮箱占主要弹性空间，避免中间大片空白 */
       col.col-idx {
-        width: 6%;
+        width: 5%;
       }
       col.col-file {
-        width: 22%;
+        width: 18%;
       }
       col.col-src {
-        width: 8%;
+        width: 7%;
       }
       col.col-dst {
-        width: 9%;
+        width: 8%;
       }
       col.col-email {
-        width: 29%;
+        width: 24%;
       }
       col.col-account {
-        width: 9%;
+        width: 8%;
+      }
+      col.col-proxy {
+        width: 11%;
       }
       col.col-convert {
         width: 8%;
       }
       col.col-upload {
-        width: 9%;
+        width: 11%;
       }
 
       td.cell-file,
@@ -913,6 +931,24 @@
         font-size: 12px;
       }
 
+      .selection-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+      }
+
+      .selection-toolbar-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .selection-toolbar-row.proxy-row {
+        padding-top: 8px;
+        border-top: 1px solid var(--border-soft);
+      }
+
       .selection-toolbar.show,
       .search-toolbar.show {
         display: flex;
@@ -1071,6 +1107,224 @@
           border-left: 0;
           width: 100%;
         }
+      }
+
+      .proxy-cell {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        max-width: 100%;
+      }
+
+      .proxy-id-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        max-width: 100%;
+        padding: 2px 6px;
+        margin: 0;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        font-family: var(--mono);
+        font-size: 12px;
+        line-height: 1.2;
+        cursor: pointer;
+      }
+
+      .proxy-id-btn:hover:not(:disabled) {
+        border-color: var(--border);
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .proxy-id-btn:disabled {
+        cursor: default;
+        opacity: 0.7;
+      }
+
+      .proxy-id-btn.is-empty {
+        color: var(--muted);
+      }
+
+      .proxy-id-btn.is-invalid {
+        color: #fca5a5;
+      }
+
+      .proxy-id-btn.is-valid {
+        color: #86efac;
+      }
+
+      .proxy-status-icon {
+        display: inline-grid;
+        place-items: center;
+        width: 14px;
+        height: 14px;
+        border-radius: 999px;
+        font-size: 10px;
+        line-height: 1;
+        flex: 0 0 auto;
+      }
+
+      .proxy-status-icon.ok {
+        background: rgba(34, 197, 94, 0.18);
+        color: #86efac;
+      }
+
+      .proxy-status-icon.bad {
+        background: rgba(239, 68, 68, 0.18);
+        color: #fca5a5;
+      }
+
+      .proxy-inline-edit {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        max-width: 100%;
+      }
+
+      .proxy-inline-edit input {
+        width: 72px;
+        min-width: 56px;
+        padding: 4px 6px;
+        font-size: 12px;
+        font-family: var(--mono);
+      }
+
+      .proxy-mini-btn {
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        display: inline-grid;
+        place-items: center;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        font-size: 11px;
+        line-height: 1;
+        cursor: pointer;
+        flex: 0 0 auto;
+      }
+
+      .proxy-mini-btn.ok {
+        background: rgba(34, 197, 94, 0.16);
+        border-color: rgba(34, 197, 94, 0.35);
+        color: #86efac;
+      }
+
+      .proxy-mini-btn.cancel {
+        background: rgba(239, 68, 68, 0.14);
+        border-color: rgba(239, 68, 68, 0.32);
+        color: #fca5a5;
+      }
+
+      .proxy-mini-btn:hover {
+        filter: brightness(1.08);
+      }
+
+      .proxy-summary-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        max-height: 180px;
+        overflow: auto;
+        margin: 8px 0 0;
+      }
+
+      .proxy-summary-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 8px 10px;
+        border: 1px solid var(--border-soft);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.02);
+        font-size: 12px;
+      }
+
+      .proxy-available-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 8px;
+        max-height: 120px;
+        overflow: auto;
+      }
+
+      .proxy-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 8px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.03);
+        color: var(--text);
+        font-size: 11px;
+        cursor: pointer;
+      }
+
+      .proxy-chip:hover {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+      }
+
+      .proxy-actions-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+        align-items: center;
+      }
+
+      .toast-host {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        z-index: 10000;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        pointer-events: none;
+        max-width: min(420px, calc(100vw - 32px));
+      }
+
+      .toast {
+        pointer-events: auto;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid var(--border-soft);
+        background: rgba(20, 28, 40, 0.96);
+        box-shadow: var(--shadow);
+        color: var(--text);
+        font-size: 12px;
+        line-height: 1.45;
+        opacity: 0;
+        transform: translateY(-8px);
+        transition:
+          opacity 0.18s ease,
+          transform 0.18s ease;
+      }
+
+      .toast.show {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .toast.info {
+        border-color: rgba(59, 130, 246, 0.35);
+        background: linear-gradient(180deg, rgba(28, 48, 78, 0.98), rgba(20, 28, 40, 0.98));
+      }
+
+      .toast.ok {
+        border-color: rgba(34, 197, 94, 0.35);
+        background: linear-gradient(180deg, rgba(24, 48, 36, 0.98), rgba(20, 28, 40, 0.98));
+      }
+
+      .toast.err {
+        border-color: rgba(239, 68, 68, 0.35);
+        background: linear-gradient(180deg, rgba(52, 28, 32, 0.98), rgba(20, 28, 40, 0.98));
       }
 
       .upload-detail {
@@ -1323,7 +1577,7 @@
           </div>
           <div class="field">
             <label>SUB2API 账号调度参数复写/补全</label>
-            <div class="triple">
+            <div class="quad">
               <div>
                 <label class="field-mini-label" for="concurrency">
                   并发
@@ -1382,6 +1636,27 @@
                   step="0.1"
                   title="SUB2API 账号 rate_multiplier"
                   aria-label="SUB2API 账号速率倍率"
+                />
+              </div>
+              <div>
+                <label class="field-mini-label" for="defaultProxyId">
+                  默认代理 ID
+                  <span
+                    class="field-tip"
+                    tabindex="0"
+                    data-tip="写入 SUB2API 账号的 proxy_id。仅当账号未设置代理 ID 时补全；留空则表示不默认使用代理。0 与正整数有效，上传前会校验是否存在于目标 SUB2API 代理列表"
+                    >i</span
+                  >
+                </label>
+                <input
+                  type="number"
+                  id="defaultProxyId"
+                  value=""
+                  min="0"
+                  step="1"
+                  placeholder="留空则表示不默认使用代理"
+                  title="SUB2API 账号默认 proxy_id"
+                  aria-label="SUB2API 默认代理 ID"
                 />
               </div>
             </div>
@@ -1543,43 +1818,68 @@
 
         <div class="table-control-panel" id="tableControlPanel">
           <div class="selection-toolbar" id="selectionToolbar">
-            <span>已选 <b id="selectedCount">0</b></span>
-            <button class="btn-primary btn-sm" id="btnSelectVisible" type="button">全选结果</button>
-            <button class="btn-ghost btn-sm" id="btnClearSelection" type="button">清空</button>
-            <button class="btn-danger btn-sm" id="btnExitSelection" type="button">退出多选</button>
-            <span class="toolbar-sep"></span>
-            <div class="selection-filter-group">
-              <span class="toolbar-label">账号状态</span>
-              <label class="status-select"
-                ><input type="checkbox" data-account-select="valid" />有效</label
-              >
-              <label class="status-select"
-                ><input type="checkbox" data-account-select="expired" />失效</label
-              >
-              <label class="status-select"
-                ><input type="checkbox" data-account-select="unknown" />未知</label
-              >
+            <div class="selection-toolbar-row">
+              <span>已选 <b id="selectedCount">0</b></span>
+              <button class="btn-primary btn-sm" id="btnSelectVisible" type="button">
+                全选结果
+              </button>
+              <button class="btn-ghost btn-sm" id="btnClearSelection" type="button">清空</button>
+              <button class="btn-danger btn-sm" id="btnExitSelection" type="button">
+                退出多选
+              </button>
+              <span class="toolbar-sep"></span>
+              <div class="selection-filter-group">
+                <span class="toolbar-label">账号状态</span>
+                <label class="status-select"
+                  ><input type="checkbox" data-account-select="valid" />有效</label
+                >
+                <label class="status-select"
+                  ><input type="checkbox" data-account-select="expired" />失效</label
+                >
+                <label class="status-select"
+                  ><input type="checkbox" data-account-select="unknown" />未知</label
+                >
+              </div>
+              <div class="selection-filter-group">
+                <span class="toolbar-label">上传状态</span>
+                <label class="status-select"
+                  ><input type="checkbox" data-upload-select="failed" />失败</label
+                >
+                <label class="status-select"
+                  ><input type="checkbox" data-upload-select="not-uploaded" />未上传</label
+                >
+                <label class="status-select"
+                  ><input type="checkbox" data-upload-select="success" />成功</label
+                >
+                <label class="status-select"
+                  ><input type="checkbox" data-upload-select="uploading" />上传中</label
+                >
+                <label class="status-select"
+                  ><input type="checkbox" data-upload-select="unknown" />未知</label
+                >
+                <label class="status-select"
+                  ><input type="checkbox" data-upload-select="cancelled" />已取消</label
+                >
+              </div>
             </div>
-            <div class="selection-filter-group">
-              <span class="toolbar-label">上传状态</span>
-              <label class="status-select"
-                ><input type="checkbox" data-upload-select="failed" />失败</label
-              >
-              <label class="status-select"
-                ><input type="checkbox" data-upload-select="not-uploaded" />未上传</label
-              >
-              <label class="status-select"
-                ><input type="checkbox" data-upload-select="success" />成功</label
-              >
-              <label class="status-select"
-                ><input type="checkbox" data-upload-select="uploading" />上传中</label
-              >
-              <label class="status-select"
-                ><input type="checkbox" data-upload-select="unknown" />未知</label
-              >
-              <label class="status-select"
-                ><input type="checkbox" data-upload-select="cancelled" />已取消</label
-              >
+            <div class="selection-toolbar-row proxy-row">
+              <span class="toolbar-label">代理 ID</span>
+              <button class="btn-primary btn-sm" id="btnBatchSetProxy" type="button">
+                批量设置
+              </button>
+              <button class="btn-ghost btn-sm" id="btnBatchClearProxy" type="button">
+                批量清除
+              </button>
+              <span class="toolbar-sep"></span>
+              <button class="btn-ghost btn-sm" id="btnSelectHasProxy" type="button">
+                仅选中有代理
+              </button>
+              <button class="btn-ghost btn-sm" id="btnSelectNoProxy" type="button">
+                仅选中无代理
+              </button>
+              <button class="btn-ghost btn-sm" id="btnSelectInvalidProxy" type="button">
+                仅选中无效代理
+              </button>
             </div>
           </div>
           <div class="search-toolbar" id="searchToolbar">
@@ -1587,7 +1887,7 @@
               id="accountSearch"
               type="search"
               autocomplete="off"
-              placeholder="搜索邮箱、文件、状态…"
+              placeholder="搜索邮箱、文件、状态、代理 ID…"
             />
             <button class="btn-ghost btn-sm" id="btnClearSearch" type="button">清除</button>
             <span class="mono" id="searchResultCount"></span>
@@ -1603,6 +1903,7 @@
               <col class="col-dst" />
               <col class="col-email" />
               <col class="col-account" />
+              <col class="col-proxy" />
               <col class="col-convert" />
               <col class="col-upload" />
             </colgroup>
@@ -1636,13 +1937,14 @@
                 <th>目标</th>
                 <th>邮箱 / 标识</th>
                 <th>账号状态</th>
+                <th>代理 ID</th>
                 <th>转换</th>
                 <th>上传状态</th>
               </tr>
             </thead>
             <tbody id="tbody">
               <tr>
-                <td colspan="8" class="mono">尚未导入文件</td>
+                <td colspan="9" class="mono">尚未导入文件</td>
               </tr>
             </tbody>
           </table>
@@ -1763,6 +2065,106 @@
       </div>
     </div>
 
+    <div
+      class="modal-backdrop"
+      id="batchProxyModal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="batchProxyTitle"
+    >
+      <div class="modal">
+        <div class="modal-head">
+          <h3 id="batchProxyTitle">批量设置代理 ID</h3>
+          <button class="icon-btn" id="btnCloseBatchProxy" type="button" aria-label="关闭">
+            ×
+          </button>
+        </div>
+        <div class="modal-body">
+          <p class="hint" style="margin-top: 0" id="batchProxyHint">
+            为已选账号设置 SUB2API 代理 ID
+          </p>
+          <div class="field">
+            <label for="batchProxyIdInput">代理 ID</label>
+            <input
+              id="batchProxyIdInput"
+              type="number"
+              min="0"
+              step="1"
+              placeholder="输入 0 或正整数"
+              autocomplete="off"
+            />
+          </div>
+          <div class="field">
+            <label for="batchProxyMode">应用范围</label>
+            <select id="batchProxyMode">
+              <option value="overwrite" selected>覆盖全部已选</option>
+              <option value="fill-empty">仅填充空值</option>
+            </select>
+          </div>
+          <div class="config-status" id="batchProxyStatus"></div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn-ghost" id="btnCancelBatchProxy" type="button">取消</button>
+          <button class="btn-primary" id="btnApplyBatchProxy" type="button">应用</button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      class="modal-backdrop"
+      id="proxyValidateModal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="proxyValidateTitle"
+    >
+      <div class="modal" style="width: min(560px, 100%)">
+        <div class="modal-head">
+          <h3 id="proxyValidateTitle">代理 ID 校验未通过</h3>
+          <button class="icon-btn" id="btnCloseProxyValidate" type="button" aria-label="关闭">
+            ×
+          </button>
+        </div>
+        <div class="modal-body">
+          <p class="hint" style="margin-top: 0" id="proxyValidateSummary"></p>
+          <div class="proxy-summary-list" id="proxyInvalidSummary"></div>
+          <div class="field" style="margin-top: 12px">
+            <label>服务器可用代理</label>
+            <div class="proxy-available-list" id="proxyAvailableList"></div>
+          </div>
+          <div class="field">
+            <label for="proxyFixIdInput">将无效账号改为</label>
+            <div class="row">
+              <input
+                id="proxyFixIdInput"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="输入合法代理 ID"
+                style="flex: 1 1 160px"
+              />
+              <button class="btn-primary btn-sm" id="btnApplyProxyFix" type="button">应用</button>
+            </div>
+          </div>
+          <div class="proxy-actions-row">
+            <button class="btn-ghost btn-sm" id="btnSelectInvalidInModal" type="button">
+              选中全部无效账号
+            </button>
+            <button class="btn-danger btn-sm" id="btnClearInvalidProxies" type="button">
+              清除全部无效代理
+            </button>
+          </div>
+          <div class="config-status" id="proxyValidateStatus"></div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn-ghost" id="btnCancelProxyValidate" type="button">返回修改</button>
+          <button class="btn-danger" id="btnForceUploadInvalid" type="button">强制上传</button>
+          <button class="btn-primary" id="btnSkipInvalidUpload" type="button">跳过无效账号</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast-host" id="toastHost" aria-live="polite" aria-atomic="true"></div>
+
     <script>
       const CLIENT_ID = "b1a00492-073a-47ea-816f-4c329264a828";
       const REDIRECT_URI = "http://127.0.0.1:56121/callback";
@@ -1776,7 +2178,7 @@
         "x-grok-client-version": "0.2.93",
       };
 
-      /** @type {Array<{id:string,sourceFile:string,sourceFormat:string,account:any,error?:string,converted?:any,targetFormat?:string,selected:boolean,accountStatus:string,expiresAt:number|null,uploadStatus:string,uploadTarget:string,uploadMessage:string,uploadAttempts:number}>} */
+      /** @type {Array<{id:string,sourceFile:string,sourceFormat:string,account:any,error?:string,converted?:any,targetFormat?:string,selected:boolean,accountStatus:string,expiresAt:number|null,proxyId:number|null,proxyValid:boolean|null,uploadStatus:string,uploadTarget:string,uploadMessage:string,uploadAttempts:number}>} */
       let items = [];
       let converted = false;
       let selectionMode = false;
@@ -1791,6 +2193,16 @@
       let configDialogTarget = "SUB2API";
       let configDialogResolver = null;
       let configDialogMode = "manage"; // manage | ensure
+      /** @type {string|null} */
+      let proxyEditingItemId = null;
+      /** @type {number[]} 仅缓存服务器上存在的代理 ID */
+      let cachedSub2ProxyIds = [];
+      /** @type {Set<number>} */
+      let cachedSub2ProxyIdSet = new Set();
+      /** @type {((action:string)=>void)|null} */
+      let proxyValidateResolver = null;
+      /** @type {string[]} */
+      let proxyValidateInvalidIds = [];
 
       const DEFAULT_BATCH_SUB2API = 100;
       const DEFAULT_BATCH_CPA = 20;
@@ -1849,11 +2261,93 @@
         msgEl.textContent = "";
       }
 
+      function showToast(text, type = "info", durationMs = 3200) {
+        const host = $("toastHost");
+        if (!host) return;
+        const el = document.createElement("div");
+        el.className = `toast ${type}`;
+        el.textContent = text;
+        host.appendChild(el);
+        requestAnimationFrame(() => el.classList.add("show"));
+        const hideMs = Math.max(1200, Number(durationMs) || 3200);
+        setTimeout(() => {
+          el.classList.remove("show");
+          setTimeout(() => el.remove(), 220);
+        }, hideMs);
+      }
+
       function makeItemId() {
         if (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") {
           return globalThis.crypto.randomUUID();
         }
         return `item-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      }
+
+      /** 解析代理 ID：空/无效 → null；0 与正整数保留 */
+      function parseProxyId(value) {
+        if (value == null) return null;
+        if (typeof value === "string" && value.trim() === "") return null;
+        const n = Number(value);
+        if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) return null;
+        return n;
+      }
+
+      function extractProxyIdFromAccount(account) {
+        if (!account || typeof account !== "object") return null;
+        return parseProxyId(account.proxy_id ?? account.proxyId ?? null);
+      }
+
+      function getItemProxyId(item) {
+        if (!item) return null;
+        if (item.proxyId != null) return parseProxyId(item.proxyId);
+        return extractProxyIdFromAccount(item.account);
+      }
+
+      function setItemProxyId(item, proxyId, { markConvertedDirty = true } = {}) {
+        if (!item) return;
+        const normalized = parseProxyId(proxyId);
+        item.proxyId = normalized;
+        item.proxyValid = null;
+        if (item.account && typeof item.account === "object") {
+          if (normalized == null) delete item.account.proxy_id;
+          else item.account.proxy_id = normalized;
+        }
+        if (markConvertedDirty && item.converted && item.targetFormat === TARGET_SUB2API) {
+          item.converted = null;
+          item.targetFormat = null;
+          converted = false;
+        }
+      }
+
+      function clearProxyValidity(itemsOrAll = null) {
+        const list = Array.isArray(itemsOrAll) ? itemsOrAll : items;
+        for (const item of list) item.proxyValid = null;
+      }
+
+      function readDefaultProxyId() {
+        return parseProxyId($("defaultProxyId")?.value);
+      }
+
+      function applyDefaultProxyToItems(list) {
+        const defaultId = readDefaultProxyId();
+        if (defaultId == null) return 0;
+        let filled = 0;
+        for (const item of list) {
+          if (getItemProxyId(item) != null) continue;
+          setItemProxyId(item, defaultId, { markConvertedDirty: true });
+          filled += 1;
+        }
+        return filled;
+      }
+
+      function applyProxyIdToAccountPayload(account, proxyId) {
+        if (!account || typeof account !== "object") return account;
+        if (proxyId == null) {
+          delete account.proxy_id;
+          return account;
+        }
+        account.proxy_id = proxyId;
+        return account;
       }
 
       function prepareItem(item) {
@@ -1866,8 +2360,15 @@
           uploadAttempts: 0,
           accountStatus: ACCOUNT_STATUS.UNKNOWN,
           expiresAt: null,
+          proxyId: null,
+          proxyValid: null,
           ...item,
         };
+        if (base.proxyId == null) {
+          base.proxyId = extractProxyIdFromAccount(base.account);
+        } else {
+          base.proxyId = parseProxyId(base.proxyId);
+        }
         const expiry = resolveAccountExpiry(base);
         base.expiresAt = expiry.expiresAt;
         base.accountStatus = expiry.accountStatus;
@@ -1981,6 +2482,7 @@
         return items
           .map((item, index) => ({ item, index }))
           .filter(({ item }) => {
+            const proxyId = getItemProxyId(item);
             const haystack = [
               item.sourceFile,
               item.sourceFormat,
@@ -1991,6 +2493,10 @@
               item.uploadStatus,
               accountStatusLabel(item.accountStatus),
               item.accountStatus,
+              proxyId == null ? "" : String(proxyId),
+              proxyId == null ? "无代理" : "有代理",
+              item.proxyValid === false ? "无效代理" : "",
+              item.proxyValid === true ? "合法代理" : "",
             ]
               .join(" ")
               .toLowerCase();
@@ -2190,6 +2696,10 @@
           concurrency: $("concurrency")?.value || "1",
           priority: $("priority")?.value || "1",
           rateMultiplier: $("rateMultiplier")?.value || "1",
+          defaultProxyId:
+            $("defaultProxyId")?.value === "" || $("defaultProxyId")?.value == null
+              ? ""
+              : String($("defaultProxyId").value),
           autoPause: Boolean($("autoPause")?.checked),
           keepSso: Boolean($("keepSso")?.checked),
           keepHeaders: Boolean($("keepHeaders")?.checked),
@@ -2230,6 +2740,11 @@
         setVal("concurrency", settings.concurrency ?? "1");
         setVal("priority", settings.priority ?? "1");
         setVal("rateMultiplier", settings.rateMultiplier ?? "1");
+        if (settings.defaultProxyId === "" || settings.defaultProxyId == null) {
+          if ($("defaultProxyId")) $("defaultProxyId").value = "";
+        } else {
+          setVal("defaultProxyId", settings.defaultProxyId);
+        }
         setCheck("autoPause", settings.autoPause, true);
         setCheck("keepSso", settings.keepSso, true);
         setCheck("keepHeaders", settings.keepHeaders, true);
@@ -2583,7 +3098,7 @@
           "";
         const expiresAt =
           unixFromIsoOrNumber(cred.expires_at) || (payload.exp ? Number(payload.exp) : null);
-        return {
+        const normalized = {
           name: raw.name || email || "",
           platform: raw.platform || "grok",
           type: raw.type || "oauth",
@@ -2613,6 +3128,9 @@
             payload.exp && payload.iat ? Number(payload.exp) - Number(payload.iat) : null,
           _last_refresh: (raw.extra && raw.extra.last_refresh) || "",
         };
+        const proxyId = extractProxyIdFromAccount(raw);
+        if (proxyId != null) normalized.proxy_id = proxyId;
+        return normalized;
       }
 
       function cpaToSub2(cpa) {
@@ -2908,18 +3426,49 @@
         return `<span class="tag tag-upload-none">未上传</span>`;
       }
 
+      function proxyCellHtml(item) {
+        if (item.error || !item.account) {
+          return `<span class="mono">—</span>`;
+        }
+        if (proxyEditingItemId === item.id) {
+          const current = getItemProxyId(item);
+          return `<div class="proxy-inline-edit" data-proxy-edit="${escapeHtml(item.id)}">
+            <input type="number" min="0" step="1" inputmode="numeric" value="${current == null ? "" : escapeHtml(String(current))}" aria-label="编辑代理 ID" />
+            <button type="button" class="proxy-mini-btn ok" data-proxy-save="${escapeHtml(item.id)}" title="保存" aria-label="保存代理 ID">✔</button>
+            <button type="button" class="proxy-mini-btn cancel" data-proxy-cancel="${escapeHtml(item.id)}" title="取消" aria-label="取消编辑">✖</button>
+          </div>`;
+        }
+        const proxyId = getItemProxyId(item);
+        if (proxyId == null) {
+          return `<button type="button" class="proxy-id-btn is-empty" data-proxy-edit-start="${escapeHtml(item.id)}" title="点击设置代理 ID" ${uploadBusy ? "disabled" : ""}>-</button>`;
+        }
+        let cls = "proxy-id-btn";
+        let icon = "";
+        let tip = `代理 ID ${proxyId} · 点击修改`;
+        if (item.proxyValid === true) {
+          cls += " is-valid";
+          icon = `<span class="proxy-status-icon ok" aria-hidden="true">✓</span>`;
+          tip = `代理 ID ${proxyId} 合法 · 点击修改`;
+        } else if (item.proxyValid === false) {
+          cls += " is-invalid";
+          icon = `<span class="proxy-status-icon bad" aria-hidden="true">⚠</span>`;
+          tip = `代理 ID ${proxyId} 在目标服务器不存在 · 点击修改`;
+        }
+        return `<button type="button" class="${cls}" data-proxy-edit-start="${escapeHtml(item.id)}" data-tip="${escapeHtml(tip)}" title="${escapeHtml(tip)}" ${uploadBusy ? "disabled" : ""}><span>${escapeHtml(String(proxyId))}</span>${icon}</button>`;
+      }
+
       function renderTable() {
         document.body.classList.toggle("is-empty", items.length === 0);
         syncTableControls();
         const visibleItems = getVisibleItems();
         if (!items.length) {
-          tbody.innerHTML = `<tr><td colspan="8" class="mono">尚未导入文件</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="9" class="mono">尚未导入文件</td></tr>`;
           updateStats();
           refreshActionButtons();
           return;
         }
         if (!visibleItems.length) {
-          tbody.innerHTML = `<tr><td colspan="8" class="mono">没有匹配的账号</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="9" class="mono">没有匹配的账号</td></tr>`;
           updateStats();
           refreshActionButtons();
           return;
@@ -2957,13 +3506,14 @@
             const firstCell = selectionMode
               ? `<label class="row-select-cell"><input type="checkbox" class="row-check" data-item-id="${escapeHtml(item.id)}" ${item.selected ? "checked" : ""} /><span>${index + 1}</span></label>`
               : `${index + 1}`;
-            return `<tr class="${item.selected && selectionMode ? "selected-row" : ""}">
+            return `<tr class="${item.selected && selectionMode ? "selected-row" : ""}" data-row-id="${escapeHtml(item.id)}">
             <td class="cell-tag">${firstCell}</td>
             <td class="mono cell-file" title="${escapeHtml(item.sourceFile)}">${escapeHtml(item.sourceFile)}</td>
             <td class="cell-tag">${srcTag}</td>
             <td class="cell-tag">${target}</td>
             <td class="email" title="${escapeHtml(accountLabel(item))}">${escapeHtml(accountLabel(item))}</td>
             <td class="cell-tag">${accountStatusHtml(item)}</td>
+            <td class="cell-tag">${proxyCellHtml(item)}</td>
             <td class="cell-tag">${status}</td>
             <td class="cell-tag">${uploadStatusHtml(item)}</td>
           </tr>`;
@@ -2971,6 +3521,15 @@
           .join("");
         updateStats();
         refreshActionButtons();
+        if (proxyEditingItemId) {
+          const input = tbody.querySelector(
+            `[data-proxy-edit="${CSS.escape(proxyEditingItemId)}"] input`
+          );
+          if (input) {
+            input.focus();
+            input.select();
+          }
+        }
       }
 
       function escapeHtml(s) {
@@ -3026,7 +3585,7 @@
         return record;
       }
 
-      function finalizeSub2(account, preserveExtra) {
+      function finalizeSub2(account, preserveExtra, proxyId = null) {
         const out = {
           name: account.name || account.credentials?.email || "unknown",
           platform: account.platform || "grok",
@@ -3042,17 +3601,25 @@
         if (preserveExtra && account.extra && account.extra.grok_usage_snapshot) {
           out.extra.grok_usage_snapshot = account.extra.grok_usage_snapshot;
         }
+        applyProxyIdToAccountPayload(out, parseProxyId(proxyId));
         return out;
       }
 
       function convertItemTo(item, target) {
         if (!item || item.error || !item.account) throw new Error("账号不可用");
         if (target === TARGET_SUB2API) {
+          const proxyId = getItemProxyId(item);
           if (item.sourceFormat === "cpa") {
-            return finalizeSub2(cpaToSub2(item.account), false);
+            return finalizeSub2(cpaToSub2(item.account), false, proxyId);
           }
-          const normalized = finalizeSub2(cpaToSub2(normalizeCpa(sub2ToCpa(item.account))), true);
+          const normalized = finalizeSub2(
+            cpaToSub2(normalizeCpa(sub2ToCpa(item.account))),
+            true,
+            proxyId
+          );
           if (item.account.name) normalized.name = item.account.name;
+          // 转换链路可能丢失原 proxy_id；优先使用 item 上维护的值
+          applyProxyIdToAccountPayload(normalized, proxyId);
           return normalized;
         }
         if (target === TARGET_CPA || target === "cpa") {
@@ -3628,11 +4195,11 @@
           const verified = await verifyServerConfig(target, override);
           saveLocalTarget(target, override);
           updateRuntimeConfigUi();
-          setConfigStatus(verified.message || `${target} 验证成功，已保存到本机`, "ok");
-          if (configDialogMode === "ensure") {
-            // 上传引导模式：保存成功后关闭并继续
-            closeConfigDialog(true);
-          }
+          const okMsg = verified.message || `${target} 验证成功，已保存到本机`;
+          setConfigStatus(okMsg, "ok");
+          // 验证成功后自动关闭弹窗，并用 toast 提示
+          closeConfigDialog(true);
+          showToast(okMsg, "ok");
           return true;
         } catch (error) {
           setConfigStatus(`${target} 验证失败：${apiErrorMessage(error)}`, "err");
@@ -3641,6 +4208,328 @@
           $("btnSaveVerifyConfig").disabled = false;
           $("btnClearLocalConfig").disabled = false;
         }
+      }
+
+      async function fetchSub2apiProxyIds(configPayload) {
+        const body = {};
+        if (configPayload) body.config = configPayload;
+        const { data } = await fetchJson(
+          "/api/sub2api/proxies",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          },
+          60000
+        );
+        // 兼容：优先 proxyIds；旧字段 proxies 若仍是对象数组则只取 id
+        const rawIds = Array.isArray(data?.proxyIds)
+          ? data.proxyIds
+          : Array.isArray(data?.ids)
+            ? data.ids
+            : Array.isArray(data?.proxies)
+              ? data.proxies
+              : [];
+        const ids = [];
+        const seen = new Set();
+        for (const entry of rawIds) {
+          const n =
+            entry != null && typeof entry === "object"
+              ? Number(entry.id ?? entry.proxy_id ?? entry.proxyId)
+              : Number(entry);
+          if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0 || seen.has(n)) continue;
+          seen.add(n);
+          ids.push(n);
+        }
+        cachedSub2ProxyIds = ids;
+        cachedSub2ProxyIdSet = new Set(ids);
+        return ids;
+      }
+
+      function markProxyValidity(list, validIdSet) {
+        const invalid = [];
+        for (const item of list) {
+          const proxyId = getItemProxyId(item);
+          if (proxyId == null) {
+            item.proxyValid = null;
+            continue;
+          }
+          const ok = validIdSet.has(proxyId);
+          item.proxyValid = ok;
+          if (!ok) invalid.push(item);
+        }
+        return invalid;
+      }
+
+      function groupInvalidByProxyId(invalidItems) {
+        const map = new Map();
+        for (const item of invalidItems) {
+          const id = getItemProxyId(item);
+          if (id == null) continue;
+          if (!map.has(id)) map.set(id, []);
+          map.get(id).push(item);
+        }
+        return map;
+      }
+
+      function setBatchProxyStatus(text, type = "") {
+        const el = $("batchProxyStatus");
+        if (!el) return;
+        el.textContent = text || "";
+        el.className = `config-status ${type}`.trim();
+      }
+
+      function setProxyValidateStatus(text, type = "") {
+        const el = $("proxyValidateStatus");
+        if (!el) return;
+        el.textContent = text || "";
+        el.className = `config-status ${type}`.trim();
+      }
+
+      function openBatchProxyModal() {
+        const selected = items.filter((item) => item.selected && !item.error && item.account);
+        if (!selected.length) {
+          showMsg("请先勾选要设置代理的账号", "err");
+          return;
+        }
+        $("batchProxyHint").textContent = `为已选 ${selected.length} 个账号设置 SUB2API 代理 ID`;
+        $("batchProxyIdInput").value = "";
+        $("batchProxyMode").value = "overwrite";
+        setBatchProxyStatus("");
+        $("batchProxyModal").classList.add("show");
+        setTimeout(() => $("batchProxyIdInput").focus(), 0);
+      }
+
+      function closeBatchProxyModal() {
+        $("batchProxyModal").classList.remove("show");
+        setBatchProxyStatus("");
+      }
+
+      function applyBatchProxySettings() {
+        const selected = items.filter((item) => item.selected && !item.error && item.account);
+        if (!selected.length) {
+          setBatchProxyStatus("没有已选账号", "err");
+          return false;
+        }
+        const raw = String($("batchProxyIdInput").value ?? "").trim();
+        if (raw === "") {
+          setBatchProxyStatus("请输入代理 ID，或改用「批量清除」", "err");
+          return false;
+        }
+        const proxyId = parseProxyId(raw);
+        if (proxyId == null) {
+          setBatchProxyStatus("代理 ID 必须是 0 或正整数", "err");
+          return false;
+        }
+        const mode = $("batchProxyMode").value === "fill-empty" ? "fill-empty" : "overwrite";
+        let changed = 0;
+        for (const item of selected) {
+          if (mode === "fill-empty" && getItemProxyId(item) != null) continue;
+          setItemProxyId(item, proxyId);
+          changed += 1;
+        }
+        closeBatchProxyModal();
+        renderTable();
+        showMsg(
+          mode === "fill-empty"
+            ? `已为 ${changed} 个空代理账号设置代理 ID ${proxyId}`
+            : `已为 ${changed} 个账号设置代理 ID ${proxyId}`,
+          "ok"
+        );
+        return true;
+      }
+
+      function batchClearSelectedProxies() {
+        const selected = items.filter((item) => item.selected && !item.error && item.account);
+        if (!selected.length) {
+          showMsg("请先勾选要清除代理的账号", "err");
+          return;
+        }
+        const withProxy = selected.filter((item) => getItemProxyId(item) != null);
+        if (!withProxy.length) {
+          showMsg("已选账号均未设置代理 ID", "info");
+          return;
+        }
+        if (
+          !window.confirm(
+            `将清除已选 ${withProxy.length} 个账号的代理 ID，上传时将不绑定代理。是否继续？`
+          )
+        ) {
+          return;
+        }
+        for (const item of withProxy) setItemProxyId(item, null);
+        renderTable();
+        showMsg(`已清除 ${withProxy.length} 个账号的代理 ID`, "ok");
+      }
+
+      function selectVisibleByProxyFilter(kind) {
+        if (!selectionMode) {
+          selectionMode = true;
+        }
+        for (const { item } of getVisibleItems()) {
+          if (item.error || !item.account) {
+            item.selected = false;
+            continue;
+          }
+          const proxyId = getItemProxyId(item);
+          if (kind === "has") item.selected = proxyId != null;
+          else if (kind === "none") item.selected = proxyId == null;
+          else if (kind === "invalid") item.selected = item.proxyValid === false;
+          else item.selected = false;
+        }
+        renderTable();
+      }
+
+      function settleProxyValidateDialog(action) {
+        const resolver = proxyValidateResolver;
+        proxyValidateResolver = null;
+        if (resolver) resolver(action);
+      }
+
+      function closeProxyValidateModal(action = "cancel") {
+        $("proxyValidateModal").classList.remove("show");
+        settleProxyValidateDialog(action);
+      }
+
+      function renderProxyValidateModal(invalidItems, proxyIds) {
+        const grouped = groupInvalidByProxyId(invalidItems);
+        proxyValidateInvalidIds = invalidItems.map((item) => item.id);
+        $("proxyValidateSummary").textContent =
+          `共 ${invalidItems.length} 个账号的代理 ID 在目标服务器不存在。可强制上传、跳过这些账号，或先修正后再传。`;
+        const summaryEl = $("proxyInvalidSummary");
+        summaryEl.innerHTML = Array.from(grouped.entries())
+          .map(
+            ([id, list]) => `<div class="proxy-summary-item">
+              <span>代理 ID <b>${escapeHtml(String(id))}</b> · ${list.length} 个账号</span>
+              <button type="button" class="btn-ghost btn-sm" data-select-invalid-id="${escapeHtml(String(id))}">选中这批</button>
+            </div>`
+          )
+          .join("");
+        const listEl = $("proxyAvailableList");
+        const ids = Array.isArray(proxyIds) ? proxyIds : [];
+        if (!ids.length) {
+          listEl.innerHTML = `<span class="mono">服务器未返回可用代理 ID</span>`;
+        } else {
+          listEl.innerHTML = ids
+            .map(
+              (id) =>
+                `<button type="button" class="proxy-chip" data-pick-proxy-id="${escapeHtml(String(id))}" title="代理 ID ${escapeHtml(String(id))}">${escapeHtml(String(id))}</button>`
+            )
+            .join("");
+        }
+        $("proxyFixIdInput").value = "";
+        setProxyValidateStatus("");
+        $("proxyValidateModal").classList.add("show");
+      }
+
+      function openProxyValidateDialog(invalidItems, proxyIds) {
+        if (proxyValidateResolver) settleProxyValidateDialog("cancel");
+        renderProxyValidateModal(invalidItems, proxyIds);
+        return new Promise((resolve) => {
+          proxyValidateResolver = resolve;
+        });
+      }
+
+      function selectInvalidItemsByIds(ids) {
+        const idSet = new Set(ids);
+        selectionMode = true;
+        for (const item of items) {
+          item.selected = idSet.has(item.id);
+        }
+        renderTable();
+      }
+
+      function applyProxyFixToInvalid(proxyId) {
+        const idSet = new Set(proxyValidateInvalidIds);
+        let changed = 0;
+        for (const item of items) {
+          if (!idSet.has(item.id)) continue;
+          setItemProxyId(item, proxyId);
+          if (proxyId == null) item.proxyValid = null;
+          else item.proxyValid = cachedSub2ProxyIdSet.has(proxyId) ? true : false;
+          changed += 1;
+        }
+        return changed;
+      }
+
+      function refreshInvalidAfterFix() {
+        const stillInvalid = items.filter(
+          (item) => proxyValidateInvalidIds.includes(item.id) && item.proxyValid === false
+        );
+        proxyValidateInvalidIds = stillInvalid.map((item) => item.id);
+        if (!stillInvalid.length) {
+          setProxyValidateStatus("无效代理已全部处理，将继续上传", "ok");
+          $("proxyInvalidSummary").innerHTML =
+            `<div class="proxy-summary-item"><span>没有剩余无效账号</span></div>`;
+          // 全部修正后自动继续上传，避免用户再点一次
+          setTimeout(() => closeProxyValidateModal("continue"), 280);
+          return [];
+        }
+        renderProxyValidateModal(stillInvalid, cachedSub2ProxyIds);
+        setProxyValidateStatus(`仍有 ${stillInvalid.length} 个账号代理无效`, "err");
+        return stillInvalid;
+      }
+
+      /**
+       * 上传 SUB2API 前：补全默认代理 → 拉代理 ID 列表 → 校验 proxy_id
+       * 返回 { ok, items, skippedInvalid, forced }
+       */
+      async function prepareSub2UploadItems(uploadItems, configPayload) {
+        const filled = applyDefaultProxyToItems(uploadItems);
+        if (filled) {
+          showMsg(`已按默认代理补全 ${filled} 个账号的代理 ID`, "info");
+          renderTable();
+        }
+
+        showMsg("正在拉取 SUB2API 代理 ID 列表并校验…", "info");
+        let proxyIds = [];
+        try {
+          proxyIds = await fetchSub2apiProxyIds(configPayload);
+        } catch (error) {
+          throw new Error(`拉取代理 ID 列表失败：${apiErrorMessage(error)}`);
+        }
+
+        const invalid = markProxyValidity(uploadItems, cachedSub2ProxyIdSet);
+        renderTable();
+        if (!invalid.length) {
+          return { ok: true, items: uploadItems, skippedInvalid: [], forced: false };
+        }
+
+        const action = await openProxyValidateDialog(invalid, proxyIds);
+        if (action === "continue") {
+          const still = markProxyValidity(uploadItems, cachedSub2ProxyIdSet);
+          renderTable();
+          if (still.length) {
+            showMsg(`仍有 ${still.length} 个账号代理 ID 无效，已取消上传`, "err");
+            return { ok: false, items: [], skippedInvalid: still, forced: false };
+          }
+          return { ok: true, items: uploadItems, skippedInvalid: [], forced: false };
+        }
+        if (action === "force") {
+          return { ok: true, items: uploadItems, skippedInvalid: [], forced: true };
+        }
+        if (action === "skip") {
+          const invalidIds = new Set(invalid.map((item) => item.id));
+          const kept = uploadItems.filter((item) => !invalidIds.has(item.id));
+          for (const item of invalid) {
+            setItemUploadState(
+              item,
+              UPLOAD_STATUS.NONE,
+              "",
+              `已跳过 · 代理 ID ${getItemProxyId(item) ?? "-"} 无效`,
+              0
+            );
+          }
+          if (!kept.length) {
+            showMsg("全部账号因代理 ID 无效被跳过，已取消上传", "err");
+            return { ok: false, items: [], skippedInvalid: invalid, forced: false };
+          }
+          renderTable();
+          return { ok: true, items: kept, skippedInvalid: invalid, forced: false };
+        }
+        // cancel / 返回修改
+        showMsg(`有 ${invalid.length} 个账号代理 ID 无效，已取消上传`, "err");
+        return { ok: false, items: [], skippedInvalid: invalid, forced: false };
       }
 
       function clearCurrentLocalConfig() {
@@ -4208,17 +5097,39 @@
         }
         const configPayload = uploadConfigPayload(effective);
 
+        let skippedInvalidProxy = [];
+        let forcedInvalidProxy = false;
+        if (target === TARGET_SUB2API) {
+          try {
+            const prepared = await prepareSub2UploadItems(uploadItems, configPayload);
+            if (!prepared.ok) return;
+            uploadItems = prepared.items;
+            skippedInvalidProxy = prepared.skippedInvalid || [];
+            forcedInvalidProxy = Boolean(prepared.forced);
+          } catch (error) {
+            showMsg(error?.message || String(error), "err");
+            renderTable();
+            return;
+          }
+          if (!uploadItems.length) {
+            showMsg("没有可上传的账号", "err");
+            return;
+          }
+        }
+
         activeUploadItemIds = new Set(uploadItems.map((item) => item.id));
         uploadCancelRequested = false;
         uploadAbortController = new AbortController();
         resetAdaptiveUpload(uploadConcurrency);
         setUploadBusy(true, target);
         clearMsg();
-        if (expiredItems.length) {
-          showMsg(
-            `跳过 ${expiredItems.length} 个失效账号，开始上传其余 ${uploadItems.length} 个`,
-            "info"
-          );
+        const preSkipNotes = [];
+        if (expiredItems.length) preSkipNotes.push(`跳过 ${expiredItems.length} 个失效账号`);
+        if (skippedInvalidProxy.length)
+          preSkipNotes.push(`跳过 ${skippedInvalidProxy.length} 个无效代理账号`);
+        if (forcedInvalidProxy) preSkipNotes.push("含强制上传的无效代理账号");
+        if (preSkipNotes.length) {
+          showMsg(`${preSkipNotes.join("，")}，开始上传 ${uploadItems.length} 个`, "info");
         }
         for (const item of uploadItems) {
           setItemUploadState(item, UPLOAD_STATUS.QUEUED, target, "等待上传批次", 0);
@@ -4277,11 +5188,16 @@
           const unknown = uploadItems.filter(
             (item) => item.uploadStatus === UPLOAD_STATUS.UNKNOWN
           ).length;
-          const skipped = expiredItems.length;
+          const skipped = expiredItems.length + skippedInvalidProxy.length;
           uploadProgressMessage(target, uploadItems.length);
           showMsg(
             `${target} 上传完成，成功: ${success}  失败: ${failed}  未知: ${unknown}` +
-              (skipped ? `  跳过 ${skipped} 个失效账号` : ""),
+              (skipped
+                ? `  跳过 ${skipped} 个（失效 ${expiredItems.length}` +
+                  (skippedInvalidProxy.length ? ` / 无效代理 ${skippedInvalidProxy.length}` : "") +
+                  `）`
+                : "") +
+              (forcedInvalidProxy ? " · 含强制上传" : ""),
             failed || unknown ? "info" : "ok"
           );
         } catch (error) {
@@ -4359,6 +5275,7 @@
         fileInput.value = "";
         selectionMode = false;
         tableSearch = "";
+        proxyEditingItemId = null;
         $("accountSearch").value = "";
         document.querySelectorAll("[data-upload-select]").forEach((input) => {
           input.checked = false;
@@ -4367,6 +5284,33 @@
           input.checked = false;
         });
         clearMsg();
+        renderTable();
+      }
+
+      function commitProxyInlineEdit(itemId, rawValue) {
+        const item = items.find((row) => row.id === itemId);
+        if (!item) return false;
+        const text = String(rawValue ?? "").trim();
+        if (text === "") {
+          setItemProxyId(item, null);
+        } else {
+          const proxyId = parseProxyId(text);
+          if (proxyId == null) {
+            showMsg("代理 ID 必须是 0 或正整数", "err");
+            return false;
+          }
+          setItemProxyId(item, proxyId);
+          if (cachedSub2ProxyIdSet.size) {
+            item.proxyValid = cachedSub2ProxyIdSet.has(proxyId);
+          }
+        }
+        proxyEditingItemId = null;
+        renderTable();
+        return true;
+      }
+
+      function cancelProxyInlineEdit() {
+        proxyEditingItemId = null;
         renderTable();
       }
 
@@ -4537,11 +5481,28 @@
         "concurrency",
         "priority",
         "rateMultiplier",
+        "defaultProxyId",
         "sub2AmbiguousRetry",
         "skipExpiredAccounts",
       ]) {
         $(id).addEventListener("change", saveUiSettingsSoon);
       }
+      $("defaultProxyId")?.addEventListener("blur", () => {
+        const raw = String($("defaultProxyId").value ?? "").trim();
+        if (raw === "") {
+          $("defaultProxyId").value = "";
+          saveUiSettingsSoon();
+          return;
+        }
+        const proxyId = parseProxyId(raw);
+        if (proxyId == null) {
+          showMsg("默认代理 ID 必须是 0 或正整数，或留空", "err");
+          $("defaultProxyId").value = "";
+        } else {
+          $("defaultProxyId").value = String(proxyId);
+        }
+        saveUiSettingsSoon();
+      });
       for (const id of ["autoPause", "keepSso", "keepHeaders"]) {
         $(id).addEventListener("change", saveUiSettingsSoon);
       }
@@ -4567,9 +5528,141 @@
       $("badgeCpaConfig").addEventListener("click", () => {
         openConfigDialog({ target: TARGET_CPA, reason: "", mode: "manage" });
       });
+
+      // 代理：批量 / 校验弹窗 / 行内编辑
+      $("btnBatchSetProxy")?.addEventListener("click", openBatchProxyModal);
+      $("btnBatchClearProxy")?.addEventListener("click", batchClearSelectedProxies);
+      $("btnSelectHasProxy")?.addEventListener("click", () => selectVisibleByProxyFilter("has"));
+      $("btnSelectNoProxy")?.addEventListener("click", () => selectVisibleByProxyFilter("none"));
+      $("btnSelectInvalidProxy")?.addEventListener("click", () =>
+        selectVisibleByProxyFilter("invalid")
+      );
+      $("btnCloseBatchProxy")?.addEventListener("click", closeBatchProxyModal);
+      $("btnCancelBatchProxy")?.addEventListener("click", closeBatchProxyModal);
+      $("batchProxyModal")?.addEventListener("click", (event) => {
+        if (event.target === $("batchProxyModal")) closeBatchProxyModal();
+      });
+      $("btnApplyBatchProxy")?.addEventListener("click", () => applyBatchProxySettings());
+      $("batchProxyIdInput")?.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          applyBatchProxySettings();
+        }
+      });
+
+      $("btnCloseProxyValidate")?.addEventListener("click", () =>
+        closeProxyValidateModal("cancel")
+      );
+      $("btnCancelProxyValidate")?.addEventListener("click", () =>
+        closeProxyValidateModal("cancel")
+      );
+      $("btnForceUploadInvalid")?.addEventListener("click", () => closeProxyValidateModal("force"));
+      $("btnSkipInvalidUpload")?.addEventListener("click", () => closeProxyValidateModal("skip"));
+      $("proxyValidateModal")?.addEventListener("click", (event) => {
+        if (event.target === $("proxyValidateModal")) closeProxyValidateModal("cancel");
+      });
+      $("btnSelectInvalidInModal")?.addEventListener("click", () => {
+        selectInvalidItemsByIds(proxyValidateInvalidIds);
+        setProxyValidateStatus(`已选中 ${proxyValidateInvalidIds.length} 个无效代理账号`, "ok");
+      });
+      $("btnClearInvalidProxies")?.addEventListener("click", () => {
+        const changed = applyProxyFixToInvalid(null);
+        renderTable();
+        refreshInvalidAfterFix();
+        setProxyValidateStatus(`已清除 ${changed} 个账号的无效代理 ID`, "ok");
+      });
+      $("btnApplyProxyFix")?.addEventListener("click", () => {
+        const raw = String($("proxyFixIdInput").value ?? "").trim();
+        if (raw === "") {
+          setProxyValidateStatus("请输入要应用的代理 ID", "err");
+          return;
+        }
+        const proxyId = parseProxyId(raw);
+        if (proxyId == null) {
+          setProxyValidateStatus("代理 ID 必须是 0 或正整数", "err");
+          return;
+        }
+        if (cachedSub2ProxyIdSet.size && !cachedSub2ProxyIdSet.has(proxyId)) {
+          setProxyValidateStatus(`代理 ID ${proxyId} 仍不在服务器列表中`, "err");
+          return;
+        }
+        const changed = applyProxyFixToInvalid(proxyId);
+        renderTable();
+        const still = refreshInvalidAfterFix();
+        if (!still.length) {
+          setProxyValidateStatus(`已将 ${changed} 个账号改为代理 ID ${proxyId}`, "ok");
+        }
+      });
+      $("proxyInvalidSummary")?.addEventListener("click", (event) => {
+        const btn = event.target.closest("[data-select-invalid-id]");
+        if (!btn) return;
+        const proxyId = Number(btn.dataset.selectInvalidId);
+        const ids = items
+          .filter(
+            (item) => proxyValidateInvalidIds.includes(item.id) && getItemProxyId(item) === proxyId
+          )
+          .map((item) => item.id);
+        selectInvalidItemsByIds(ids);
+        setProxyValidateStatus(`已选中代理 ID ${proxyId} 的 ${ids.length} 个账号`, "ok");
+      });
+      $("proxyAvailableList")?.addEventListener("click", (event) => {
+        const chip = event.target.closest("[data-pick-proxy-id]");
+        if (!chip) return;
+        $("proxyFixIdInput").value = chip.dataset.pickProxyId || "";
+        $("proxyFixIdInput").focus();
+      });
+
+      tbody.addEventListener("click", (event) => {
+        if (uploadBusy) return;
+        const startBtn = event.target.closest("[data-proxy-edit-start]");
+        if (startBtn) {
+          event.preventDefault();
+          proxyEditingItemId = startBtn.dataset.proxyEditStart;
+          renderTable();
+          return;
+        }
+        const saveBtn = event.target.closest("[data-proxy-save]");
+        if (saveBtn) {
+          event.preventDefault();
+          const wrap = saveBtn.closest("[data-proxy-edit]");
+          const input = wrap?.querySelector("input");
+          commitProxyInlineEdit(saveBtn.dataset.proxySave, input?.value);
+          return;
+        }
+        const cancelBtn = event.target.closest("[data-proxy-cancel]");
+        if (cancelBtn) {
+          event.preventDefault();
+          cancelProxyInlineEdit();
+        }
+      });
+      tbody.addEventListener("keydown", (event) => {
+        const wrap = event.target.closest?.("[data-proxy-edit]");
+        if (!wrap) return;
+        if (event.key === "Enter") {
+          event.preventDefault();
+          commitProxyInlineEdit(wrap.dataset.proxyEdit, event.target.value);
+        } else if (event.key === "Escape") {
+          event.preventDefault();
+          cancelProxyInlineEdit();
+        }
+      });
+
       document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape" && $("serverConfigModal").classList.contains("show")) {
+        if (event.key !== "Escape") return;
+        if ($("proxyValidateModal")?.classList.contains("show")) {
+          closeProxyValidateModal("cancel");
+          return;
+        }
+        if ($("batchProxyModal")?.classList.contains("show")) {
+          closeBatchProxyModal();
+          return;
+        }
+        if ($("serverConfigModal").classList.contains("show")) {
           closeConfigDialog(false);
+          return;
+        }
+        if (proxyEditingItemId) {
+          cancelProxyInlineEdit();
         }
       });
 
@@ -4646,7 +5739,11 @@
 
       function floatingTipTargetFrom(node) {
         if (!node || node.nodeType !== 1) return null;
-        return node.closest?.(".tag[data-tip], [data-tip].tag") || null;
+        return (
+          node.closest?.(
+            ".tag[data-tip], [data-tip].tag, .proxy-id-btn[data-tip], [data-tip].proxy-id-btn"
+          ) || null
+        );
       }
 
       document.addEventListener(
