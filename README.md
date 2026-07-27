@@ -212,8 +212,34 @@ npm run dev
 | `MAX_SUB2API_UPLOAD_ATTEMPTS`             |   否 | 普通变量，默认 `3`，不得超过对应绝对上限                                                                               |
 | `MAX_CPA_UPLOAD_ATTEMPTS`                 |   否 | 普通变量，默认 `3`，不得超过对应绝对上限                                                                               |
 | `ABSOLUTE_MAX_UPLOAD_ATTEMPTS`            |   否 | 普通变量，默认 `10`，范围 1–30；也可分别设 `ABSOLUTE_MAX_SUB2API_UPLOAD_ATTEMPTS` / `ABSOLUTE_MAX_CPA_UPLOAD_ATTEMPTS` |
+| `PROXY_MAP_CACHE_TTL_SECONDS`             |   否 | 普通变量，默认 `1800`（30 分钟），范围 60–86400；代理 id→key 缓存 TTL                                                  |
 
 SUB2API 和 CPA 均为可选目标。每个目标的地址和密钥必须成对出现（本机配置或环境变量各自成对）。页面顶栏徽章会显示「本机 / 环境变量 / 未配置」；点击上传时会先验证，失败则打开配置窗。
+
+### 代理映射缓存（大批量上传建议）
+
+上传 SUB2API 时，Worker 会把账号上的代理 ID 换成官方导入所需的 `proxy_key`。为避免「前端校验 + 每一批上传」反复请求 `proxies/all`，使用分层缓存：
+
+1. **当前 isolate 内存**（始终启用）
+2. **Cloudflare KV**（可选；绑定后跨 isolate / 跨节点共享）
+3. 未命中再请求上游 `GET /api/v1/admin/proxies/all`
+
+| 项        | 说明                                                                       |
+| --------- | -------------------------------------------------------------------------- |
+| TTL       | `PROXY_MAP_CACHE_TTL_SECONDS`，默认 1800 秒。建议 ≥ 单次大批量上传预计耗时 |
+| KV 绑定名 | `PROXY_CACHE_KV` 或 `PROXY_MAP_KV`；未绑定则只走内存缓存                   |
+| 手动刷新  | 页面代理工具栏「刷新代理缓存」会 `refresh=true` 强制失效内存/KV 并回写     |
+| 安全      | 浏览器只收到 `proxyIds`；`proxy_key` 仅存在于 Worker 内存/KV，不下发前端   |
+
+启用 KV 示例：
+
+```bash
+npx wrangler kv namespace create "cpa2sub-proxy-cache"
+# 将返回的 id 写入 wrangler.jsonc 的 kv_namespaces.binding = "PROXY_CACHE_KV"
+npx wrangler deploy
+```
+
+`/api/config/status` 的 `limits` 会带上 `proxyMapCacheTtlSeconds`、`proxyCacheKvBound`，便于确认是否读到配置。
 
 上传上限说明：
 

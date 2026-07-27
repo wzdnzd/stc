@@ -11,4 +11,14 @@
   "observability": {
     "enabled": true,
   },
+  // 可选：跨 isolate 共享代理 id→key 缓存。未绑定则仅用 Worker 内存缓存。
+  // 1) wrangler kv namespace create "cpa2sub-proxy-cache"
+  // 2) 将返回的 id 填入下方 preview_id / id 后取消注释
+  // "kv_namespaces": [
+  //   {
+  //     "binding": "PROXY_CACHE_KV",
+  //     "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  //     "preview_id": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+  //   }
+  // ]
 }

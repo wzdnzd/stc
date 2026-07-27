@@ -39,3 +39,10 @@ ALLOW_INSECURE_UPSTREAM="false"
 # MAX_SUB2API_UPLOAD_ATTEMPTS="3"
 # MAX_CPA_UPLOAD_ATTEMPTS="3"
 # ABSOLUTE_MAX_UPLOAD_ATTEMPTS="10"
+
+# ---------- 代理映射缓存（可选）----------
+# SUB2API 代理 id→key 缓存 TTL（秒）。默认 1800（30 分钟），范围 60–86400。
+# 大批量多批上传建议 ≥ 单次上传预计耗时，避免中途缓存过期又打 proxies/all。
+# PROXY_MAP_CACHE_TTL_SECONDS="1800"
+# 跨 isolate 共享需在 wrangler.jsonc 绑定 KV：PROXY_CACHE_KV（或 PROXY_MAP_KV）。
+# 未绑定 KV 时仅使用当前 Worker 内存缓存；页面「刷新代理缓存」可强制失效并回写。

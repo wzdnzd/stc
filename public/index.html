@@ -1922,6 +1922,16 @@
               <button class="btn-ghost btn-sm" id="btnSelectInvalidProxy" type="button">
                 仅选中无效代理
               </button>
+              <span class="toolbar-sep"></span>
+              <button
+                class="btn-ghost btn-sm"
+                id="btnRefreshProxyCache"
+                type="button"
+                title="强制从 SUB2API 重新拉取代理列表，并刷新服务端内存/KV 缓存"
+              >
+                刷新代理缓存
+              </button>
+              <span class="mono" id="proxyCacheMeta" style="opacity: 0.65; font-size: 11px"></span>
             </div>
           </div>
           <div class="search-toolbar" id="searchToolbar">
@@ -4252,10 +4262,31 @@
         }
       }
 
-      /** 拉取可用代理 ID 列表；服务端不返回 proxy_key，导入换算仅在 Worker 内完成 */
-      async function fetchSub2apiProxyIds(configPayload) {
+      function formatProxyCacheMeta(data) {
+        if (!data) return "";
+        const bits = [];
+        if (data.refreshed) bits.push("已强制刷新");
+        else if (data.cacheHit) bits.push(`缓存命中·${data.cacheSource || "?"}`);
+        else bits.push("已从上游拉取");
+        if (data.count != null) bits.push(`${data.count} 个`);
+        if (data.ttlSeconds) bits.push(`TTL ${data.ttlSeconds}s`);
+        if (data.kvEnabled) bits.push("KV");
+        return bits.join(" · ");
+      }
+
+      function setProxyCacheMeta(text) {
+        const el = $("proxyCacheMeta");
+        if (el) el.textContent = text || "";
+      }
+
+      /**
+       * 拉取可用代理 ID 列表。
+       * 服务端不返回 proxy_key；forceRefresh 会跳过 Worker 内存/KV 并回写缓存。
+       */
+      async function fetchSub2apiProxyIds(configPayload, { forceRefresh = false } = {}) {
         const body = {};
         if (configPayload) body.config = configPayload;
+        if (forceRefresh) body.refresh = true;
         const { data } = await fetchJson(
           "/api/sub2api/proxies",
           {
@@ -4276,7 +4307,44 @@
         }
         cachedSub2ProxyIds = ids;
         cachedSub2ProxyIdSet = new Set(ids);
+        setProxyCacheMeta(formatProxyCacheMeta(data));
         return ids;
+      }
+
+      async function refreshSub2apiProxyCache() {
+        if (uploadBusy) {
+          showMsg("上传进行中，请稍后再刷新代理缓存", "err");
+          return;
+        }
+        const effective = getEffectiveClientConfig(TARGET_SUB2API);
+        if (!effective) {
+          openConfigDialog({
+            target: TARGET_SUB2API,
+            reason: "刷新代理缓存需要有效配置",
+            mode: "ensure",
+          });
+          showMsg("请先配置 SUB2API 后再刷新代理缓存", "err");
+          return;
+        }
+        const btn = $("btnRefreshProxyCache");
+        if (btn) btn.disabled = true;
+        try {
+          showMsg("正在强制刷新代理缓存…", "info");
+          const ids = await fetchSub2apiProxyIds(uploadConfigPayload(effective), {
+            forceRefresh: true,
+          });
+          // 刷新后按新列表重算当前账号合法性
+          if (items.length) {
+            markProxyValidity(items, cachedSub2ProxyIdSet);
+            renderTable();
+          }
+          showMsg(`代理缓存已刷新，共 ${ids.length} 个可用代理 ID`, "ok");
+          showToast(`代理缓存已刷新 · ${ids.length} 个`, "ok");
+        } catch (error) {
+          showMsg(`刷新代理缓存失败：${apiErrorMessage(error)}`, "err");
+        } finally {
+          if (btn) btn.disabled = false;
+        }
       }
 
       function markProxyValidity(list, validIdSet) {
@@ -5570,6 +5638,7 @@
       $("btnSelectInvalidProxy")?.addEventListener("click", () =>
         selectVisibleByProxyFilter("invalid")
       );
+      $("btnRefreshProxyCache")?.addEventListener("click", () => refreshSub2apiProxyCache());
       $("btnCloseBatchProxy")?.addEventListener("click", closeBatchProxyModal);
       $("btnCancelBatchProxy")?.addEventListener("click", closeBatchProxyModal);
       $("batchProxyModal")?.addEventListener("click", (event) => {
