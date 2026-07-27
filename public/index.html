@@ -1134,6 +1134,25 @@
         cursor: pointer;
       }
 
+      .proxy-id-btn > span:first-child {
+        display: block;
+        max-width: 7.5em;
+        overflow-x: auto;
+        overflow-y: hidden;
+        white-space: nowrap;
+        text-overflow: clip;
+        scrollbar-width: thin;
+      }
+
+      .proxy-id-btn > span:first-child::-webkit-scrollbar {
+        height: 3px;
+      }
+
+      .proxy-id-btn > span:first-child::-webkit-scrollbar-thumb {
+        background: rgba(148, 163, 184, 0.45);
+        border-radius: 999px;
+      }
+
       .proxy-id-btn:hover:not(:disabled) {
         border-color: var(--border);
         background: rgba(255, 255, 255, 0.04);
@@ -1185,11 +1204,33 @@
       }
 
       .proxy-inline-edit input {
-        width: 72px;
-        min-width: 56px;
+        width: 88px;
+        min-width: 64px;
+        max-width: 120px;
         padding: 4px 6px;
         font-size: 12px;
         font-family: var(--mono);
+        overflow-x: auto;
+        text-overflow: clip;
+      }
+
+      /* 默认/批量/校验 等代理 ID 输入：超长数字可横向滚动，避免撑破布局 */
+      #defaultProxyId,
+      #batchProxyIdInput,
+      #proxyFixIdInput {
+        overflow-x: auto;
+        text-overflow: clip;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .proxy-chip-text {
+        display: block;
+        max-width: 100%;
+        overflow-x: auto;
+        overflow-y: hidden;
+        white-space: nowrap;
+        text-overflow: clip;
+        scrollbar-width: thin;
       }
 
       .proxy-mini-btn {
@@ -1256,6 +1297,7 @@
         display: inline-flex;
         align-items: center;
         gap: 4px;
+        max-width: 9em;
         padding: 4px 8px;
         border: 1px solid var(--border);
         border-radius: 999px;
@@ -1644,7 +1686,7 @@
                   <span
                     class="field-tip"
                     tabindex="0"
-                    data-tip="写入 SUB2API 账号的 proxy_id。仅当账号未设置代理 ID 时补全；留空则表示不默认使用代理。0 与正整数有效，上传前会校验是否存在于目标 SUB2API 代理列表"
+                    data-tip="对应目标 SUB2API 代理列表中的 id。仅当账号未设置代理 ID 时补全；留空则表示不默认使用代理。上传时由服务端自动换算为导入所需绑定字段"
                     >i</span
                   >
                 </label>
@@ -4210,6 +4252,7 @@
         }
       }
 
+      /** 拉取可用代理 ID 列表；服务端不返回 proxy_key，导入换算仅在 Worker 内完成 */
       async function fetchSub2apiProxyIds(configPayload) {
         const body = {};
         if (configPayload) body.config = configPayload;
@@ -4222,21 +4265,11 @@
           },
           60000
         );
-        // 兼容：优先 proxyIds；旧字段 proxies 若仍是对象数组则只取 id
-        const rawIds = Array.isArray(data?.proxyIds)
-          ? data.proxyIds
-          : Array.isArray(data?.ids)
-            ? data.ids
-            : Array.isArray(data?.proxies)
-              ? data.proxies
-              : [];
+        const rawList = Array.isArray(data?.proxyIds) ? data.proxyIds : [];
         const ids = [];
         const seen = new Set();
-        for (const entry of rawIds) {
-          const n =
-            entry != null && typeof entry === "object"
-              ? Number(entry.id ?? entry.proxy_id ?? entry.proxyId)
-              : Number(entry);
+        for (const entry of rawList) {
+          const n = Number(entry);
           if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0 || seen.has(n)) continue;
           seen.add(n);
           ids.push(n);
@@ -4413,7 +4446,7 @@
           listEl.innerHTML = ids
             .map(
               (id) =>
-                `<button type="button" class="proxy-chip" data-pick-proxy-id="${escapeHtml(String(id))}" title="代理 ID ${escapeHtml(String(id))}">${escapeHtml(String(id))}</button>`
+                `<button type="button" class="proxy-chip" data-pick-proxy-id="${escapeHtml(String(id))}" title="代理 ID ${escapeHtml(String(id))}"><span class="proxy-chip-text">${escapeHtml(String(id))}</span></button>`
             )
             .join("");
         }

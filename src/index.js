@@ -152,7 +152,7 @@ async function handleApi(request, env, url) {
     return jsonResponse({ ok: true, target: "SUB2API", count: accounts.length, ...result });
   }
 
-  // 拉取 SUB2API 全部代理列表，供前端上传前校验 proxy_id
+  // 拉取 SUB2API 代理并映射为本产品 proxy_id + 官方 proxy_key，供前端校验
   if (url.pathname === "/api/sub2api/proxies" && request.method === "POST") {
     const body = await readJsonBody(request, 32 * 1024);
     const override = extractConfigOverride(body?.config ?? body);
@@ -832,7 +832,7 @@ async function verifyTarget(env, target, override = null) {
   };
 }
 
-function extractProxyIdEntries(payload) {
+function extractProxyEntries(payload) {
   const root = payload?.data !== undefined ? payload.data : payload;
   if (Array.isArray(root)) return root;
   if (!root || typeof root !== "object") return [];
@@ -844,27 +844,93 @@ function extractProxyIdEntries(payload) {
   return [];
 }
 
-/** 仅提取代理 ID，不向客户端回传主机/账号等详细配置 */
-function extractProxyIds(payload) {
-  const ids = [];
-  const seen = new Set();
-  for (const entry of extractProxyIdEntries(payload)) {
-    const raw =
-      entry == null
-        ? null
-        : typeof entry === "object"
-          ? (entry.id ?? entry.proxy_id ?? entry.proxyId)
-          : entry;
-    const id = Number(raw);
-    if (!Number.isFinite(id) || !Number.isInteger(id) || id < 0 || seen.has(id)) continue;
-    seen.add(id);
-    ids.push(id);
-  }
-  return ids;
+/**
+ * 与 SUB2API 官方 buildProxyKey 一致：
+ * protocol|host|port|username|password（仅 TrimSpace，不转小写）
+ */
+function buildProxyKey(protocol, host, port, username, password) {
+  const p = String(protocol ?? "").trim();
+  const h = String(host ?? "").trim();
+  const u = String(username ?? "").trim();
+  const pw = String(password ?? "").trim();
+  const portNum = Number(port);
+  const portPart = Number.isFinite(portNum)
+    ? String(Math.trunc(portNum))
+    : String(port ?? "").trim();
+  return `${p}|${h}|${portPart}|${u}|${pw}`;
 }
 
-async function listSub2apiProxies(env, override = null, clientSignal = undefined) {
-  const config = resolveTargetConfig(env, "SUB2API", override);
+function parseLocalProxyId(value) {
+  if (value == null || value === "") return null;
+  const n = Number(value);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) return null;
+  return n;
+}
+
+/**
+ * 从 SUB2API proxies/all 响应构建本产品代理映射。
+ * proxy_id：沿用 SUB2API 的 id，供前端填写/校验
+ * proxy_key：仅在 Worker 内存中用于导入时 id→key 换算，不下发给浏览器
+ */
+function buildLocalProxyMap(payload) {
+  const proxyIds = [];
+  const idToKey = new Map();
+  const seenIds = new Set();
+
+  for (const entry of extractProxyEntries(payload)) {
+    if (entry == null) continue;
+
+    // 纯数字条目：仅有 id，无法生成有效 key，跳过
+    if (typeof entry !== "object") {
+      continue;
+    }
+
+    const id = parseLocalProxyId(entry.id ?? entry.proxy_id ?? entry.proxyId);
+    if (id == null || seenIds.has(id)) continue;
+
+    const protocol = entry.protocol ?? entry.scheme ?? "";
+    const host = entry.host ?? entry.hostname ?? "";
+    const port = entry.port;
+    const username = entry.username ?? entry.user ?? "";
+    const password = entry.password ?? entry.pass ?? "";
+
+    // 无连接信息时无法生成可匹配的 key
+    if (!String(protocol).trim() && !String(host).trim()) continue;
+
+    const proxyKey = buildProxyKey(protocol, host, port, username, password);
+    seenIds.add(id);
+    idToKey.set(id, proxyKey);
+    proxyIds.push(id);
+  }
+
+  return { proxyIds, idToKey };
+}
+
+/**
+ * 将账号上的本产品 proxy_id 转为 SUB2API 导入所需的 proxy_key。
+ * 官方 import-data 只认 proxy_key，不认 proxy_id。
+ */
+function rewriteAccountsProxyIdToKey(accounts, idToKey) {
+  if (!Array.isArray(accounts)) return [];
+  return accounts.map((raw) => {
+    const account = raw && typeof raw === "object" ? { ...raw } : raw;
+    if (!account || typeof account !== "object") return account;
+
+    const localId = parseLocalProxyId(account.proxy_id ?? account.proxyId ?? null);
+    delete account.proxy_id;
+    delete account.proxyId;
+    // 若前端误带了旧 key，先清掉，统一由本产品 id 映射
+    delete account.proxy_key;
+    delete account.proxyKey;
+
+    if (localId != null && idToKey.has(localId)) {
+      account.proxy_key = idToKey.get(localId);
+    }
+    return account;
+  });
+}
+
+async function fetchSub2apiProxyIdKeyMap(config, clientSignal = undefined) {
   const result = await sub2apiRequest(
     config,
     "/api/v1/admin/proxies/all",
@@ -873,13 +939,24 @@ async function listSub2apiProxies(env, override = null, clientSignal = undefined
     1,
     clientSignal
   );
-  const proxyIds = extractProxyIds(result.data);
+  const { proxyIds, idToKey } = buildLocalProxyMap(result.data);
+  return {
+    proxyIds,
+    idToKey,
+    attempts: result.attempts,
+  };
+}
+
+/** 仅向前端返回 proxy_id 列表；proxy_key 留在 Worker 内，避免网络泄露 */
+async function listSub2apiProxies(env, override = null, clientSignal = undefined) {
+  const config = resolveTargetConfig(env, "SUB2API", override);
+  const mapped = await fetchSub2apiProxyIdKeyMap(config, clientSignal);
   return {
     baseUrl: config.baseUrl,
     source: config.source,
-    attempts: result.attempts,
-    count: proxyIds.length,
-    proxyIds,
+    attempts: mapped.attempts,
+    count: mapped.proxyIds.length,
+    proxyIds: mapped.proxyIds,
   };
 }
 
@@ -893,11 +970,30 @@ async function uploadSub2api(
   retryAmbiguous = false
 ) {
   const config = resolveTargetConfig(env, "SUB2API", override);
+
+  // 上传前拉取代理并建立 proxy_id → proxy_key 映射
+  let idToKey = new Map();
+  let proxyMapAttempts = 0;
+  try {
+    const mapped = await fetchSub2apiProxyIdKeyMap(config, clientSignal);
+    idToKey = mapped.idToKey;
+    proxyMapAttempts = mapped.attempts;
+  } catch (error) {
+    // 若账号均未设置代理，允许继续；有代理 id 则必须能拉到列表
+    const needsProxyMap = Array.isArray(accounts)
+      ? accounts.some((a) => parseLocalProxyId(a?.proxy_id ?? a?.proxyId) != null)
+      : false;
+    if (needsProxyMap) {
+      throw error;
+    }
+  }
+
+  const rewrittenAccounts = rewriteAccountsProxyIdToKey(accounts, idToKey);
   const payload = {
     data: {
       exported_at: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
       proxies: [],
-      accounts,
+      accounts: rewrittenAccounts,
     },
     skip_default_group_bind: skipDefaultGroupBind,
   };
@@ -920,6 +1016,7 @@ async function uploadSub2api(
   );
   return {
     attempts: result.attempts,
+    proxyMapAttempts,
     source: config.source,
     data: result.data?.data ?? result.data,
   };
