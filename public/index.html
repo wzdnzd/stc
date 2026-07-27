@@ -1223,6 +1223,12 @@
         font-variant-numeric: tabular-nums;
       }
 
+      /* 四列同行时占位符过长会被裁切，用略小字号保证短文案完整可见 */
+      #defaultProxyId::placeholder {
+        font-size: 11px;
+        letter-spacing: -0.01em;
+      }
+
       .proxy-chip-text {
         display: block;
         max-width: 100%;
@@ -1696,8 +1702,8 @@
                   value=""
                   min="0"
                   step="1"
-                  placeholder="留空则表示不默认使用代理"
-                  title="SUB2API 账号默认 proxy_id"
+                  placeholder="留空不默认"
+                  title="仅补全未设置代理的账号；留空表示不默认使用代理"
                   aria-label="SUB2API 默认代理 ID"
                 />
               </div>
