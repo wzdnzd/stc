@@ -219,6 +219,64 @@ async function handleApi(request, env, url) {
     });
   }
 
+  // 列出 CPA 远端认证文件元数据
+  if (url.pathname === "/api/cpa/auth-files/list" && request.method === "POST") {
+    const body = await readJsonBody(request, 32 * 1024);
+    const override = extractConfigOverride(body?.config ?? body);
+    const result = await listCpaAuthFiles(env, override, request.signal);
+    return jsonResponse({ ok: true, target: "CPA", ...result });
+  }
+
+  // 按文件名批量下载 CPA 认证文件正文
+  if (url.pathname === "/api/cpa/auth-files/download" && request.method === "POST") {
+    const body = await readJsonBody(request, 2 * 1024 * 1024);
+    const override = extractConfigOverride(body?.config ?? body);
+    const names = body?.names ?? body?.files ?? body?.fileNames;
+    if (!Array.isArray(names) || names.length === 0) {
+      throw new HttpError(400, "names 必须是非空数组。", "INVALID_PAYLOAD");
+    }
+    if (names.length > MAX_CPA_DOWNLOAD_FILES) {
+      throw new HttpError(
+        400,
+        `单次最多下载 ${MAX_CPA_DOWNLOAD_FILES} 个 CPA 认证文件。`,
+        "BATCH_TOO_LARGE"
+      );
+    }
+    const result = await downloadCpaAuthFiles(env, names, override, request.signal);
+    return jsonResponse({
+      ok: result.failedCount === 0,
+      target: "CPA",
+      ...result,
+    });
+  }
+
+  // 列出 SUB2API 账号元数据，供远端导出勾选
+  if (url.pathname === "/api/sub2api/accounts/list" && request.method === "POST") {
+    const body = await readJsonBody(request, 32 * 1024);
+    const override = extractConfigOverride(body?.config ?? body);
+    const result = await listSub2apiAccountsMeta(env, override, request.signal);
+    return jsonResponse({ ok: true, target: "SUB2API", ...result });
+  }
+
+  // 导出选中 SUB2API 账号为可再导入的合并包
+  if (url.pathname === "/api/sub2api/accounts/export" && request.method === "POST") {
+    const body = await readJsonBody(request, 2 * 1024 * 1024);
+    const override = extractConfigOverride(body?.config ?? body);
+    const ids = body?.ids ?? body?.accountIds ?? body?.account_ids;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new HttpError(400, "ids 必须是非空数组。", "INVALID_PAYLOAD");
+    }
+    if (ids.length > MAX_SUB2API_EXPORT_ACCOUNTS) {
+      throw new HttpError(
+        400,
+        `单次最多导出 ${MAX_SUB2API_EXPORT_ACCOUNTS} 个 SUB2API 账号。`,
+        "BATCH_TOO_LARGE"
+      );
+    }
+    const result = await exportSub2apiAccounts(env, ids, override, request.signal);
+    return jsonResponse({ ok: true, target: "SUB2API", ...result });
+  }
+
   throw new HttpError(404, "API 路径不存在。", "NOT_FOUND");
 }
 
@@ -1264,6 +1322,12 @@ async function listSub2apiProxies(
 const DEDUPE_PAGE_SIZE = 200;
 const DEDUPE_SCAN_CONCURRENCY = 4;
 const DEDUPE_DELETE_CONCURRENCY = 4;
+/** 远端 CPA 认证文件单次下载数量上限 */
+const MAX_CPA_DOWNLOAD_FILES = 500;
+const CPA_DOWNLOAD_CONCURRENCY = 4;
+/** 远端 SUB2API 单次导出账号上限 */
+const MAX_SUB2API_EXPORT_ACCOUNTS = 5000;
+const SUB2API_EXPORT_DETAIL_CONCURRENCY = 4;
 const DEDUPE_NORMAL_STATUSES = new Set([
   "active",
   "normal",
@@ -1289,7 +1353,9 @@ function extractAccountsPageItems(payload) {
   }
   const totalRaw = root.total ?? root.count ?? root.total_count;
   const pagesRaw = root.pages ?? root.page_count ?? root.total_pages;
-  const total = Number.isFinite(Number(totalRaw)) ? Math.max(0, Math.floor(Number(totalRaw))) : items.length;
+  const total = Number.isFinite(Number(totalRaw))
+    ? Math.max(0, Math.floor(Number(totalRaw)))
+    : items.length;
   const pages = Number.isFinite(Number(pagesRaw))
     ? Math.max(1, Math.floor(Number(pagesRaw)))
     : Math.max(1, Math.ceil(total / DEDUPE_PAGE_SIZE) || 1);
@@ -1315,7 +1381,11 @@ async function fetchSub2apiAccountsPage(config, page, pageSize, clientSignal) {
   const parsed = extractAccountsPageItems(result.data);
   for (const item of parsed.items) {
     if (!item || typeof item !== "object" || item.id == null) {
-      throw new HttpError(502, `SUB2API 账号列表第 ${page} 页存在缺少 id 的记录。`, "INVALID_UPSTREAM_RESPONSE");
+      throw new HttpError(
+        502,
+        `SUB2API 账号列表第 ${page} 页存在缺少 id 的记录。`,
+        "INVALID_UPSTREAM_RESPONSE"
+      );
     }
   }
   return { ...parsed, attempts: result.attempts };
@@ -1352,7 +1422,11 @@ async function listAllSub2apiAccounts(config, clientSignal) {
   for (let page = 1; page <= expectedPages; page++) {
     const data = pages.get(page);
     if (!data) {
-      throw new HttpError(502, `SUB2API 账号第 ${page} 页缺失，扫描不完整。`, "INVALID_UPSTREAM_RESPONSE");
+      throw new HttpError(
+        502,
+        `SUB2API 账号第 ${page} 页缺失，扫描不完整。`,
+        "INVALID_UPSTREAM_RESPONSE"
+      );
     }
     if (data.total !== expectedTotal || data.pages !== expectedPages) {
       // pages 可能因 total 推算与上游不一致；仅在 total 变化时判定为数据漂移
@@ -1367,7 +1441,11 @@ async function listAllSub2apiAccounts(config, clientSignal) {
     for (const item of data.items) {
       const marker = String(item.id);
       if (seenIds.has(marker)) {
-        throw new HttpError(502, `分页结果重复出现账号 ID=${marker}。`, "INVALID_UPSTREAM_RESPONSE");
+        throw new HttpError(
+          502,
+          `分页结果重复出现账号 ID=${marker}。`,
+          "INVALID_UPSTREAM_RESPONSE"
+        );
       }
       seenIds.add(marker);
       allAccounts.push(item);
@@ -1595,10 +1673,8 @@ async function applySub2apiDedupe(env, ids, override = null, clientSignal = unde
     throw new HttpError(400, "没有可删除的账号 ID。", "INVALID_PAYLOAD");
   }
 
-  const results = await mapWithConcurrency(
-    normalizedIds,
-    DEDUPE_DELETE_CONCURRENCY,
-    async (id) => deleteSub2apiAccount(config, id, clientSignal)
+  const results = await mapWithConcurrency(normalizedIds, DEDUPE_DELETE_CONCURRENCY, async (id) =>
+    deleteSub2apiAccount(config, id, clientSignal)
   );
 
   const deletedCount = results.filter((item) => item.status === "deleted").length;
@@ -1613,6 +1689,406 @@ async function applySub2apiDedupe(env, ids, override = null, clientSignal = unde
     failedCount: failed.length,
     results,
     failures: failed,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// CPA 远端认证文件 list / download
+// ---------------------------------------------------------------------------
+
+function pickFirstDefined(obj, keys) {
+  if (!obj || typeof obj !== "object") return undefined;
+  for (const key of keys) {
+    if (obj[key] !== undefined && obj[key] !== null && obj[key] !== "") return obj[key];
+  }
+  return undefined;
+}
+
+function asBoolFlag(value) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    return ["1", "true", "yes", "on", "disabled", "inactive"].includes(value.trim().toLowerCase());
+  }
+  return false;
+}
+
+function normalizeProviderLabel(value) {
+  const s = String(value || "")
+    .trim()
+    .toLowerCase();
+  const aliases = {
+    "x-ai": "xai",
+    grok: "xai",
+    openai: "codex",
+    chatgpt: "codex",
+    google: "gemini",
+    anthropic: "claude",
+  };
+  return aliases[s] || s;
+}
+
+function parseCpaAuthFileItem(item) {
+  if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+  const nameRaw = pickFirstDefined(item, ["name", "file_name", "fileName", "id"]);
+  if (nameRaw == null || nameRaw === "") return null;
+  const name = String(nameRaw);
+  let disabled;
+  if ("disabled" in item) {
+    disabled = asBoolFlag(item.disabled);
+  } else {
+    const status = String(pickFirstDefined(item, ["status", "state"]) || "")
+      .trim()
+      .toLowerCase();
+    disabled = status === "disabled" || status === "inactive";
+  }
+  return {
+    name,
+    id: String(pickFirstDefined(item, ["id"]) || ""),
+    authIndex: String(pickFirstDefined(item, ["auth_index", "authIndex", "auth-index"]) || ""),
+    provider: normalizeProviderLabel(pickFirstDefined(item, ["provider", "type"])),
+    account: String(
+      pickFirstDefined(item, ["account", "email", "display_account", "displayAccount"]) || ""
+    ),
+    accountId: String(
+      pickFirstDefined(item, [
+        "account_id",
+        "accountId",
+        "chatgpt_account_id",
+        "project_id",
+        "sub",
+      ]) || ""
+    ),
+    disabled,
+  };
+}
+
+function parseCpaAuthFilesListPayload(data) {
+  let items;
+  if (Array.isArray(data)) {
+    items = data;
+  } else if (data && typeof data === "object") {
+    let nested = null;
+    for (const key of ["auth_files", "authFiles", "files", "items", "data"]) {
+      if (Array.isArray(data[key])) {
+        nested = data[key];
+        break;
+      }
+    }
+    if (nested) {
+      items = nested;
+    } else if (pickFirstDefined(data, ["name", "file_name", "fileName", "id"]) != null) {
+      items = [data];
+    } else {
+      const maybe = [];
+      for (const [k, v] of Object.entries(data)) {
+        if (v && typeof v === "object" && !Array.isArray(v)) {
+          maybe.push({ ...v, name: v.name || k });
+        } else if (v === true || v == null || typeof v === "string") {
+          maybe.push({ name: k });
+        }
+      }
+      items = maybe;
+    }
+  } else {
+    throw new HttpError(502, "CPA 返回了非预期的认证文件列表。", "INVALID_UPSTREAM_RESPONSE");
+  }
+
+  const files = [];
+  const seen = new Set();
+  for (const item of items) {
+    const parsed = parseCpaAuthFileItem(item);
+    if (!parsed || !parsed.name || seen.has(parsed.name)) continue;
+    seen.add(parsed.name);
+    files.push(parsed);
+  }
+  files.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  return files;
+}
+
+async function listCpaAuthFiles(env, override = null, clientSignal = undefined) {
+  const config = resolveTargetConfig(env, "CPA", override);
+  const result = await cpaRequest(
+    config,
+    "/v0/management/auth-files",
+    { method: "GET" },
+    VERIFY_TIMEOUT_MS,
+    3,
+    clientSignal
+  );
+  const files = parseCpaAuthFilesListPayload(result.data);
+  return {
+    baseUrl: config.baseUrl,
+    source: config.source,
+    authMode: result.authMode,
+    attempts: result.attempts,
+    count: files.length,
+    files,
+  };
+}
+
+async function downloadOneCpaAuthFile(config, fileName, clientSignal) {
+  const safeName = sanitizeJsonFilename(fileName);
+  const path = `/v0/management/auth-files/download?name=${encodeURIComponent(safeName)}`;
+  try {
+    const result = await cpaRequestRaw(
+      config,
+      path,
+      { method: "GET" },
+      UPSTREAM_TIMEOUT_MS,
+      3,
+      clientSignal
+    );
+    let content = result.data;
+    // 若上游包了一层 { raw }，尽量还原
+    if (
+      content &&
+      typeof content === "object" &&
+      !Array.isArray(content) &&
+      typeof content.raw === "string" &&
+      Object.keys(content).length === 1
+    ) {
+      try {
+        content = JSON.parse(content.raw);
+      } catch {
+        content = content.raw;
+      }
+    }
+    return {
+      name: safeName,
+      ok: true,
+      content,
+      attempts: result.attempts,
+      authMode: result.authMode,
+    };
+  } catch (error) {
+    return {
+      name: safeName,
+      ok: false,
+      error: publicErrorMessage(error),
+      status: error?.status,
+      code: error?.code,
+      attempts: error?.attempts || 1,
+    };
+  }
+}
+
+async function downloadCpaAuthFiles(env, names, override = null, clientSignal = undefined) {
+  const config = resolveTargetConfig(env, "CPA", override);
+  const normalized = [];
+  const seen = new Set();
+  for (const raw of names) {
+    if (raw == null || raw === "") continue;
+    const name = sanitizeJsonFilename(String(raw));
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    normalized.push(name);
+  }
+  if (!normalized.length) {
+    throw new HttpError(400, "没有可下载的认证文件名。", "INVALID_PAYLOAD");
+  }
+
+  const files = await mapWithConcurrency(normalized, CPA_DOWNLOAD_CONCURRENCY, (name) =>
+    downloadOneCpaAuthFile(config, name, clientSignal)
+  );
+  const okCount = files.filter((item) => item.ok).length;
+  const failedCount = files.length - okCount;
+  return {
+    baseUrl: config.baseUrl,
+    source: config.source,
+    requestedCount: normalized.length,
+    okCount,
+    failedCount,
+    files,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// SUB2API 远端账号 list / export
+// ---------------------------------------------------------------------------
+
+function accountHasUsableCredentials(account) {
+  if (!account || typeof account !== "object") return false;
+  const cred = account.credentials;
+  if (cred && typeof cred === "object") {
+    if (cred.access_token || cred.refresh_token || cred.id_token) return true;
+  }
+  if (account.access_token || account.refresh_token) return true;
+  return false;
+}
+
+/** 导出用：尽量去掉服务端只读字段，保留可再导入的账号正文 */
+function sanitizeSub2apiExportAccount(account) {
+  if (!account || typeof account !== "object") return null;
+  const out = { ...account };
+  // 导入包通常不需要服务端 id / 时间戳；保留也不影响多数导入实现，这里去掉以贴近本机导出
+  delete out.id;
+  delete out.created_at;
+  delete out.createdAt;
+  delete out.updated_at;
+  delete out.updatedAt;
+  delete out.user_id;
+  delete out.userId;
+  delete out.group_id;
+  delete out.groupId;
+  // proxy_key 仅 Worker 内部使用；若有 proxy_id 留给前端/再导入
+  delete out.proxy_key;
+  delete out.proxyKey;
+  if (!out.platform && (out.type === "oauth" || out.credentials)) out.platform = "grok";
+  if (!out.type) out.type = "oauth";
+  if (!out.credentials || typeof out.credentials !== "object") out.credentials = {};
+  if (!out.extra || typeof out.extra !== "object") out.extra = {};
+  if (out.concurrency == null) out.concurrency = 1;
+  if (out.priority == null) out.priority = 1;
+  if (out.rate_multiplier == null) out.rate_multiplier = 1;
+  if (out.auto_pause_on_expired == null) out.auto_pause_on_expired = true;
+  return out;
+}
+
+async function fetchSub2apiAccountDetail(config, accountId, clientSignal) {
+  const encodedId = encodeURIComponent(String(accountId));
+  const result = await sub2apiRequest(
+    config,
+    `/api/v1/admin/accounts/${encodedId}`,
+    { method: "GET" },
+    VERIFY_TIMEOUT_MS,
+    3,
+    clientSignal
+  );
+  const root = result.data?.data !== undefined ? result.data.data : result.data;
+  // 常见形态：{ account: {...} } / 直接账号对象
+  if (root && typeof root === "object") {
+    if (root.account && typeof root.account === "object") {
+      return { account: root.account, attempts: result.attempts };
+    }
+    if (root.id != null || root.credentials || root.platform) {
+      return { account: root, attempts: result.attempts };
+    }
+  }
+  throw new HttpError(502, `SUB2API 账号 ${accountId} 详情响应无效。`, "INVALID_UPSTREAM_RESPONSE");
+}
+
+async function listSub2apiAccountsMeta(env, override = null, clientSignal = undefined) {
+  const config = resolveTargetConfig(env, "SUB2API", override);
+  const listed = await listAllSub2apiAccounts(config, clientSignal);
+  const accounts = listed.accounts.map((account) => summarizeDedupeAccount(account));
+  return {
+    baseUrl: config.baseUrl,
+    source: config.source,
+    attempts: listed.attempts,
+    count: accounts.length,
+    reportedTotal: listed.reportedTotal,
+    accounts,
+  };
+}
+
+async function exportSub2apiAccounts(env, ids, override = null, clientSignal = undefined) {
+  const config = resolveTargetConfig(env, "SUB2API", override);
+  const normalizedIds = [];
+  const seen = new Set();
+  for (const raw of ids) {
+    if (raw == null || raw === "") continue;
+    const id = typeof raw === "number" || typeof raw === "string" ? raw : String(raw);
+    const marker = String(id);
+    if (seen.has(marker)) continue;
+    seen.add(marker);
+    normalizedIds.push(id);
+  }
+  if (!normalizedIds.length) {
+    throw new HttpError(400, "没有可导出的账号 ID。", "INVALID_PAYLOAD");
+  }
+
+  // 先拉 lite 全量，命中选中 id 且已有凭证则直接用；否则逐个拉详情
+  const listed = await listAllSub2apiAccounts(config, clientSignal);
+  const byId = new Map(listed.accounts.map((item) => [String(item.id), item]));
+  let attempts = listed.attempts || 0;
+
+  const needDetail = [];
+  const ready = [];
+  for (const id of normalizedIds) {
+    const hit = byId.get(String(id));
+    if (hit && accountHasUsableCredentials(hit)) {
+      ready.push(hit);
+    } else {
+      needDetail.push(id);
+    }
+  }
+
+  const detailResults = await mapWithConcurrency(
+    needDetail,
+    SUB2API_EXPORT_DETAIL_CONCURRENCY,
+    async (id) => {
+      try {
+        const detail = await fetchSub2apiAccountDetail(config, id, clientSignal);
+        attempts += detail.attempts || 0;
+        return { id, ok: true, account: detail.account };
+      } catch (error) {
+        // 详情失败时，若 lite 列表仍有该账号，降级带上（可能无凭证）
+        const fallback = byId.get(String(id));
+        if (fallback) {
+          return { id, ok: true, account: fallback, partial: true };
+        }
+        return {
+          id,
+          ok: false,
+          error: publicErrorMessage(error),
+          status: error?.status,
+          code: error?.code,
+        };
+      }
+    }
+  );
+
+  const failures = [];
+  const accounts = [];
+  for (const item of ready) {
+    const sanitized = sanitizeSub2apiExportAccount(item);
+    if (sanitized) accounts.push(sanitized);
+  }
+  for (const item of detailResults) {
+    if (!item.ok) {
+      failures.push(item);
+      continue;
+    }
+    if (!accountHasUsableCredentials(item.account)) {
+      failures.push({
+        id: item.id,
+        ok: false,
+        error: "账号缺少可用凭证字段，无法导出完整认证数据",
+        code: "INCOMPLETE_ACCOUNT_DATA",
+      });
+      continue;
+    }
+    const sanitized = sanitizeSub2apiExportAccount(item.account);
+    if (sanitized) accounts.push(sanitized);
+  }
+
+  if (!accounts.length) {
+    throw new HttpError(
+      502,
+      failures.length
+        ? `未能导出任何完整账号：${failures[0].error || "未知错误"}`
+        : "未能导出任何完整账号",
+      failures[0]?.code || "INCOMPLETE_ACCOUNT_DATA",
+      { failures }
+    );
+  }
+
+  const pack = {
+    exported_at: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+    proxies: [],
+    accounts,
+  };
+
+  return {
+    baseUrl: config.baseUrl,
+    source: config.source,
+    attempts,
+    requestedCount: normalizedIds.length,
+    count: accounts.length,
+    failedCount: failures.length,
+    failures,
+    pack,
   };
 }
 
@@ -1782,6 +2258,39 @@ async function cpaRequest(config, path, init, timeoutMs, maxAttempts, clientSign
   for (const mode of modes) {
     const headers = new Headers(init.headers || {});
     headers.set("Accept", "application/json");
+    if (mode === "x-management-key") headers.set("X-Management-Key", config.apiKey);
+    else headers.set("Authorization", `Bearer ${config.apiKey}`);
+
+    try {
+      const result = await requestJsonWithRetry(
+        `${config.baseUrl}${path}`,
+        { ...init, headers },
+        {
+          timeoutMs,
+          maxAttempts,
+          clientSignal,
+        }
+      );
+      return { ...result, authMode: mode };
+    } catch (error) {
+      lastError = error;
+      if (![401, 403].includes(error?.status)) throw error;
+    }
+  }
+  throw lastError || new HttpError(401, "CPA 管理密钥验证失败。", "UPSTREAM_AUTH_FAILED");
+}
+
+/**
+ * CPA 请求（原始文本/JSON 均可）。
+ * 用于 auth-files/download：正文是认证 JSON 文件，可能被 parse 成对象或 { raw }。
+ * 鉴权模式回退与 cpaRequest 一致。
+ */
+async function cpaRequestRaw(config, path, init, timeoutMs, maxAttempts, clientSignal) {
+  const modes = cpaAuthModes(config.cpaAuthMode);
+  let lastError;
+  for (const mode of modes) {
+    const headers = new Headers(init.headers || {});
+    headers.set("Accept", "*/*");
     if (mode === "x-management-key") headers.set("X-Management-Key", config.apiKey);
     else headers.set("Authorization", `Bearer ${config.apiKey}`);
 

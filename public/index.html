@@ -1607,6 +1607,120 @@
         font-size: 12px;
       }
 
+      .remote-picker-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        margin: 0 0 10px;
+      }
+
+      .remote-picker-toolbar .remote-search {
+        flex: 1 1 180px;
+        min-width: 140px;
+        padding: 8px 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.03);
+        color: var(--text);
+        font: inherit;
+        font-size: 12px;
+      }
+
+      .remote-picker-toolbar .remote-search:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+      }
+
+      .remote-picker-meta {
+        color: var(--muted);
+        font-size: 12px;
+        white-space: nowrap;
+      }
+
+      .remote-picker-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        max-height: min(46vh, 420px);
+        overflow: auto;
+        border: 1px solid var(--border-soft);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      .remote-picker-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 10px 12px;
+        border-top: 1px solid rgba(255, 255, 255, 0.04);
+        font-size: 12px;
+        cursor: pointer;
+      }
+
+      .remote-picker-row:first-child {
+        border-top: 0;
+      }
+
+      .remote-picker-row:hover {
+        background: rgba(59, 130, 246, 0.06);
+      }
+
+      .remote-picker-row input[type="checkbox"] {
+        margin-top: 2px;
+        flex: 0 0 auto;
+      }
+
+      .remote-picker-main {
+        min-width: 0;
+        flex: 1 1 auto;
+        line-height: 1.45;
+      }
+
+      .remote-picker-main strong {
+        display: block;
+        color: var(--text);
+        font-weight: 650;
+        word-break: break-all;
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+
+      .remote-picker-sub {
+        color: var(--muted);
+        margin-top: 2px;
+        word-break: break-all;
+      }
+
+      .remote-picker-empty {
+        padding: 18px 12px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .remote-tag {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 650;
+        border: 1px solid transparent;
+        color: var(--muted);
+        background: rgba(255, 255, 255, 0.04);
+        border-color: var(--border-soft);
+      }
+
+      .remote-tag.disabled {
+        color: #fca5a5;
+        background: rgba(239, 68, 68, 0.12);
+        border-color: rgba(239, 68, 68, 0.28);
+      }
+
       .proxy-actions-row {
         display: flex;
         flex-wrap: wrap;
@@ -1884,6 +1998,24 @@
           title="扫描并清理 SUB2API 服务端重复账号"
         >
           SUB2API 去重
+        </button>
+        <button
+          class="btn-ghost btn-sm"
+          id="btnSub2RemoteExport"
+          type="button"
+          hidden
+          title="从 SUB2API 服务端拉取账号并导出合并包"
+        >
+          从 SUB2API 导出
+        </button>
+        <button
+          class="btn-ghost btn-sm"
+          id="btnCpaRemoteDownload"
+          type="button"
+          hidden
+          title="从 CPA 服务端拉取认证文件并打包下载"
+        >
+          从 CPA 下载
         </button>
         <span class="toolbar-spacer"></span>
         <span class="toolbar-label" style="font-size: 12px">点击徽章配置服务器 · 本机优先</span>
@@ -2571,15 +2703,23 @@
         <div class="modal-body">
           <p class="hint" style="margin-top: 0" id="importConflictSummary"></p>
           <div class="choice-list">
-            <button class="choice-card" type="button" data-import-action="merge" id="btnImportMerge">
-              <span class="choice-title"
-                >与现有合并<span class="opt-note">推荐</span></span
-              >
+            <button
+              class="choice-card"
+              type="button"
+              data-import-action="merge"
+              id="btnImportMerge"
+            >
+              <span class="choice-title">与现有合并<span class="opt-note">推荐</span></span>
               <span class="choice-desc"
                 >按邮箱/标识去重；同一账号保留过期时间较新的版本，并尽量保留已有上传状态</span
               >
             </button>
-            <button class="choice-card" type="button" data-import-action="replace" id="btnImportReplace">
+            <button
+              class="choice-card"
+              type="button"
+              data-import-action="replace"
+              id="btnImportReplace"
+            >
               <span class="choice-title">替换为本次导入</span>
               <span class="choice-desc">清空当前列表后仅保留本次文件中的账号</span>
             </button>
@@ -2663,6 +2803,104 @@
 
     <div
       class="modal-backdrop"
+      id="cpaRemoteDownloadModal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="cpaRemoteDownloadTitle"
+    >
+      <div class="modal" style="width: min(680px, 100%)">
+        <div class="modal-head">
+          <h3 id="cpaRemoteDownloadTitle">从 CPA 下载认证文件</h3>
+          <button class="icon-btn" id="btnCloseCpaRemoteDownload" type="button" aria-label="关闭">
+            ×
+          </button>
+        </div>
+        <div class="modal-body">
+          <p class="hint" style="margin-top: 0" id="cpaRemoteDownloadHint">
+            先拉取服务端认证文件列表，勾选后打包为 ZIP 下载
+          </p>
+          <div class="remote-picker-toolbar">
+            <input
+              type="search"
+              class="remote-search"
+              id="cpaRemoteSearch"
+              placeholder="搜索文件名 / 账号 / provider"
+              autocomplete="off"
+            />
+            <button class="btn-primary btn-sm" id="btnCpaRemoteSelectAll" type="button">
+              全选
+            </button>
+            <button class="btn-ghost btn-sm" id="btnCpaRemoteSelectNone" type="button">
+              全不选
+            </button>
+            <span class="remote-picker-meta" id="cpaRemoteSelectionMeta">已选 0 / 共 0</span>
+          </div>
+          <div class="remote-picker-list" id="cpaRemoteList">
+            <div class="remote-picker-empty">尚未加载列表</div>
+          </div>
+          <div class="config-status" id="cpaRemoteStatus"></div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn-ghost" id="btnCancelCpaRemoteDownload" type="button">关闭</button>
+          <button class="btn-ghost" id="btnRefreshCpaRemoteList" type="button">刷新列表</button>
+          <button class="btn-primary" id="btnDownloadCpaRemoteSelected" type="button" disabled>
+            下载所选
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      class="modal-backdrop"
+      id="sub2RemoteExportModal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="sub2RemoteExportTitle"
+    >
+      <div class="modal" style="width: min(680px, 100%)">
+        <div class="modal-head">
+          <h3 id="sub2RemoteExportTitle">从 SUB2API 导出账号</h3>
+          <button class="icon-btn" id="btnCloseSub2RemoteExport" type="button" aria-label="关闭">
+            ×
+          </button>
+        </div>
+        <div class="modal-body">
+          <p class="hint" style="margin-top: 0" id="sub2RemoteExportHint">
+            勾选服务端账号后导出为可再导入的 sub2api-account 合并包
+          </p>
+          <div class="remote-picker-toolbar">
+            <input
+              type="search"
+              class="remote-search"
+              id="sub2RemoteSearch"
+              placeholder="搜索 id / 邮箱 / 名称 / 平台"
+              autocomplete="off"
+            />
+            <button class="btn-primary btn-sm" id="btnSub2RemoteSelectAll" type="button">
+              全选
+            </button>
+            <button class="btn-ghost btn-sm" id="btnSub2RemoteSelectNone" type="button">
+              全不选
+            </button>
+            <span class="remote-picker-meta" id="sub2RemoteSelectionMeta">已选 0 / 共 0</span>
+          </div>
+          <div class="remote-picker-list" id="sub2RemoteList">
+            <div class="remote-picker-empty">尚未加载列表</div>
+          </div>
+          <div class="config-status" id="sub2RemoteStatus"></div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn-ghost" id="btnCancelSub2RemoteExport" type="button">关闭</button>
+          <button class="btn-ghost" id="btnRefreshSub2RemoteList" type="button">刷新列表</button>
+          <button class="btn-primary" id="btnExportSub2RemoteSelected" type="button" disabled>
+            导出所选
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      class="modal-backdrop"
       id="resumeUploadModal"
       role="dialog"
       aria-modal="true"
@@ -2740,6 +2978,20 @@
       let sub2DedupeBusy = false;
       /** @type {((ok:boolean)=>void)|null} */
       let sub2DedupeConfirmResolver = null;
+
+      /** CPA 远端下载：列表与勾选 */
+      let cpaRemoteFiles = [];
+      /** @type {Set<string>} */
+      let cpaRemoteSelected = new Set();
+      let cpaRemoteSearch = "";
+      let cpaRemoteBusy = false;
+
+      /** SUB2API 远端导出：列表与勾选 */
+      let sub2RemoteAccounts = [];
+      /** @type {Set<string>} */
+      let sub2RemoteSelected = new Set();
+      let sub2RemoteSearch = "";
+      let sub2RemoteBusy = false;
 
       const DEFAULT_BATCH_SUB2API = 100;
       const DEFAULT_BATCH_CPA = 20;
@@ -3140,11 +3392,7 @@
         if (key === "expiresAt" || key === "proxyId" || key === "index") {
           return compareNullableNumber(a, b);
         }
-        if (
-          key === "accountStatus" ||
-          key === "convert" ||
-          key === "upload"
-        ) {
+        if (key === "accountStatus" || key === "convert" || key === "upload") {
           return Number(a) - Number(b);
         }
         return compareText(a, b);
@@ -3651,11 +3899,15 @@
         $("btnConvert").textContent = selectionMode ? "转换所选" : "转换全部";
         $("btnCancelUpload").hidden = !uploadBusy;
         $("btnCancelUpload").disabled = !uploadBusy || uploadCancelRequested;
-        refreshSub2DedupeButton();
+        refreshRemoteActionButtons();
       }
 
       function hasSub2apiConfigReady() {
         return Boolean(getEffectiveClientConfig(TARGET_SUB2API));
+      }
+
+      function hasCpaConfigReady() {
+        return Boolean(getEffectiveClientConfig(TARGET_CPA));
       }
 
       function refreshSub2DedupeButton() {
@@ -3663,13 +3915,37 @@
         if (!btn) return;
         const ready = hasSub2apiConfigReady();
         btn.hidden = !ready;
-        btn.disabled = !ready || uploadBusy || sub2DedupeBusy;
+        btn.disabled = !ready || uploadBusy || sub2DedupeBusy || sub2RemoteBusy;
         btn.title = ready
           ? "扫描并清理 SUB2API 服务端重复账号"
           : "配置 SUB2API 地址与管理员密钥后可用";
         if (!sub2DedupeBusy) {
           btn.innerHTML = "SUB2API 去重";
         }
+      }
+
+      function refreshRemoteActionButtons() {
+        const sub2Btn = $("btnSub2RemoteExport");
+        if (sub2Btn) {
+          const ready = hasSub2apiConfigReady();
+          sub2Btn.hidden = !ready;
+          sub2Btn.disabled = !ready || uploadBusy || sub2DedupeBusy || sub2RemoteBusy;
+          sub2Btn.title = ready
+            ? "从 SUB2API 服务端拉取账号并导出合并包"
+            : "配置 SUB2API 地址与管理员密钥后可用";
+          if (!sub2RemoteBusy) sub2Btn.innerHTML = "从 SUB2API 导出";
+        }
+        const cpaBtn = $("btnCpaRemoteDownload");
+        if (cpaBtn) {
+          const ready = hasCpaConfigReady();
+          cpaBtn.hidden = !ready;
+          cpaBtn.disabled = !ready || uploadBusy || cpaRemoteBusy;
+          cpaBtn.title = ready
+            ? "从 CPA 服务端拉取认证文件并打包下载"
+            : "配置 CPA 地址与管理密钥后可用";
+          if (!cpaRemoteBusy) cpaBtn.innerHTML = "从 CPA 下载";
+        }
+        refreshSub2DedupeButton();
       }
 
       function setUploadBusy(busy, target = "") {
@@ -4124,14 +4400,20 @@
         let email = "";
         let sub = "";
         if (item.sourceFormat === "cpa" || acc.email || acc.sub) {
-          email = String(acc.email || "").trim().toLowerCase();
+          email = String(acc.email || "")
+            .trim()
+            .toLowerCase();
           sub = String(acc.sub || acc._sub || "").trim();
         }
         if (!email && acc.credentials) {
-          email = String(acc.credentials.email || "").trim().toLowerCase();
+          email = String(acc.credentials.email || "")
+            .trim()
+            .toLowerCase();
         }
         if (!email && acc.extra?.email) {
-          email = String(acc.extra.email || "").trim().toLowerCase();
+          email = String(acc.extra.email || "")
+            .trim()
+            .toLowerCase();
         }
         if (!sub) sub = String(acc._sub || "").trim();
         if (email) return `email:${email}`;
@@ -4183,7 +4465,11 @@
           else takeNew = fromIncoming;
 
           // 同过期时：若旧项已成功上传，默认保住成功状态（除非新项过期明显更新，上面已处理）
-          if (fromIncoming && newRank === oldRank && existing.uploadStatus === UPLOAD_STATUS.SUCCESS) {
+          if (
+            fromIncoming &&
+            newRank === oldRank &&
+            existing.uploadStatus === UPLOAD_STATUS.SUCCESS
+          ) {
             takeNew = false;
           }
 
@@ -5664,8 +5950,7 @@
           scanBtn.disabled = false;
           scanBtn.textContent = "开始扫描";
         }
-        $("sub2DedupeHint").textContent =
-          "按邮箱优先、其次名称分组检测重复，确认后删除冗余账号";
+        $("sub2DedupeHint").textContent = "按邮箱优先、其次名称分组检测重复，确认后删除冗余账号";
         setSub2DedupeStatus("");
       }
 
@@ -5736,8 +6021,7 @@
         if (applyBtn) {
           applyBtn.hidden = planned <= 0;
           applyBtn.disabled = planned <= 0 || sub2DedupeBusy;
-          applyBtn.textContent =
-            planned > 0 ? `确认删除 ${planned} 个重复` : "确认删除重复";
+          applyBtn.textContent = planned > 0 ? `确认删除 ${planned} 个重复` : "确认删除重复";
         }
         if (scanBtn) {
           scanBtn.hidden = false;
@@ -5876,7 +6160,8 @@
         if (closeBtn) closeBtn.disabled = sub2DedupeBusy;
         if (cancelBtn) cancelBtn.disabled = sub2DedupeBusy;
         if (topBtn) {
-          topBtn.disabled = sub2DedupeBusy || uploadBusy || !hasSub2apiConfigReady();
+          topBtn.disabled =
+            sub2DedupeBusy || uploadBusy || sub2RemoteBusy || !hasSub2apiConfigReady();
           if (sub2DedupeBusy) {
             topBtn.innerHTML =
               phase === "apply"
@@ -5886,7 +6171,7 @@
             topBtn.innerHTML = "SUB2API 去重";
           }
         }
-        refreshSub2DedupeButton();
+        refreshRemoteActionButtons();
       }
 
       async function scanSub2apiDuplicates() {
@@ -6005,6 +6290,596 @@
           }
         } finally {
           setSub2DedupeBusy(false);
+        }
+      }
+
+      // ---------------------------------------------------------------------------
+      // 远端 CPA 下载 / SUB2API 导出
+      // ---------------------------------------------------------------------------
+
+      function setCpaRemoteStatus(text, type = "") {
+        const el = $("cpaRemoteStatus");
+        if (!el) return;
+        el.textContent = text || "";
+        el.className = `config-status ${type}`.trim();
+      }
+
+      function setSub2RemoteStatus(text, type = "") {
+        const el = $("sub2RemoteStatus");
+        if (!el) return;
+        el.textContent = text || "";
+        el.className = `config-status ${type}`.trim();
+      }
+
+      function formatCpaRemoteRowMeta(file) {
+        const parts = [];
+        if (file?.provider) parts.push(file.provider);
+        if (file?.account) parts.push(file.account);
+        else if (file?.accountId) parts.push(file.accountId);
+        if (file?.authIndex) parts.push(`index=${file.authIndex}`);
+        return parts.join(" · ") || "无附加信息";
+      }
+
+      function formatSub2RemoteRowMeta(account) {
+        const parts = [];
+        if (account?.platform) parts.push(account.platform);
+        if (account?.type) parts.push(account.type);
+        if (account?.status != null && account.status !== "") parts.push(`状态=${account.status}`);
+        // expiresAt 来自 summarizeDedupeAccount，为 unix 秒
+        const exp = formatExpiryDisplay(account?.expiresAt);
+        if (exp) parts.push(`过期=${exp}`);
+        return parts.join(" · ") || "无附加信息";
+      }
+
+      function getCpaRemoteVisibleFiles() {
+        const q = String(cpaRemoteSearch || "")
+          .trim()
+          .toLowerCase();
+        if (!q) return cpaRemoteFiles.slice();
+        return cpaRemoteFiles.filter((file) => {
+          const hay = [file.name, file.provider, file.account, file.accountId, file.authIndex]
+            .map((v) => String(v || "").toLowerCase())
+            .join(" ");
+          return hay.includes(q);
+        });
+      }
+
+      function getSub2RemoteVisibleAccounts() {
+        const q = String(sub2RemoteSearch || "")
+          .trim()
+          .toLowerCase();
+        if (!q) return sub2RemoteAccounts.slice();
+        return sub2RemoteAccounts.filter((account) => {
+          const hay = [
+            account.id,
+            account.name,
+            account.email,
+            account.platform,
+            account.type,
+            account.status,
+          ]
+            .map((v) => String(v || "").toLowerCase())
+            .join(" ");
+          return hay.includes(q);
+        });
+      }
+
+      function updateCpaRemoteSelectionMeta() {
+        const meta = $("cpaRemoteSelectionMeta");
+        const btn = $("btnDownloadCpaRemoteSelected");
+        const total = cpaRemoteFiles.length;
+        const selected = cpaRemoteSelected.size;
+        if (meta) meta.textContent = `已选 ${selected} / 共 ${total}`;
+        if (btn) btn.disabled = selected === 0 || cpaRemoteBusy;
+      }
+
+      function updateSub2RemoteSelectionMeta() {
+        const meta = $("sub2RemoteSelectionMeta");
+        const btn = $("btnExportSub2RemoteSelected");
+        const total = sub2RemoteAccounts.length;
+        const selected = sub2RemoteSelected.size;
+        if (meta) meta.textContent = `已选 ${selected} / 共 ${total}`;
+        if (btn) btn.disabled = selected === 0 || sub2RemoteBusy;
+      }
+
+      function renderCpaRemoteList() {
+        const host = $("cpaRemoteList");
+        if (!host) return;
+        const visible = getCpaRemoteVisibleFiles();
+        if (!cpaRemoteFiles.length) {
+          host.innerHTML = `<div class="remote-picker-empty">服务端没有可下载的认证文件</div>`;
+          updateCpaRemoteSelectionMeta();
+          return;
+        }
+        if (!visible.length) {
+          host.innerHTML = `<div class="remote-picker-empty">没有匹配当前搜索的文件</div>`;
+          updateCpaRemoteSelectionMeta();
+          return;
+        }
+        host.innerHTML = visible
+          .map((file) => {
+            const name = String(file.name || "");
+            const checked = cpaRemoteSelected.has(name) ? "checked" : "";
+            const tag = file.disabled
+              ? `<span class="remote-tag disabled">已禁用</span>`
+              : `<span class="remote-tag">${escapeHtml(file.provider || "file")}</span>`;
+            return `<label class="remote-picker-row">
+              <input type="checkbox" data-cpa-remote-name="${escapeHtml(name)}" ${checked} />
+              <div class="remote-picker-main">
+                <strong>${escapeHtml(name)}</strong>
+                <div class="remote-picker-sub">${escapeHtml(formatCpaRemoteRowMeta(file))}</div>
+              </div>
+              ${tag}
+            </label>`;
+          })
+          .join("");
+        updateCpaRemoteSelectionMeta();
+      }
+
+      function renderSub2RemoteList() {
+        const host = $("sub2RemoteList");
+        if (!host) return;
+        const visible = getSub2RemoteVisibleAccounts();
+        if (!sub2RemoteAccounts.length) {
+          host.innerHTML = `<div class="remote-picker-empty">服务端没有可导出的账号</div>`;
+          updateSub2RemoteSelectionMeta();
+          return;
+        }
+        if (!visible.length) {
+          host.innerHTML = `<div class="remote-picker-empty">没有匹配当前搜索的账号</div>`;
+          updateSub2RemoteSelectionMeta();
+          return;
+        }
+        host.innerHTML = visible
+          .map((account) => {
+            const id = String(account.id ?? "");
+            const checked = sub2RemoteSelected.has(id) ? "checked" : "";
+            const title = account.email || account.name || `id=${id}`;
+            const tag = account.normal
+              ? `<span class="remote-tag">正常</span>`
+              : `<span class="remote-tag disabled">${escapeHtml(String(account.status || "异常"))}</span>`;
+            return `<label class="remote-picker-row">
+              <input type="checkbox" data-sub2-remote-id="${escapeHtml(id)}" ${checked} />
+              <div class="remote-picker-main">
+                <strong>${escapeHtml(String(title))}</strong>
+                <div class="remote-picker-sub">id=${escapeHtml(id)} · ${escapeHtml(
+                  formatSub2RemoteRowMeta(account)
+                )}</div>
+              </div>
+              ${tag}
+            </label>`;
+          })
+          .join("");
+        updateSub2RemoteSelectionMeta();
+      }
+
+      function setCpaRemoteBusy(busy, phase = "") {
+        cpaRemoteBusy = Boolean(busy);
+        const controls = [
+          "btnRefreshCpaRemoteList",
+          "btnCpaRemoteSelectAll",
+          "btnCpaRemoteSelectNone",
+          "cpaRemoteSearch",
+          "btnCloseCpaRemoteDownload",
+          "btnCancelCpaRemoteDownload",
+        ];
+        for (const id of controls) {
+          const el = $(id);
+          if (el) el.disabled = cpaRemoteBusy;
+        }
+        const downloadBtn = $("btnDownloadCpaRemoteSelected");
+        if (downloadBtn) {
+          downloadBtn.disabled = cpaRemoteBusy || cpaRemoteSelected.size === 0;
+          if (cpaRemoteBusy && phase === "download") {
+            downloadBtn.innerHTML = '<span class="busy-spin"></span>下载中';
+          } else if (!cpaRemoteBusy) {
+            downloadBtn.textContent = "下载所选";
+          }
+        }
+        const topBtn = $("btnCpaRemoteDownload");
+        if (topBtn) {
+          if (cpaRemoteBusy) {
+            topBtn.innerHTML =
+              phase === "download"
+                ? '<span class="busy-spin"></span>正在下载认证文件'
+                : '<span class="busy-spin"></span>正在拉取列表';
+          }
+        }
+        refreshRemoteActionButtons();
+        updateCpaRemoteSelectionMeta();
+      }
+
+      function setSub2RemoteBusy(busy, phase = "") {
+        sub2RemoteBusy = Boolean(busy);
+        const controls = [
+          "btnRefreshSub2RemoteList",
+          "btnSub2RemoteSelectAll",
+          "btnSub2RemoteSelectNone",
+          "sub2RemoteSearch",
+          "btnCloseSub2RemoteExport",
+          "btnCancelSub2RemoteExport",
+        ];
+        for (const id of controls) {
+          const el = $(id);
+          if (el) el.disabled = sub2RemoteBusy;
+        }
+        const exportBtn = $("btnExportSub2RemoteSelected");
+        if (exportBtn) {
+          exportBtn.disabled = sub2RemoteBusy || sub2RemoteSelected.size === 0;
+          if (sub2RemoteBusy && phase === "export") {
+            exportBtn.innerHTML = '<span class="busy-spin"></span>导出中';
+          } else if (!sub2RemoteBusy) {
+            exportBtn.textContent = "导出所选";
+          }
+        }
+        const topBtn = $("btnSub2RemoteExport");
+        if (topBtn) {
+          if (sub2RemoteBusy) {
+            topBtn.innerHTML =
+              phase === "export"
+                ? '<span class="busy-spin"></span>正在导出账号'
+                : '<span class="busy-spin"></span>正在拉取列表';
+          }
+        }
+        refreshRemoteActionButtons();
+        updateSub2RemoteSelectionMeta();
+      }
+
+      function resetCpaRemoteModalView() {
+        cpaRemoteFiles = [];
+        cpaRemoteSelected = new Set();
+        cpaRemoteSearch = "";
+        const search = $("cpaRemoteSearch");
+        if (search) search.value = "";
+        const list = $("cpaRemoteList");
+        if (list) list.innerHTML = `<div class="remote-picker-empty">尚未加载列表</div>`;
+        $("cpaRemoteDownloadHint").textContent = "先拉取服务端认证文件列表，勾选后打包为 ZIP 下载";
+        setCpaRemoteStatus("");
+        updateCpaRemoteSelectionMeta();
+      }
+
+      function resetSub2RemoteModalView() {
+        sub2RemoteAccounts = [];
+        sub2RemoteSelected = new Set();
+        sub2RemoteSearch = "";
+        const search = $("sub2RemoteSearch");
+        if (search) search.value = "";
+        const list = $("sub2RemoteList");
+        if (list) list.innerHTML = `<div class="remote-picker-empty">尚未加载列表</div>`;
+        $("sub2RemoteExportHint").textContent =
+          "勾选服务端账号后导出为可再导入的 sub2api-account 合并包";
+        setSub2RemoteStatus("");
+        updateSub2RemoteSelectionMeta();
+      }
+
+      function openCpaRemoteDownloadModal() {
+        if (!hasCpaConfigReady()) {
+          openConfigDialog({
+            target: TARGET_CPA,
+            reason: "从 CPA 下载需要有效配置",
+            mode: "ensure",
+          });
+          showMsg("请先配置 CPA 后再下载", "err");
+          return;
+        }
+        resetCpaRemoteModalView();
+        $("cpaRemoteDownloadModal")?.classList.add("show");
+        loadCpaRemoteAuthList().catch((error) => {
+          setCpaRemoteStatus(`加载失败：${apiErrorMessage(error)}`, "err");
+        });
+      }
+
+      function closeCpaRemoteDownloadModal() {
+        if (cpaRemoteBusy) return;
+        $("cpaRemoteDownloadModal")?.classList.remove("show");
+        resetCpaRemoteModalView();
+      }
+
+      function openSub2RemoteExportModal() {
+        if (!hasSub2apiConfigReady()) {
+          openConfigDialog({
+            target: TARGET_SUB2API,
+            reason: "从 SUB2API 导出需要有效配置",
+            mode: "ensure",
+          });
+          showMsg("请先配置 SUB2API 后再导出", "err");
+          return;
+        }
+        resetSub2RemoteModalView();
+        $("sub2RemoteExportModal")?.classList.add("show");
+        loadSub2RemoteAccountList().catch((error) => {
+          setSub2RemoteStatus(`加载失败：${apiErrorMessage(error)}`, "err");
+        });
+      }
+
+      function closeSub2RemoteExportModal() {
+        if (sub2RemoteBusy) return;
+        $("sub2RemoteExportModal")?.classList.remove("show");
+        resetSub2RemoteModalView();
+      }
+
+      function selectAllCpaRemoteVisible() {
+        for (const file of getCpaRemoteVisibleFiles()) {
+          if (file?.name) cpaRemoteSelected.add(String(file.name));
+        }
+        renderCpaRemoteList();
+      }
+
+      function clearCpaRemoteSelection() {
+        cpaRemoteSelected = new Set();
+        renderCpaRemoteList();
+      }
+
+      function selectAllSub2RemoteVisible() {
+        for (const account of getSub2RemoteVisibleAccounts()) {
+          if (account?.id != null && account.id !== "") {
+            sub2RemoteSelected.add(String(account.id));
+          }
+        }
+        renderSub2RemoteList();
+      }
+
+      function clearSub2RemoteSelection() {
+        sub2RemoteSelected = new Set();
+        renderSub2RemoteList();
+      }
+
+      async function loadCpaRemoteAuthList() {
+        if (cpaRemoteBusy) return;
+        if (uploadBusy) {
+          setCpaRemoteStatus("上传进行中，请稍后再拉取列表", "err");
+          return;
+        }
+        const effective = getEffectiveClientConfig(TARGET_CPA);
+        if (!effective) {
+          setCpaRemoteStatus("请先配置 CPA", "err");
+          return;
+        }
+        setCpaRemoteBusy(true, "list");
+        setCpaRemoteStatus("正在拉取 CPA 认证文件列表", "info");
+        showMsg("正在拉取 CPA 认证文件列表", "info");
+        try {
+          const body = {};
+          const config = uploadConfigPayload(effective);
+          if (config) body.config = config;
+          const { data } = await fetchJson(
+            "/api/cpa/auth-files/list",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            },
+            2 * 60 * 1000
+          );
+          cpaRemoteFiles = Array.isArray(data?.files) ? data.files : [];
+          cpaRemoteSelected = new Set(cpaRemoteFiles.map((f) => String(f.name)).filter(Boolean));
+          renderCpaRemoteList();
+          const count = cpaRemoteFiles.length;
+          if (count > 0) {
+            $("cpaRemoteDownloadHint").textContent =
+              `共 ${count} 个认证文件，可搜索后全选或勾选子集再打包下载`;
+            setCpaRemoteStatus(`列表加载完成，共 ${count} 个文件，已默认全选`, "ok");
+            showMsg(`CPA 认证文件列表已加载，共 ${count} 个`, "ok");
+          } else {
+            $("cpaRemoteDownloadHint").textContent = "服务端当前没有可下载的认证文件";
+            setCpaRemoteStatus("列表为空", "info");
+            showMsg("CPA 服务端没有可下载的认证文件", "info");
+          }
+        } catch (error) {
+          cpaRemoteFiles = [];
+          cpaRemoteSelected = new Set();
+          renderCpaRemoteList();
+          setCpaRemoteStatus(`加载失败：${apiErrorMessage(error)}`, "err");
+          showMsg(`拉取 CPA 认证文件列表失败：${apiErrorMessage(error)}`, "err");
+        } finally {
+          setCpaRemoteBusy(false);
+        }
+      }
+
+      async function downloadSelectedCpaRemoteAuth() {
+        if (cpaRemoteBusy) return;
+        if (uploadBusy) {
+          setCpaRemoteStatus("上传进行中，请稍后再下载", "err");
+          return;
+        }
+        const names = [...cpaRemoteSelected];
+        if (!names.length) {
+          setCpaRemoteStatus("请先勾选要下载的文件", "err");
+          return;
+        }
+        const effective = getEffectiveClientConfig(TARGET_CPA);
+        if (!effective) {
+          setCpaRemoteStatus("请先配置 CPA", "err");
+          return;
+        }
+        setCpaRemoteBusy(true, "download");
+        setCpaRemoteStatus(`正在下载 ${names.length} 个认证文件`, "info");
+        showMsg(`正在从 CPA 下载 ${names.length} 个认证文件`, "info");
+        try {
+          const body = { names };
+          const config = uploadConfigPayload(effective);
+          if (config) body.config = config;
+          const { data } = await fetchJson(
+            "/api/cpa/auth-files/download",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            },
+            10 * 60 * 1000
+          );
+          const files = Array.isArray(data?.files) ? data.files : [];
+          const okFiles = files.filter((item) => item?.ok && item.content != null);
+          const failedCount = Number(data?.failedCount) || files.length - okFiles.length;
+          if (!okFiles.length) {
+            setCpaRemoteStatus(
+              failedCount ? `下载失败，全部 ${failedCount} 个文件未成功` : "下载失败，没有可用文件",
+              "err"
+            );
+            showMsg("从 CPA 下载认证文件失败", "err");
+            return;
+          }
+          const enc = new TextEncoder();
+          const used = new Map();
+          const zipFiles = okFiles.map((item, index) => {
+            let name = sanitizeRemoteCpaFilename(item.name, index);
+            if (used.has(name)) {
+              const n = used.get(name) + 1;
+              used.set(name, n);
+              name = name.replace(/\.json$/i, `-${n}.json`);
+            } else {
+              used.set(name, 1);
+            }
+            const text =
+              typeof item.content === "string"
+                ? item.content
+                : JSON.stringify(item.content, null, 2);
+            return { name, data: enc.encode(text) };
+          });
+          const zipBytes = buildZip(zipFiles);
+          downloadBlob(
+            new Blob([zipBytes], { type: "application/zip" }),
+            `cpa-auth-remote-${tsStamp()}.zip`
+          );
+          const msg =
+            failedCount > 0
+              ? `下载完成，成功：${okFiles.length}，失败：${failedCount}`
+              : `已打包下载 ${okFiles.length} 个认证文件`;
+          setCpaRemoteStatus(msg, failedCount ? "err" : "ok");
+          showMsg(msg, failedCount ? "err" : "ok");
+          showToast(msg, failedCount ? "err" : "ok", 4200);
+        } catch (error) {
+          setCpaRemoteStatus(`下载失败：${apiErrorMessage(error)}`, "err");
+          showMsg(`从 CPA 下载失败：${apiErrorMessage(error)}`, "err");
+        } finally {
+          setCpaRemoteBusy(false);
+        }
+      }
+
+      function sanitizeRemoteCpaFilename(name, index = 0) {
+        let base = String(name || `account-${index + 1}.json`)
+          .trim()
+          .replace(/[\\/:*?"<>|\x00-\x1f]/g, "_");
+        if (!base.toLowerCase().endsWith(".json")) base += ".json";
+        if (base.length > 180) base = `${base.slice(0, 175)}.json`;
+        return base || `account-${index + 1}.json`;
+      }
+
+      async function loadSub2RemoteAccountList() {
+        if (sub2RemoteBusy) return;
+        if (uploadBusy) {
+          setSub2RemoteStatus("上传进行中，请稍后再拉取列表", "err");
+          return;
+        }
+        const effective = getEffectiveClientConfig(TARGET_SUB2API);
+        if (!effective) {
+          setSub2RemoteStatus("请先配置 SUB2API", "err");
+          return;
+        }
+        setSub2RemoteBusy(true, "list");
+        setSub2RemoteStatus("正在拉取 SUB2API 账号列表", "info");
+        showMsg("正在拉取 SUB2API 账号列表", "info");
+        try {
+          const body = {};
+          const config = uploadConfigPayload(effective);
+          if (config) body.config = config;
+          const { data } = await fetchJson(
+            "/api/sub2api/accounts/list",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            },
+            10 * 60 * 1000
+          );
+          sub2RemoteAccounts = Array.isArray(data?.accounts) ? data.accounts : [];
+          sub2RemoteSelected = new Set(
+            sub2RemoteAccounts
+              .map((account) => (account?.id == null ? "" : String(account.id)))
+              .filter(Boolean)
+          );
+          renderSub2RemoteList();
+          const count = sub2RemoteAccounts.length;
+          if (count > 0) {
+            $("sub2RemoteExportHint").textContent =
+              `共 ${count} 个账号，可搜索后全选或勾选子集，导出为 sub2api-account 合并包`;
+            setSub2RemoteStatus(`列表加载完成，共 ${count} 个账号，已默认全选`, "ok");
+            showMsg(`SUB2API 账号列表已加载，共 ${count} 个`, "ok");
+          } else {
+            $("sub2RemoteExportHint").textContent = "服务端当前没有可导出的账号";
+            setSub2RemoteStatus("列表为空", "info");
+            showMsg("SUB2API 服务端没有可导出的账号", "info");
+          }
+        } catch (error) {
+          sub2RemoteAccounts = [];
+          sub2RemoteSelected = new Set();
+          renderSub2RemoteList();
+          setSub2RemoteStatus(`加载失败：${apiErrorMessage(error)}`, "err");
+          showMsg(`拉取 SUB2API 账号列表失败：${apiErrorMessage(error)}`, "err");
+        } finally {
+          setSub2RemoteBusy(false);
+        }
+      }
+
+      async function exportSelectedSub2RemoteAccounts() {
+        if (sub2RemoteBusy) return;
+        if (uploadBusy) {
+          setSub2RemoteStatus("上传进行中，请稍后再导出", "err");
+          return;
+        }
+        const ids = [...sub2RemoteSelected];
+        if (!ids.length) {
+          setSub2RemoteStatus("请先勾选要导出的账号", "err");
+          return;
+        }
+        const effective = getEffectiveClientConfig(TARGET_SUB2API);
+        if (!effective) {
+          setSub2RemoteStatus("请先配置 SUB2API", "err");
+          return;
+        }
+        setSub2RemoteBusy(true, "export");
+        setSub2RemoteStatus(`正在导出 ${ids.length} 个账号`, "info");
+        showMsg(`正在从 SUB2API 导出 ${ids.length} 个账号`, "info");
+        try {
+          const body = { ids };
+          const config = uploadConfigPayload(effective);
+          if (config) body.config = config;
+          const { data } = await fetchJson(
+            "/api/sub2api/accounts/export",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            },
+            10 * 60 * 1000
+          );
+          const pack = data?.pack;
+          const count = Number(data?.count) || pack?.accounts?.length || 0;
+          const failedCount = Number(data?.failedCount) || 0;
+          if (!pack || !Array.isArray(pack.accounts) || !pack.accounts.length) {
+            setSub2RemoteStatus("导出失败，没有可用账号数据", "err");
+            showMsg("从 SUB2API 导出失败，没有可用账号数据", "err");
+            return;
+          }
+          // 与样例 sub2api-account.json 对齐：exported_at + proxies + accounts
+          const exportPack = {
+            exported_at: pack.exported_at || new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+            proxies: Array.isArray(pack.proxies) ? pack.proxies : [],
+            accounts: pack.accounts,
+          };
+          downloadJson(exportPack, `sub2api-account-${tsStamp()}.json`);
+          const msg =
+            failedCount > 0
+              ? `导出完成，成功：${count}，失败：${failedCount}`
+              : `已导出 sub2api-account 合并包 ${count} 个账号`;
+          setSub2RemoteStatus(msg, failedCount ? "err" : "ok");
+          showMsg(msg, failedCount ? "err" : "ok");
+          showToast(msg, failedCount ? "err" : "ok", 4200);
+        } catch (error) {
+          setSub2RemoteStatus(`导出失败：${apiErrorMessage(error)}`, "err");
+          showMsg(`从 SUB2API 导出失败：${apiErrorMessage(error)}`, "err");
+        } finally {
+          setSub2RemoteBusy(false);
         }
       }
 
@@ -7010,9 +7885,7 @@
             `${target} 上传完成，成功：${success}, 失败：${failed}, 未知：${unknown}` +
               (skipped
                 ? `, 跳过：${skipped}, 失效：${expiredItems.length}` +
-                  (skippedInvalidProxy.length
-                    ? `, 无效代理：${skippedInvalidProxy.length}`
-                    : "")
+                  (skippedInvalidProxy.length ? `, 无效代理：${skippedInvalidProxy.length}` : "")
                 : "") +
               (forcedInvalidProxy ? ", 含强制上传" : ""),
             failed || unknown ? "info" : "ok"
@@ -7597,6 +8470,75 @@
         if (event.target === $("sub2DedupeConfirmModal")) closeSub2DedupeConfirmModal(false);
       });
 
+      // 从 CPA 下载 / 从 SUB2API 导出
+      $("btnCpaRemoteDownload")?.addEventListener("click", () => openCpaRemoteDownloadModal());
+      $("btnCloseCpaRemoteDownload")?.addEventListener("click", () =>
+        closeCpaRemoteDownloadModal()
+      );
+      $("btnCancelCpaRemoteDownload")?.addEventListener("click", () =>
+        closeCpaRemoteDownloadModal()
+      );
+      $("cpaRemoteDownloadModal")?.addEventListener("click", (event) => {
+        if (event.target === $("cpaRemoteDownloadModal")) closeCpaRemoteDownloadModal();
+      });
+      $("btnRefreshCpaRemoteList")?.addEventListener("click", () => {
+        loadCpaRemoteAuthList().catch((error) => {
+          setCpaRemoteStatus(`加载失败：${apiErrorMessage(error)}`, "err");
+        });
+      });
+      $("btnCpaRemoteSelectAll")?.addEventListener("click", () => selectAllCpaRemoteVisible());
+      $("btnCpaRemoteSelectNone")?.addEventListener("click", () => clearCpaRemoteSelection());
+      $("cpaRemoteSearch")?.addEventListener("input", (event) => {
+        cpaRemoteSearch = event.target.value || "";
+        renderCpaRemoteList();
+      });
+      $("cpaRemoteList")?.addEventListener("change", (event) => {
+        const input = event.target?.closest?.("input[data-cpa-remote-name]");
+        if (!input) return;
+        const name = input.getAttribute("data-cpa-remote-name") || "";
+        if (!name) return;
+        if (input.checked) cpaRemoteSelected.add(name);
+        else cpaRemoteSelected.delete(name);
+        updateCpaRemoteSelectionMeta();
+      });
+      $("btnDownloadCpaRemoteSelected")?.addEventListener("click", () => {
+        downloadSelectedCpaRemoteAuth().catch((error) => {
+          setCpaRemoteStatus(`下载失败：${apiErrorMessage(error)}`, "err");
+        });
+      });
+
+      $("btnSub2RemoteExport")?.addEventListener("click", () => openSub2RemoteExportModal());
+      $("btnCloseSub2RemoteExport")?.addEventListener("click", () => closeSub2RemoteExportModal());
+      $("btnCancelSub2RemoteExport")?.addEventListener("click", () => closeSub2RemoteExportModal());
+      $("sub2RemoteExportModal")?.addEventListener("click", (event) => {
+        if (event.target === $("sub2RemoteExportModal")) closeSub2RemoteExportModal();
+      });
+      $("btnRefreshSub2RemoteList")?.addEventListener("click", () => {
+        loadSub2RemoteAccountList().catch((error) => {
+          setSub2RemoteStatus(`加载失败：${apiErrorMessage(error)}`, "err");
+        });
+      });
+      $("btnSub2RemoteSelectAll")?.addEventListener("click", () => selectAllSub2RemoteVisible());
+      $("btnSub2RemoteSelectNone")?.addEventListener("click", () => clearSub2RemoteSelection());
+      $("sub2RemoteSearch")?.addEventListener("input", (event) => {
+        sub2RemoteSearch = event.target.value || "";
+        renderSub2RemoteList();
+      });
+      $("sub2RemoteList")?.addEventListener("change", (event) => {
+        const input = event.target?.closest?.("input[data-sub2-remote-id]");
+        if (!input) return;
+        const id = input.getAttribute("data-sub2-remote-id") || "";
+        if (!id) return;
+        if (input.checked) sub2RemoteSelected.add(id);
+        else sub2RemoteSelected.delete(id);
+        updateSub2RemoteSelectionMeta();
+      });
+      $("btnExportSub2RemoteSelected")?.addEventListener("click", () => {
+        exportSelectedSub2RemoteAccounts().catch((error) => {
+          setSub2RemoteStatus(`导出失败：${apiErrorMessage(error)}`, "err");
+        });
+      });
+
       // 代理：批量 / 校验弹窗 / 行内编辑
       $("btnBatchSetProxy")?.addEventListener("click", openBatchProxyModal);
       $("btnBatchClearProxy")?.addEventListener("click", batchClearSelectedProxies);
@@ -7737,7 +8679,9 @@
       });
 
       // 导入冲突弹窗
-      $("btnCloseImportConflict")?.addEventListener("click", () => closeImportConflictModal("cancel"));
+      $("btnCloseImportConflict")?.addEventListener("click", () =>
+        closeImportConflictModal("cancel")
+      );
       $("btnCancelImportConflict")?.addEventListener("click", () =>
         closeImportConflictModal("cancel")
       );
@@ -7777,6 +8721,14 @@
         }
         if ($("resumeUploadModal")?.classList.contains("show")) {
           closeResumeUploadModal({ ok: false, includeUnknown: false });
+          return;
+        }
+        if ($("cpaRemoteDownloadModal")?.classList.contains("show")) {
+          closeCpaRemoteDownloadModal();
+          return;
+        }
+        if ($("sub2RemoteExportModal")?.classList.contains("show")) {
+          closeSub2RemoteExportModal();
           return;
         }
         if ($("sub2DedupeModal")?.classList.contains("show")) {
