@@ -2616,7 +2616,7 @@
         </div>
         <div class="modal-body">
           <p class="hint" style="margin-top: 0" id="sub2DedupeHint">
-            按邮箱优先、其次名称分组，检测 SUB2API 服务端重复账号。确认后将删除冗余项（优先删非正常状态，其次删更早过期的）。
+            按邮箱优先、其次名称分组检测重复，确认后删除冗余账号
           </p>
           <div id="sub2DedupeSummary" class="dedupe-summary-grid" hidden></div>
           <div id="sub2DedupeGroups" class="dedupe-group-list" hidden></div>
@@ -2643,7 +2643,7 @@
     >
       <div class="modal" style="width: min(440px, 100%)">
         <div class="modal-head">
-          <h3 id="sub2DedupeConfirmTitle">确认删除重复账号？</h3>
+          <h3 id="sub2DedupeConfirmTitle">确认删除重复账号</h3>
           <button class="icon-btn" id="btnCloseSub2DedupeConfirm" type="button" aria-label="关闭">
             ×
           </button>
@@ -2651,7 +2651,7 @@
         <div class="modal-body">
           <p class="hint" style="margin-top: 0" id="sub2DedupeConfirmSummary"></p>
           <div class="config-status err" id="sub2DedupeConfirmWarn" style="margin-top: 8px">
-            此操作不可撤销，请再次确认。
+            删除后不可恢复
           </div>
         </div>
         <div class="modal-foot">
@@ -5665,7 +5665,7 @@
           scanBtn.textContent = "开始扫描";
         }
         $("sub2DedupeHint").textContent =
-          "按邮箱优先、其次名称分组，检测 SUB2API 服务端重复账号。确认后将删除冗余项（优先删非正常状态，其次删更早过期的）。";
+          "按邮箱优先、其次名称分组检测重复，确认后删除冗余账号";
         setSub2DedupeStatus("");
       }
 
@@ -5747,15 +5747,15 @@
 
         if (planned > 0) {
           $("sub2DedupeHint").textContent =
-            `发现 ${groupCount} 组重复，计划删除 ${planned} 个账号。请核对保留/删除列表后确认。删除优先选择非正常状态，其次更早过期的账号。`;
+            `发现 ${groupCount} 组重复，计划删除 ${planned} 个账号，请核对保留/删除列表后确认；优先删非正常状态，其次删更早过期的`;
           setSub2DedupeStatus(
-            `扫描完成：共 ${accountCount} 个账号，${groupCount} 组重复，计划删除 ${planned} 个。`,
+            `扫描完成，共 ${accountCount} 个账号，${groupCount} 组重复，计划删除 ${planned} 个`,
             "ok"
           );
         } else {
           $("sub2DedupeHint").textContent =
-            "当前未发现可去重的重复账号（按邮箱优先、其次名称分组）。";
-          setSub2DedupeStatus(`扫描完成：共 ${accountCount} 个账号，未发现重复。`, "ok");
+            "当前未发现可去重的重复账号，分组规则为邮箱优先、其次名称";
+          setSub2DedupeStatus(`扫描完成，共 ${accountCount} 个账号，未发现重复`, "ok");
         }
       }
 
@@ -5798,7 +5798,10 @@
         }
 
         const ok = failed === 0;
-        const msg = `删除完成：成功 ${deleted}，已不存在 ${absent}，失败 ${failed}（共请求 ${requested}）`;
+        const msg =
+          absent > 0
+            ? `删除完成，共请求 ${requested} 次，成功：${deleted}，已不存在：${absent}，失败：${failed}`
+            : `删除完成，共请求 ${requested} 次，成功：${deleted}，失败：${failed}`;
         setSub2DedupeStatus(msg, ok ? "ok" : "err");
         showMsg(msg, ok ? "ok" : "err");
         showToast(msg, ok ? "ok" : "err", 4200);
@@ -5839,7 +5842,7 @@
           }
           sub2DedupeConfirmResolver = resolve;
           $("sub2DedupeConfirmSummary").textContent =
-            `即将删除 ${count} 个 SUB2API 重复账号。删除优先选择非正常状态，其次更早过期的账号；每组仅保留一条。`;
+            `即将删除 ${count} 个重复账号，每组仅保留 1 条`;
           $("sub2DedupeConfirmModal")?.classList.add("show");
         });
       }
@@ -5861,13 +5864,13 @@
         if (scanBtn) {
           scanBtn.disabled = sub2DedupeBusy;
           if (sub2DedupeBusy && phase === "scan" && !scanBtn.hidden) {
-            scanBtn.innerHTML = '<span class="busy-spin"></span>扫描中…';
+            scanBtn.innerHTML = '<span class="busy-spin"></span>扫描中';
           }
         }
         if (applyBtn) {
           applyBtn.disabled = sub2DedupeBusy || applyBtn.hidden;
           if (sub2DedupeBusy && phase === "apply" && !applyBtn.hidden) {
-            applyBtn.innerHTML = '<span class="busy-spin"></span>删除中…';
+            applyBtn.innerHTML = '<span class="busy-spin"></span>删除中';
           }
         }
         if (closeBtn) closeBtn.disabled = sub2DedupeBusy;
@@ -5899,8 +5902,8 @@
         }
 
         setSub2DedupeBusy(true, "scan");
-        setSub2DedupeStatus("正在拉取 SUB2API 全部账号并检测重复…", "info");
-        showMsg("正在扫描 SUB2API 重复账号…", "info");
+        setSub2DedupeStatus("正在扫描重复账号", "info");
+        showMsg("正在扫描重复账号", "info");
         try {
           const body = {};
           const config = uploadConfigPayload(effective);
@@ -5918,8 +5921,8 @@
           const planned = Number(data?.plannedDeletionCount) || 0;
           showMsg(
             planned > 0
-              ? `扫描完成：发现 ${data.duplicateGroupCount} 组重复，计划删除 ${planned} 个`
-              : `扫描完成：共 ${data.accountCount || 0} 个账号，未发现重复`,
+              ? `扫描完成，发现 ${data.duplicateGroupCount} 组重复，计划删除 ${planned} 个`
+              : `扫描完成，共 ${data.accountCount || 0} 个账号，未发现重复`,
             planned > 0 ? "info" : "ok"
           );
         } catch (error) {
@@ -5975,8 +5978,8 @@
         }
 
         setSub2DedupeBusy(true, "apply");
-        setSub2DedupeStatus(`正在并发删除 ${ids.length} 个重复账号…`, "info");
-        showMsg(`正在删除 ${ids.length} 个 SUB2API 重复账号…`, "info");
+        setSub2DedupeStatus(`正在并发删除 ${ids.length} 个重复账号`, "info");
+        showMsg(`正在删除 ${ids.length} 个 SUB2API 重复账号`, "info");
         try {
           const body = { ids };
           const config = uploadConfigPayload(effective);
