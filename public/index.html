@@ -742,6 +742,55 @@
         white-space: nowrap;
       }
 
+      th.th-sortable {
+        cursor: pointer;
+        user-select: none;
+      }
+
+      th.th-sortable:hover,
+      th.th-sortable:focus-visible {
+        color: var(--text);
+      }
+
+      th.th-sortable:focus-visible {
+        outline: 1px solid var(--border);
+        outline-offset: -1px;
+      }
+
+      th.th-sortable.is-sorted {
+        color: var(--text);
+      }
+
+      .sort-ind {
+        display: inline-block;
+        margin-left: 4px;
+        font-size: 10px;
+        line-height: 1;
+        opacity: 0.28;
+        vertical-align: 1px;
+      }
+
+      th.th-sortable:hover .sort-ind {
+        opacity: 0.55;
+      }
+
+      th.th-sortable.is-sorted .sort-ind {
+        opacity: 0.95;
+        color: var(--accent, #7dd3fc);
+      }
+
+      .sort-ind::after {
+        content: "⇅";
+      }
+
+      th.th-sortable.is-sorted-asc .sort-ind::after {
+        content: "▲";
+      }
+
+      th.th-sortable.is-sorted-desc .sort-ind::after {
+        content: "▼";
+      }
+
       /* 列宽：百分比均分，源文件/邮箱占主要弹性空间，避免中间大片空白 */
       col.col-idx {
         width: 5%;
@@ -1976,9 +2025,9 @@
             </colgroup>
             <thead>
               <tr>
-                <th>
+                <th class="th-sortable" data-sort="index" tabindex="0" aria-sort="none">
                   <div class="head-tools">
-                    <span>#</span>
+                    <span>#</span><span class="sort-ind" aria-hidden="true"></span>
                     <button
                       class="icon-btn"
                       id="btnSelectMode"
@@ -1999,15 +2048,33 @@
                     </button>
                   </div>
                 </th>
-                <th>源文件</th>
-                <th>源</th>
-                <th>目标</th>
-                <th>邮箱 / 标识</th>
-                <th>账号状态</th>
-                <th>过期时间</th>
-                <th>代理 ID</th>
-                <th>转换</th>
-                <th>上传状态</th>
+                <th class="th-sortable" data-sort="sourceFile" tabindex="0" aria-sort="none">
+                  源文件<span class="sort-ind" aria-hidden="true"></span>
+                </th>
+                <th class="th-sortable" data-sort="source" tabindex="0" aria-sort="none">
+                  源<span class="sort-ind" aria-hidden="true"></span>
+                </th>
+                <th class="th-sortable" data-sort="target" tabindex="0" aria-sort="none">
+                  目标<span class="sort-ind" aria-hidden="true"></span>
+                </th>
+                <th class="th-sortable" data-sort="email" tabindex="0" aria-sort="none">
+                  邮箱 / 标识<span class="sort-ind" aria-hidden="true"></span>
+                </th>
+                <th class="th-sortable" data-sort="accountStatus" tabindex="0" aria-sort="none">
+                  账号状态<span class="sort-ind" aria-hidden="true"></span>
+                </th>
+                <th class="th-sortable" data-sort="expiresAt" tabindex="0" aria-sort="none">
+                  过期时间<span class="sort-ind" aria-hidden="true"></span>
+                </th>
+                <th class="th-sortable" data-sort="proxyId" tabindex="0" aria-sort="none">
+                  代理 ID<span class="sort-ind" aria-hidden="true"></span>
+                </th>
+                <th class="th-sortable" data-sort="convert" tabindex="0" aria-sort="none">
+                  转换<span class="sort-ind" aria-hidden="true"></span>
+                </th>
+                <th class="th-sortable" data-sort="upload" tabindex="0" aria-sort="none">
+                  上传状态<span class="sort-ind" aria-hidden="true"></span>
+                </th>
               </tr>
             </thead>
             <tbody id="tbody">
@@ -2252,6 +2319,8 @@
       let selectionMode = false;
       let searchVisible = false;
       let tableSearch = "";
+      /** @type {{key:string, dir:"asc"|"desc"}} */
+      let tableSort = { key: "", dir: "asc" };
       let uploadBusy = false;
       let activeUploadTarget = "";
       let uploadAbortController = null;
@@ -2549,13 +2618,155 @@
         return { items, skipped };
       }
 
+      function resolveItemTargetKey(item) {
+        if (!item || item.error) return "skip";
+        if (item.targetFormat === "cpa") return "cpa";
+        if (item.targetFormat === TARGET_SUB2API) return "sub2api";
+        const dir = $("direction")?.value;
+        if (dir === "to-cpa") return "cpa";
+        if (dir === "to-SUB2API") return "sub2api";
+        if (item.sourceFormat === "cpa") return "sub2api";
+        if (item.sourceFormat === "sub2api") return "cpa";
+        return "";
+      }
+
+      function convertSortRank(item) {
+        if (item.error) return 3;
+        if (item.converted) return 2;
+        return 1;
+      }
+
+      function accountStatusSortRank(item) {
+        if (item.error || !item.account) return 9;
+        if (item.accountStatus === ACCOUNT_STATUS.VALID) return 1;
+        if (item.accountStatus === ACCOUNT_STATUS.UNKNOWN) return 2;
+        if (item.accountStatus === ACCOUNT_STATUS.EXPIRED) return 3;
+        return 8;
+      }
+
+      function uploadSortRank(item) {
+        if (item.uploadMessage && String(item.uploadMessage).startsWith("已跳过")) return 7;
+        switch (item.uploadStatus) {
+          case UPLOAD_STATUS.NONE:
+            return 0;
+          case UPLOAD_STATUS.QUEUED:
+            return 1;
+          case UPLOAD_STATUS.UPLOADING:
+            return 2;
+          case UPLOAD_STATUS.SUCCESS:
+            return 3;
+          case UPLOAD_STATUS.FAILED:
+            return 4;
+          case UPLOAD_STATUS.UNKNOWN:
+            return 5;
+          case UPLOAD_STATUS.CANCELLED:
+            return 6;
+          default:
+            return 8;
+        }
+      }
+
+      function compareNullableNumber(a, b) {
+        const aEmpty = a == null || !Number.isFinite(Number(a));
+        const bEmpty = b == null || !Number.isFinite(Number(b));
+        if (aEmpty && bEmpty) return 0;
+        if (aEmpty) return 1;
+        if (bEmpty) return -1;
+        return Number(a) - Number(b);
+      }
+
+      function compareText(a, b) {
+        return String(a || "").localeCompare(String(b || ""), "zh-CN", {
+          numeric: true,
+          sensitivity: "base",
+        });
+      }
+
+      function getSortValue(item, index, key) {
+        switch (key) {
+          case "index":
+            return index;
+          case "sourceFile":
+            return item.sourceFile || "";
+          case "source":
+            return item.sourceFormat || "";
+          case "target":
+            return resolveItemTargetKey(item);
+          case "email":
+            return accountLabel(item);
+          case "accountStatus":
+            return accountStatusSortRank(item);
+          case "expiresAt":
+            return item.expiresAt;
+          case "proxyId":
+            return getItemProxyId(item);
+          case "convert":
+            return convertSortRank(item);
+          case "upload":
+            return uploadSortRank(item);
+          default:
+            return index;
+        }
+      }
+
+      function compareSortValues(a, b, key) {
+        if (key === "expiresAt" || key === "proxyId" || key === "index") {
+          return compareNullableNumber(a, b);
+        }
+        if (
+          key === "accountStatus" ||
+          key === "convert" ||
+          key === "upload"
+        ) {
+          return Number(a) - Number(b);
+        }
+        return compareText(a, b);
+      }
+
+      function sortVisibleRows(rows) {
+        const key = tableSort.key;
+        if (!key) return rows;
+        const dir = tableSort.dir === "desc" ? -1 : 1;
+        return rows.slice().sort((left, right) => {
+          const av = getSortValue(left.item, left.index, key);
+          const bv = getSortValue(right.item, right.index, key);
+          const cmp = compareSortValues(av, bv, key);
+          if (cmp !== 0) return cmp * dir;
+          return left.index - right.index;
+        });
+      }
+
+      function syncSortHeaders() {
+        document.querySelectorAll("th[data-sort]").forEach((th) => {
+          const key = th.getAttribute("data-sort") || "";
+          const active = Boolean(tableSort.key) && tableSort.key === key;
+          th.classList.toggle("is-sorted", active);
+          th.classList.toggle("is-sorted-asc", active && tableSort.dir === "asc");
+          th.classList.toggle("is-sorted-desc", active && tableSort.dir === "desc");
+          th.setAttribute(
+            "aria-sort",
+            active ? (tableSort.dir === "asc" ? "ascending" : "descending") : "none"
+          );
+        });
+      }
+
+      function toggleTableSort(key) {
+        if (!key) return;
+        if (tableSort.key === key) {
+          if (tableSort.dir === "asc") tableSort = { key, dir: "desc" };
+          else tableSort = { key: "", dir: "asc" };
+        } else {
+          tableSort = { key, dir: "asc" };
+        }
+        renderTable();
+      }
+
       function getVisibleItems() {
         const q = tableSearch.trim().toLowerCase();
-        if (!q) return items.map((item, index) => ({ item, index }));
-        const tokens = q.split(/\s+/).filter(Boolean);
-        return items
-          .map((item, index) => ({ item, index }))
-          .filter(({ item }) => {
+        let rows = items.map((item, index) => ({ item, index }));
+        if (q) {
+          const tokens = q.split(/\s+/).filter(Boolean);
+          rows = rows.filter(({ item }) => {
             const proxyId = getItemProxyId(item);
             const haystack = [
               item.sourceFile,
@@ -2577,6 +2788,8 @@
               .toLowerCase();
             return tokens.every((token) => haystack.includes(token));
           });
+        }
+        return sortVisibleRows(rows);
       }
 
       function getOperationItems() {
@@ -3535,6 +3748,7 @@
       function renderTable() {
         document.body.classList.toggle("is-empty", items.length === 0);
         syncTableControls();
+        syncSortHeaders();
         const visibleItems = getVisibleItems();
         if (!items.length) {
           tbody.innerHTML = `<tr><td colspan="10" class="mono">尚未导入文件</td></tr>`;
@@ -3549,7 +3763,7 @@
           return;
         }
         tbody.innerHTML = visibleItems
-          .map(({ item, index }) => {
+          .map(({ item, index }, rowIndex) => {
             refreshAccountExpiry(item);
             const srcTag =
               item.sourceFormat === "cpa"
@@ -3557,30 +3771,24 @@
                 : item.sourceFormat === "sub2api"
                   ? `<span class="tag tag-sub2">SUB2API</span>`
                   : `<span class="tag tag-err">unknown</span>`;
+            const targetKey = resolveItemTargetKey(item);
             let target = "-";
-            if (item.error) {
+            if (item.error || targetKey === "skip") {
               target = `<span class="tag tag-err">跳过</span>`;
-            } else if (item.targetFormat === "cpa") {
+            } else if (targetKey === "cpa") {
               target = `<span class="tag tag-cpa">CPA</span>`;
-            } else if (item.targetFormat === TARGET_SUB2API) {
+            } else if (targetKey === "sub2api") {
               target = `<span class="tag tag-sub2">SUB2API</span>`;
-            } else {
-              const dir = $("direction").value;
-              if (dir === "to-cpa") target = `<span class="tag tag-cpa">CPA</span>`;
-              else if (dir === "to-SUB2API") target = `<span class="tag tag-sub2">SUB2API</span>`;
-              else if (item.sourceFormat === "cpa")
-                target = `<span class="tag tag-sub2">SUB2API</span>`;
-              else if (item.sourceFormat === "sub2api")
-                target = `<span class="tag tag-cpa">CPA</span>`;
             }
             const status = item.error
               ? `<span class="tag tag-err">${escapeHtml(item.error)}</span>`
               : item.converted
                 ? `<span class="tag tag-ok">已转换</span>`
                 : `<span class="tag tag-ok">待转换</span>`;
+            const rowNo = tableSort.key ? rowIndex + 1 : index + 1;
             const firstCell = selectionMode
-              ? `<label class="row-select-cell"><input type="checkbox" class="row-check" data-item-id="${escapeHtml(item.id)}" ${item.selected ? "checked" : ""} /><span>${index + 1}</span></label>`
-              : `${index + 1}`;
+              ? `<label class="row-select-cell"><input type="checkbox" class="row-check" data-item-id="${escapeHtml(item.id)}" ${item.selected ? "checked" : ""} /><span>${rowNo}</span></label>`
+              : `${rowNo}`;
             return `<tr class="${item.selected && selectionMode ? "selected-row" : ""}" data-row-id="${escapeHtml(item.id)}">
             <td class="cell-tag">${firstCell}</td>
             <td class="mono cell-file" title="${escapeHtml(item.sourceFile)}">${escapeHtml(item.sourceFile)}</td>
@@ -5400,6 +5608,7 @@
         fileInput.value = "";
         selectionMode = false;
         tableSearch = "";
+        tableSort = { key: "", dir: "asc" };
         proxyEditingItemId = null;
         $("accountSearch").value = "";
         document.querySelectorAll("[data-upload-select]").forEach((input) => {
@@ -5548,6 +5757,24 @@
         renderTable();
         $("accountSearch").focus();
       });
+
+      const tableHead = document.querySelector(".table-wrap thead");
+      if (tableHead) {
+        tableHead.addEventListener("click", (event) => {
+          if (event.target.closest("button, input, label, a")) return;
+          const th = event.target.closest("th[data-sort]");
+          if (!th || !tableHead.contains(th)) return;
+          toggleTableSort(th.getAttribute("data-sort") || "");
+        });
+        tableHead.addEventListener("keydown", (event) => {
+          if (event.target.closest("button, input, label, a")) return;
+          if (event.key !== "Enter" && event.key !== " ") return;
+          const th = event.target.closest("th[data-sort]");
+          if (!th || !tableHead.contains(th)) return;
+          event.preventDefault();
+          toggleTableSort(th.getAttribute("data-sort") || "");
+        });
+      }
 
       $("direction").addEventListener("change", () => {
         converted = false;
