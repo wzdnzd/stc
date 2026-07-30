@@ -98,6 +98,109 @@
         min-width: 8px;
       }
 
+      .workspace-banner {
+        display: none;
+        align-items: flex-start;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+        padding: 10px 12px;
+        border: 1px solid rgba(245, 158, 11, 0.35);
+        border-radius: 10px;
+        background: rgba(245, 158, 11, 0.08);
+      }
+
+      .workspace-banner.show {
+        display: flex;
+      }
+
+      .workspace-banner-body {
+        flex: 1 1 240px;
+        min-width: 0;
+      }
+
+      .workspace-banner-title {
+        margin: 0 0 4px;
+        font-size: 13px;
+        font-weight: 700;
+        color: #fde68a;
+      }
+
+      .workspace-banner-text {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .workspace-banner-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-left: auto;
+      }
+
+      .choice-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .choice-card {
+        display: block;
+        width: 100%;
+        text-align: left;
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.02);
+        color: var(--text);
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+        transition:
+          border-color 0.15s ease,
+          background 0.15s ease;
+      }
+
+      .choice-card:hover:not(:disabled) {
+        border-color: rgba(59, 130, 246, 0.55);
+        background: var(--accent-soft);
+      }
+
+      .choice-card:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+
+      .choice-card .choice-title {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 2px 0;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .choice-card .choice-desc {
+        display: block;
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1.5;
+      }
+
+      .choice-card .opt-note {
+        font-weight: 500;
+      }
+
+      .choice-card.is-danger:hover:not(:disabled) {
+        border-color: rgba(239, 68, 68, 0.45);
+        background: var(--danger-soft);
+      }
+
       .runtime-badge {
         display: inline-flex;
         align-items: center;
@@ -1648,6 +1751,21 @@
         <span class="toolbar-label" style="font-size: 12px">点击徽章配置服务器 · 本机优先</span>
       </div>
 
+      <div class="workspace-banner" id="workspaceRestoreBanner" hidden>
+        <div class="workspace-banner-body">
+          <p class="workspace-banner-title" id="workspaceRestoreTitle">检测到本地工作区快照</p>
+          <p class="workspace-banner-text" id="workspaceRestoreText"></p>
+        </div>
+        <div class="workspace-banner-actions">
+          <button class="btn-ghost btn-sm" id="btnDiscardWorkspace" type="button">丢弃快照</button>
+          <button class="btn-ghost btn-sm" id="btnRestoreListOnly" type="button">仅恢复列表</button>
+          <button class="btn-primary btn-sm" id="btnRestoreAndResume" type="button" hidden>
+            恢复并续传
+          </button>
+          <button class="btn-ok btn-sm" id="btnRestoreWorkspace" type="button">恢复列表</button>
+        </div>
+      </div>
+
       <div class="grid">
         <div class="card card-import">
           <h2>导入</h2>
@@ -2298,6 +2416,84 @@
       </div>
     </div>
 
+    <div
+      class="modal-backdrop"
+      id="importConflictModal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="importConflictTitle"
+    >
+      <div class="modal" style="width: min(520px, 100%)">
+        <div class="modal-head">
+          <h3 id="importConflictTitle">如何处理新导入的账号？</h3>
+          <button class="icon-btn" id="btnCloseImportConflict" type="button" aria-label="关闭">
+            ×
+          </button>
+        </div>
+        <div class="modal-body">
+          <p class="hint" style="margin-top: 0" id="importConflictSummary"></p>
+          <div class="choice-list">
+            <button class="choice-card" type="button" data-import-action="merge" id="btnImportMerge">
+              <span class="choice-title"
+                >与现有合并<span class="opt-note">推荐</span></span
+              >
+              <span class="choice-desc"
+                >按邮箱/标识去重；同一账号保留过期时间较新的版本，并尽量保留已有上传状态</span
+              >
+            </button>
+            <button class="choice-card" type="button" data-import-action="replace" id="btnImportReplace">
+              <span class="choice-title">替换为本次导入</span>
+              <span class="choice-desc">清空当前列表后仅保留本次文件中的账号</span>
+            </button>
+            <button
+              class="choice-card is-danger"
+              type="button"
+              data-import-action="cancel"
+              id="btnImportCancel"
+            >
+              <span class="choice-title">取消本次导入</span>
+              <span class="choice-desc">保持当前列表不变</span>
+            </button>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn-ghost" id="btnCancelImportConflict" type="button">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      class="modal-backdrop"
+      id="resumeUploadModal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="resumeUploadTitle"
+    >
+      <div class="modal" style="width: min(520px, 100%)">
+        <div class="modal-head">
+          <h3 id="resumeUploadTitle">继续未完成的上传？</h3>
+          <button class="icon-btn" id="btnCloseResumeUpload" type="button" aria-label="关闭">
+            ×
+          </button>
+        </div>
+        <div class="modal-body">
+          <p class="hint" style="margin-top: 0" id="resumeUploadSummary"></p>
+          <label class="opt" style="margin-top: 8px; white-space: normal; align-items: flex-start">
+            <input type="checkbox" id="resumeIncludeUnknown" style="margin-top: 3px" />
+            <span>
+              同时重试「状态未知」账号
+              <span class="opt-note">可能重复建号，请先核对目标服务器</span>
+            </span>
+          </label>
+          <div class="config-status" id="resumeUploadStatus"></div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn-ghost" id="btnCancelResumeUpload" type="button">取消</button>
+          <button class="btn-primary" id="btnConfirmResumeUpload" type="button">开始续传</button>
+        </div>
+      </div>
+    </div>
+
     <div class="toast-host" id="toastHost" aria-live="polite" aria-atomic="true"></div>
 
     <script>
@@ -2354,6 +2550,11 @@
       const FALLBACK_MAX_UPLOAD_ATTEMPTS = 3;
       const LOCAL_CONFIG_STORAGE_KEY = "cpa2sub.targetConfig.v1";
       const LOCAL_UI_SETTINGS_KEY = "cpa2sub.uiSettings.v1";
+      const WORKSPACE_DB_NAME = "cpa2sub.workspace";
+      const WORKSPACE_DB_VERSION = 1;
+      const WORKSPACE_STORE = "snapshots";
+      const WORKSPACE_KEY = "current";
+      const WORKSPACE_SCHEMA_VERSION = 1;
       let serverLimits = {
         maxSub2apiAccounts: FALLBACK_MAX_SUB2API,
         maxCpaFiles: FALLBACK_MAX_CPA,
@@ -2365,6 +2566,21 @@
       let uiSettingsSaveTimer = null;
       let adaptiveUploadConcurrency = 1;
       let uploadCooldownUntil = 0;
+      /** @type {IDBDatabase|null} */
+      let workspaceDb = null;
+      let workspaceSaveTimer = null;
+      let workspaceSaveChain = Promise.resolve();
+      let workspaceHydrating = false;
+      let workspaceDirty = false;
+      /** @type {any|null} 启动时读到的快照；用户处理前不自动灌入列表 */
+      let pendingWorkspaceSnapshot = null;
+      /** @type {{target:string, itemIds:string[]|null}|null} 恢复后仍可续传的任务元信息 */
+      let restoredJobMeta = null;
+      /** @type {((action:string)=>void)|null} */
+      let importConflictResolver = null;
+      /** @type {((result:{ok:boolean, includeUnknown:boolean})=>void)|null} */
+      let resumeUploadResolver = null;
+      let beforeUnloadBound = false;
 
       const TARGET_SUB2API = "SUB2API";
       const TARGET_CPA = "CPA";
@@ -2382,6 +2598,12 @@
         EXPIRED: "expired",
         UNKNOWN: "unknown",
       });
+      const RESUMABLE_UPLOAD_STATUSES = new Set([
+        UPLOAD_STATUS.NONE,
+        UPLOAD_STATUS.QUEUED,
+        UPLOAD_STATUS.FAILED,
+        UPLOAD_STATUS.CANCELLED,
+      ]);
 
       const $ = (id) => document.getElementById(id);
       const dropzone = $("dropzone");
@@ -2454,6 +2676,7 @@
           item.targetFormat = null;
           converted = false;
         }
+        scheduleWorkspaceSave();
       }
 
       function clearProxyValidity(itemsOrAll = null) {
@@ -2813,7 +3036,7 @@
         $("selectedCount").textContent = String(selectedCount());
         const visible = getVisibleItems().length;
         $("searchResultCount").textContent = tableSearch
-          ? `匹配 ${visible} / ${items.length}`
+          ? `匹配 ${visible}，共 ${items.length}`
           : `共 ${items.length}`;
       }
 
@@ -3239,6 +3462,7 @@
             : "上传到 CPA";
         // 上传结束后保留进度条，便于核对；下次开始上传时会刷新
         refreshActionButtons();
+        scheduleWorkspaceSave({ immediate: true, interrupted: Boolean(busy) });
       }
 
       function b64urlDecode(seg) {
@@ -3670,6 +3894,624 @@
         );
       }
 
+      /** 账号稳定标识：优先 email，其次 sub；无标识则返回空（不做跨条去重） */
+      function accountIdentityKey(item) {
+        if (!item?.account || item.error) return "";
+        const acc = item.account;
+        let email = "";
+        let sub = "";
+        if (item.sourceFormat === "cpa" || acc.email || acc.sub) {
+          email = String(acc.email || "").trim().toLowerCase();
+          sub = String(acc.sub || acc._sub || "").trim();
+        }
+        if (!email && acc.credentials) {
+          email = String(acc.credentials.email || "").trim().toLowerCase();
+        }
+        if (!email && acc.extra?.email) {
+          email = String(acc.extra.email || "").trim().toLowerCase();
+        }
+        if (!sub) sub = String(acc._sub || "").trim();
+        if (email) return `email:${email}`;
+        if (sub) return `sub:${sub}`;
+        return "";
+      }
+
+      function accountExpiryRank(item) {
+        refreshAccountExpiry(item);
+        const exp = Number(item?.expiresAt);
+        return Number.isFinite(exp) && exp > 0 ? exp : 0;
+      }
+
+      /**
+       * 合并去重：同 identity 保留过期时间较大者；
+       * 过期相同则优先保留「已有上传成功/更完整状态」的旧项，否则保留后出现者。
+       * 无 identity 的项（含解析错误）一律保留，不去重。
+       */
+      function mergeItemsByIdentity(baseList, incomingList, { preferIncomingOnTie = true } = {}) {
+        const result = [];
+        const indexByKey = new Map();
+        let replaced = 0;
+        let keptOld = 0;
+        let added = 0;
+
+        const consider = (item, fromIncoming) => {
+          if (!item) return;
+          const key = accountIdentityKey(item);
+          if (!key) {
+            result.push(item);
+            if (fromIncoming) added += 1;
+            return;
+          }
+          const existingIdx = indexByKey.get(key);
+          if (existingIdx == null) {
+            indexByKey.set(key, result.length);
+            result.push(item);
+            if (fromIncoming) added += 1;
+            return;
+          }
+          const existing = result[existingIdx];
+          const oldRank = accountExpiryRank(existing);
+          const newRank = accountExpiryRank(item);
+          let takeNew = false;
+          if (newRank > oldRank) takeNew = true;
+          else if (newRank < oldRank) takeNew = false;
+          else if (preferIncomingOnTie && fromIncoming) takeNew = true;
+          else if (!preferIncomingOnTie && fromIncoming) takeNew = false;
+          else takeNew = fromIncoming;
+
+          // 同过期时：若旧项已成功上传，默认保住成功状态（除非新项过期明显更新，上面已处理）
+          if (fromIncoming && newRank === oldRank && existing.uploadStatus === UPLOAD_STATUS.SUCCESS) {
+            takeNew = false;
+          }
+
+          if (takeNew) {
+            // 仅当过期时间相同（重复导入/并列）时继承旧上传状态；
+            // 过期明显更新说明 token 已换新，应重新上传，不沿用 success。
+            if (
+              newRank === oldRank &&
+              (!item.uploadStatus || item.uploadStatus === UPLOAD_STATUS.NONE) &&
+              existing.uploadStatus &&
+              existing.uploadStatus !== UPLOAD_STATUS.NONE
+            ) {
+              item.uploadStatus = existing.uploadStatus;
+              item.uploadTarget = existing.uploadTarget || item.uploadTarget || "";
+              item.uploadMessage = existing.uploadMessage || item.uploadMessage || "";
+              item.uploadAttempts = existing.uploadAttempts || item.uploadAttempts || 0;
+            }
+            // 代理：新项空则继承旧代理（直接写字段，避免合并过程触发快照保存）
+            if (getItemProxyId(item) == null && getItemProxyId(existing) != null) {
+              const inherited = getItemProxyId(existing);
+              item.proxyId = inherited;
+              if (item.account && typeof item.account === "object") {
+                item.account.proxy_id = inherited;
+              }
+              item.proxyValid = existing.proxyValid;
+            }
+            result[existingIdx] = item;
+            replaced += 1;
+          } else {
+            keptOld += 1;
+          }
+        };
+
+        for (const item of baseList || []) consider(item, false);
+        for (const item of incomingList || []) consider(item, true);
+        return { items: result, replaced, keptOld, added };
+      }
+
+      function dedupeItemList(list) {
+        return mergeItemsByIdentity([], list, { preferIncomingOnTie: true }).items;
+      }
+
+      function openWorkspaceDb() {
+        if (workspaceDb) return Promise.resolve(workspaceDb);
+        if (!globalThis.indexedDB) {
+          return Promise.reject(new Error("当前浏览器不支持 IndexedDB"));
+        }
+        return new Promise((resolve, reject) => {
+          const req = indexedDB.open(WORKSPACE_DB_NAME, WORKSPACE_DB_VERSION);
+          req.onupgradeneeded = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains(WORKSPACE_STORE)) {
+              db.createObjectStore(WORKSPACE_STORE);
+            }
+          };
+          req.onsuccess = () => {
+            workspaceDb = req.result;
+            workspaceDb.onversionchange = () => {
+              try {
+                workspaceDb?.close();
+              } catch {}
+              workspaceDb = null;
+            };
+            resolve(workspaceDb);
+          };
+          req.onerror = () => reject(req.error || new Error("打开工作区数据库失败"));
+        });
+      }
+
+      function idbRequest(request) {
+        return new Promise((resolve, reject) => {
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error || new Error("IndexedDB 请求失败"));
+        });
+      }
+
+      function serializeWorkspaceItem(item) {
+        return {
+          id: item.id,
+          sourceFile: item.sourceFile,
+          sourceFormat: item.sourceFormat,
+          account: item.account,
+          error: item.error || "",
+          converted: item.converted || null,
+          targetFormat: item.targetFormat || null,
+          selected: Boolean(item.selected),
+          accountStatus: item.accountStatus || ACCOUNT_STATUS.UNKNOWN,
+          expiresAt: item.expiresAt ?? null,
+          proxyId: item.proxyId ?? null,
+          proxyValid: item.proxyValid ?? null,
+          uploadStatus: item.uploadStatus || UPLOAD_STATUS.NONE,
+          uploadTarget: item.uploadTarget || "",
+          uploadMessage: item.uploadMessage || "",
+          uploadAttempts: item.uploadAttempts || 0,
+        };
+      }
+
+      function reviveWorkspaceItem(raw) {
+        if (!raw || typeof raw !== "object") return null;
+        const item = prepareItem({
+          id: raw.id || makeItemId(),
+          sourceFile: raw.sourceFile || "restored",
+          sourceFormat: raw.sourceFormat || "unknown",
+          account: raw.account ?? null,
+          error: raw.error || "",
+          converted: raw.converted || null,
+          targetFormat: raw.targetFormat || null,
+          selected: Boolean(raw.selected),
+          uploadStatus: raw.uploadStatus || UPLOAD_STATUS.NONE,
+          uploadTarget: raw.uploadTarget || "",
+          uploadMessage: raw.uploadMessage || "",
+          uploadAttempts: Number(raw.uploadAttempts) || 0,
+          proxyId: raw.proxyId ?? null,
+          proxyValid: raw.proxyValid ?? null,
+        });
+        // prepareItem 会重算过期；保留快照里的上传字段
+        if (raw.uploadStatus) item.uploadStatus = raw.uploadStatus;
+        if (raw.uploadTarget) item.uploadTarget = raw.uploadTarget;
+        if (raw.uploadMessage) item.uploadMessage = raw.uploadMessage;
+        if (raw.uploadAttempts != null) item.uploadAttempts = Number(raw.uploadAttempts) || 0;
+        if (raw.converted) {
+          item.converted = raw.converted;
+          item.targetFormat = raw.targetFormat || null;
+        }
+        return item;
+      }
+
+      function buildWorkspaceSnapshot({ interrupted = false } = {}) {
+        let uploadJob = null;
+        if (uploadBusy || interrupted) {
+          uploadJob = {
+            active: Boolean(uploadBusy),
+            interrupted: true,
+            target: activeUploadTarget || restoredJobMeta?.target || "",
+            itemIds: activeUploadItemIds
+              ? Array.from(activeUploadItemIds)
+              : restoredJobMeta?.itemIds || [],
+            updatedAt: new Date().toISOString(),
+          };
+        } else if (restoredJobMeta?.target) {
+          // 仅恢复列表后仍保留任务元信息，便于稍后续传 / 刷新后再次提示
+          uploadJob = {
+            active: false,
+            interrupted: false,
+            target: restoredJobMeta.target,
+            itemIds: restoredJobMeta.itemIds || [],
+            updatedAt: new Date().toISOString(),
+          };
+        } else {
+          // 从当前条目反推最近一次上传目标，避免成功态刷新后丢失核对信息
+          const targeted = items.find(
+            (item) => item.uploadTarget && item.uploadStatus !== UPLOAD_STATUS.NONE
+          );
+          if (targeted?.uploadTarget) {
+            const target = targeted.uploadTarget;
+            uploadJob = {
+              active: false,
+              interrupted: false,
+              target,
+              itemIds: items
+                .filter((item) => item.uploadTarget === target || !item.uploadTarget)
+                .map((item) => item.id),
+              updatedAt: new Date().toISOString(),
+            };
+          }
+        }
+        return {
+          schemaVersion: WORKSPACE_SCHEMA_VERSION,
+          savedAt: new Date().toISOString(),
+          items: items.map(serializeWorkspaceItem),
+          converted: Boolean(converted),
+          selectionMode: Boolean(selectionMode),
+          tableSearch: tableSearch || "",
+          tableSort: tableSort && tableSort.key ? { ...tableSort } : { key: "", dir: "asc" },
+          uploadJob,
+        };
+      }
+
+      function countUploadStats(list, target = "") {
+        const scope = Array.isArray(list) ? list : [];
+        const match = (item) => !target || !item.uploadTarget || item.uploadTarget === target;
+        const count = (status) =>
+          scope.filter((item) => match(item) && item.uploadStatus === status).length;
+        return {
+          total: scope.length,
+          success: count(UPLOAD_STATUS.SUCCESS),
+          failed: count(UPLOAD_STATUS.FAILED),
+          unknown: count(UPLOAD_STATUS.UNKNOWN),
+          cancelled: count(UPLOAD_STATUS.CANCELLED),
+          queued: count(UPLOAD_STATUS.QUEUED),
+          uploading: count(UPLOAD_STATUS.UPLOADING),
+          none: count(UPLOAD_STATUS.NONE),
+        };
+      }
+
+      function summarizeResumeCandidates(
+        list,
+        target,
+        { includeUnknown = false, itemIds = null } = {}
+      ) {
+        const idSet = Array.isArray(itemIds) && itemIds.length ? new Set(itemIds) : null;
+        return (list || []).filter((item) => {
+          if (item.error || !item.account) return false;
+          if (idSet && !idSet.has(item.id)) return false;
+          if (
+            target &&
+            item.uploadTarget &&
+            item.uploadTarget !== target &&
+            item.uploadStatus !== UPLOAD_STATUS.NONE
+          ) {
+            return false;
+          }
+          if (item.uploadStatus === UPLOAD_STATUS.SUCCESS) return false;
+          if (
+            item.uploadStatus === UPLOAD_STATUS.UNKNOWN ||
+            item.uploadStatus === UPLOAD_STATUS.UPLOADING
+          ) {
+            return Boolean(includeUnknown);
+          }
+          return RESUMABLE_UPLOAD_STATUSES.has(item.uploadStatus || UPLOAD_STATUS.NONE);
+        });
+      }
+
+      async function writeWorkspaceSnapshot(snapshot) {
+        const db = await openWorkspaceDb();
+        const tx = db.transaction(WORKSPACE_STORE, "readwrite");
+        tx.objectStore(WORKSPACE_STORE).put(snapshot, WORKSPACE_KEY);
+        await new Promise((resolve, reject) => {
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error || new Error("保存工作区失败"));
+          tx.onabort = () => reject(tx.error || new Error("保存工作区已中止"));
+        });
+      }
+
+      async function readWorkspaceSnapshot() {
+        try {
+          const db = await openWorkspaceDb();
+          const tx = db.transaction(WORKSPACE_STORE, "readonly");
+          const raw = await idbRequest(tx.objectStore(WORKSPACE_STORE).get(WORKSPACE_KEY));
+          if (!raw || typeof raw !== "object") return null;
+          if (Number(raw.schemaVersion) !== WORKSPACE_SCHEMA_VERSION) return null;
+          if (!Array.isArray(raw.items) || !raw.items.length) return null;
+          return raw;
+        } catch {
+          return null;
+        }
+      }
+
+      async function clearWorkspaceSnapshot() {
+        try {
+          const db = await openWorkspaceDb();
+          const tx = db.transaction(WORKSPACE_STORE, "readwrite");
+          tx.objectStore(WORKSPACE_STORE).delete(WORKSPACE_KEY);
+          await new Promise((resolve, reject) => {
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error || new Error("清除工作区失败"));
+            tx.onabort = () => reject(tx.error || new Error("清除工作区已中止"));
+          });
+        } catch {}
+        pendingWorkspaceSnapshot = null;
+        hideWorkspaceRestoreBanner();
+      }
+
+      function scheduleWorkspaceSave({ immediate = false, interrupted = false } = {}) {
+        if (workspaceHydrating) return;
+        workspaceDirty = true;
+        const run = () => {
+          workspaceSaveTimer = null;
+          if (!workspaceDirty && !immediate && !interrupted) return;
+          workspaceDirty = false;
+          const snapshot = buildWorkspaceSnapshot({ interrupted });
+          workspaceSaveChain = workspaceSaveChain
+            .catch(() => {})
+            .then(async () => {
+              if (!snapshot.items.length) {
+                await clearWorkspaceSnapshot();
+                return;
+              }
+              await writeWorkspaceSnapshot(snapshot);
+            })
+            .catch((error) => {
+              console.warn("[workspace] save failed", error);
+            });
+          return workspaceSaveChain;
+        };
+        if (immediate) {
+          clearTimeout(workspaceSaveTimer);
+          workspaceSaveTimer = null;
+          return run();
+        }
+        clearTimeout(workspaceSaveTimer);
+        workspaceSaveTimer = setTimeout(run, 320);
+      }
+
+      async function flushWorkspaceSave({ interrupted = false } = {}) {
+        clearTimeout(workspaceSaveTimer);
+        workspaceSaveTimer = null;
+        workspaceDirty = true;
+        await scheduleWorkspaceSave({ immediate: true, interrupted });
+        try {
+          await workspaceSaveChain;
+        } catch {}
+      }
+
+      function hideWorkspaceRestoreBanner() {
+        const el = $("workspaceRestoreBanner");
+        if (!el) return;
+        el.hidden = true;
+        el.classList.remove("show");
+      }
+
+      function showWorkspaceRestoreBanner(snapshot) {
+        const el = $("workspaceRestoreBanner");
+        if (!el || !snapshot) return;
+        const stats = countUploadStats(snapshot.items, snapshot.uploadJob?.target || "");
+        const savedAt = snapshot.savedAt
+          ? (() => {
+              try {
+                return new Date(snapshot.savedAt).toLocaleString();
+              } catch {
+                return snapshot.savedAt;
+              }
+            })()
+          : "未知时间";
+        const job = snapshot.uploadJob;
+        const interrupted = Boolean(job?.interrupted || job?.active);
+        const jobItemIds = Array.isArray(job?.itemIds) ? job.itemIds : null;
+        const resumable = summarizeResumeCandidates(snapshot.items, job?.target || "", {
+          includeUnknown: false,
+          itemIds: jobItemIds,
+        }).length;
+        const unknown = stats.unknown + stats.uploading;
+        let text = `共 ${stats.total} 个账号，保存于 ${savedAt}`;
+        if (interrupted && job?.target) {
+          text += `，上次 ${job.target} 上传中断，成功：${stats.success}, 失败：${stats.failed}, 未知：${unknown}, 可续传：${resumable}`;
+        } else if (job?.target && (resumable > 0 || unknown > 0)) {
+          text += `，${job.target} 仍有未完成项，成功：${stats.success}, 可续传：${resumable}, 未知：${unknown}`;
+        } else if (stats.success || stats.failed || stats.unknown) {
+          text += `，上传痕迹 成功：${stats.success}, 失败：${stats.failed}, 未知：${stats.unknown}`;
+        } else {
+          text += "，可恢复账号列表与状态";
+        }
+        $("workspaceRestoreText").textContent = text;
+        $("workspaceRestoreTitle").textContent = interrupted
+          ? "检测到未完成的上传任务"
+          : "检测到本地工作区快照";
+        const canResume = Boolean(job?.target && (resumable > 0 || unknown > 0));
+        const resumeBtn = $("btnRestoreAndResume");
+        if (resumeBtn) {
+          resumeBtn.hidden = !canResume;
+          resumeBtn.textContent = "恢复并续传";
+        }
+        const restoreBtn = $("btnRestoreWorkspace");
+        const listOnly = $("btnRestoreListOnly");
+        if (interrupted && canResume) {
+          if (restoreBtn) restoreBtn.hidden = true;
+          if (listOnly) {
+            listOnly.hidden = false;
+            listOnly.textContent = "仅恢复列表";
+          }
+        } else {
+          if (restoreBtn) {
+            restoreBtn.hidden = false;
+            restoreBtn.textContent = "恢复列表";
+          }
+          if (listOnly) listOnly.hidden = true;
+        }
+        const discardBtn = $("btnDiscardWorkspace");
+        if (discardBtn) discardBtn.textContent = "丢弃快照";
+        el.hidden = false;
+        el.classList.add("show");
+      }
+
+      function normalizeInterruptedUploadItems(list) {
+        let changed = 0;
+        for (const item of list || []) {
+          if (item.uploadStatus === UPLOAD_STATUS.UPLOADING) {
+            setItemUploadState(
+              item,
+              UPLOAD_STATUS.UNKNOWN,
+              item.uploadTarget || "",
+              item.uploadMessage?.includes("中断")
+                ? item.uploadMessage
+                : `页面中断时正在上传；该账号可能已写入目标服务器，请先核对后再决定是否重试`,
+              item.uploadAttempts || 0
+            );
+            changed += 1;
+          } else if (item.uploadStatus === UPLOAD_STATUS.QUEUED) {
+            setItemUploadState(
+              item,
+              UPLOAD_STATUS.CANCELLED,
+              item.uploadTarget || "",
+              "页面中断，批次尚未发出",
+              item.uploadAttempts || 0
+            );
+            changed += 1;
+          }
+        }
+        return changed;
+      }
+
+      function showPostRestoreResumeBanner(target) {
+        const el = $("workspaceRestoreBanner");
+        if (!el || !target) return;
+        const resumable = summarizeResumeCandidates(items, target, {
+          includeUnknown: false,
+          itemIds: restoredJobMeta?.itemIds,
+        }).length;
+        const unknownCount = summarizeResumeCandidates(items, target, {
+          includeUnknown: true,
+          itemIds: restoredJobMeta?.itemIds,
+        }).filter(
+          (item) =>
+            item.uploadStatus === UPLOAD_STATUS.UNKNOWN ||
+            item.uploadStatus === UPLOAD_STATUS.UPLOADING
+        ).length;
+        if (!resumable && !unknownCount) {
+          hideWorkspaceRestoreBanner();
+          return;
+        }
+        $("workspaceRestoreTitle").textContent = "列表已恢复，仍可续传";
+        $("workspaceRestoreText").textContent =
+          `目标 ${target}，可安全续传：${resumable}` +
+          (unknownCount ? `, 状态未知：${unknownCount}` : "") +
+          "。已成功的账号默认不会再传。";
+        const resumeBtn = $("btnRestoreAndResume");
+        if (resumeBtn) {
+          resumeBtn.hidden = false;
+          resumeBtn.textContent = "继续续传";
+        }
+        const restoreBtn = $("btnRestoreWorkspace");
+        if (restoreBtn) restoreBtn.hidden = true;
+        const listOnly = $("btnRestoreListOnly");
+        if (listOnly) listOnly.hidden = true;
+        const discardBtn = $("btnDiscardWorkspace");
+        if (discardBtn) discardBtn.textContent = "关闭提示";
+        el.hidden = false;
+        el.classList.add("show");
+      }
+
+      function applyWorkspaceSnapshot(snapshot, { normalizeUpload = true } = {}) {
+        workspaceHydrating = true;
+        try {
+          const revived = (snapshot.items || []).map(reviveWorkspaceItem).filter(Boolean);
+          if (normalizeUpload) normalizeInterruptedUploadItems(revived);
+          items = revived;
+          converted = items.some((item) => item.converted);
+          selectionMode = false;
+          for (const item of items) item.selected = false;
+          tableSearch = "";
+          if ($("accountSearch")) $("accountSearch").value = "";
+          tableSort =
+            snapshot.tableSort && snapshot.tableSort.key
+              ? {
+                  key: String(snapshot.tableSort.key || ""),
+                  dir: snapshot.tableSort.dir === "desc" ? "desc" : "asc",
+                }
+              : { key: "", dir: "asc" };
+          activeUploadItemIds = null;
+          uploadBusy = false;
+          activeUploadTarget = "";
+          uploadCancelRequested = false;
+          uploadAbortController = null;
+          proxyEditingItemId = null;
+          restoredJobMeta = snapshot.uploadJob?.target
+            ? {
+                target: snapshot.uploadJob.target,
+                itemIds: Array.isArray(snapshot.uploadJob.itemIds)
+                  ? snapshot.uploadJob.itemIds
+                  : null,
+              }
+            : null;
+          hideWorkspaceRestoreBanner();
+          pendingWorkspaceSnapshot = null;
+          renderTable();
+          if (snapshot.uploadJob?.target) {
+            const jobIds = restoredJobMeta?.itemIds;
+            const total = jobIds?.length
+              ? items.filter((item) => jobIds.includes(item.id)).length
+              : items.length;
+            uploadProgressMessage(snapshot.uploadJob.target, total || items.length);
+          }
+        } finally {
+          workspaceHydrating = false;
+        }
+        scheduleWorkspaceSave({ immediate: true });
+      }
+
+      function bindBeforeUnloadGuard() {
+        if (beforeUnloadBound) return;
+        beforeUnloadBound = true;
+        window.addEventListener("beforeunload", (event) => {
+          if (!uploadBusy && !workspaceDirty) return;
+          // 尽量同步落盘；浏览器不保证异步完成
+          try {
+            if (uploadBusy || items.length) {
+              const snapshot = buildWorkspaceSnapshot({ interrupted: Boolean(uploadBusy) });
+              // 启动一个不 await 的写入；同时用 sendBeacon 无法写 IDB
+              writeWorkspaceSnapshot(snapshot).catch(() => {});
+            }
+          } catch {}
+          if (uploadBusy) {
+            event.preventDefault();
+            event.returnValue = "上传仍在进行，离开后进度仅保留在本机快照。确定离开？";
+            return event.returnValue;
+          }
+        });
+        document.addEventListener("visibilitychange", () => {
+          if (document.visibilityState === "hidden" && (uploadBusy || items.length)) {
+            flushWorkspaceSave({ interrupted: Boolean(uploadBusy) });
+          }
+        });
+      }
+
+      function openImportConflictModal({ existingCount, incomingCount }) {
+        return new Promise((resolve) => {
+          importConflictResolver = resolve;
+          $("importConflictSummary").textContent =
+            `当前列表已有 ${existingCount} 个账号，本次将导入 ${incomingCount} 个。请选择处理方式。`;
+          $("importConflictModal").classList.add("show");
+        });
+      }
+
+      function closeImportConflictModal(action = "cancel") {
+        $("importConflictModal")?.classList.remove("show");
+        const resolver = importConflictResolver;
+        importConflictResolver = null;
+        if (resolver) resolver(action);
+      }
+
+      function openResumeUploadModal({ target, resumableCount, unknownCount, successCount }) {
+        return new Promise((resolve) => {
+          resumeUploadResolver = resolve;
+          $("resumeUploadSummary").textContent =
+            `目标 ${target}，可安全续传：${resumableCount}` +
+            (unknownCount ? `, 状态未知：${unknownCount}` : "") +
+            `, 已成功：${successCount} 将默认跳过`;
+          $("resumeIncludeUnknown").checked = false;
+          $("resumeUploadStatus").textContent = "";
+          $("resumeUploadStatus").className = "config-status";
+          $("resumeUploadModal").classList.add("show");
+        });
+      }
+
+      function closeResumeUploadModal(result = { ok: false, includeUnknown: false }) {
+        $("resumeUploadModal")?.classList.remove("show");
+        const resolver = resumeUploadResolver;
+        resumeUploadResolver = null;
+        if (resolver) resolver(result);
+      }
+
       function updateStats() {
         const files = new Set(items.map((i) => i.sourceFile));
         $("statFiles").textContent = String(files.size);
@@ -3949,8 +4791,9 @@
         }
         converted = items.some((item) => item.converted);
         renderTable();
+        scheduleWorkspaceSave({ immediate: true });
         showMsg(
-          `转换完成，成功: ${ok}  跳过: ${skip}  失败: ${failed}`,
+          `转换完成，成功：${ok}, 跳过：${skip}, 失败：${failed}`,
           failed || (!ok && skip) ? "err" : "ok"
         );
       }
@@ -4009,7 +4852,7 @@
         };
         downloadJson(pack, `SUB2API-account-${tsStamp()}.json`);
         showMsg(
-          `已导出 SUB2API 合并包：${accounts.length} 个账号` +
+          `已导出 SUB2API 合并包 ${accounts.length} 个账号` +
             (skipped.length ? `，跳过 ${skipped.length} 个失效账号` : ""),
           "ok"
         );
@@ -4142,7 +4985,7 @@
           `cpa-auth-${tsStamp()}.zip`
         );
         showMsg(
-          `已导出 CPA ZIP：${files.length} 个文件` +
+          `已导出 CPA ZIP ${files.length} 个文件` +
             (skipped.length ? `，跳过 ${skipped.length} 个失效账号` : ""),
           "ok"
         );
@@ -4179,7 +5022,7 @@
           await new Promise((r) => setTimeout(r, 120));
         }
         showMsg(
-          `已触发逐个下载 CPA JSON：${list.length} 个` +
+          `已触发逐个下载 CPA JSON ${list.length} 个` +
             (skipped.length ? `，跳过 ${skipped.length} 个失效账号` : ""),
           "ok"
         );
@@ -4498,12 +5341,12 @@
         if (!data) return "";
         const bits = [];
         if (data.refreshed) bits.push("已强制刷新");
-        else if (data.cacheHit) bits.push(`缓存命中·${data.cacheSource || "?"}`);
+        else if (data.cacheHit) bits.push(`缓存命中 ${data.cacheSource || "?"}`);
         else bits.push("已从上游拉取");
         if (data.count != null) bits.push(`${data.count} 个`);
         if (data.ttlSeconds) bits.push(`TTL ${data.ttlSeconds}s`);
         if (data.kvEnabled) bits.push("KV");
-        return bits.join(" · ");
+        return bits.join(", ");
       }
 
       function setProxyCacheMeta(text) {
@@ -4571,7 +5414,7 @@
             renderTable();
           }
           showMsg(`代理缓存已刷新，共 ${ids.length} 个可用代理 ID`, "ok");
-          showToast(`代理缓存已刷新 · ${ids.length} 个`, "ok");
+          showToast(`代理缓存已刷新，共 ${ids.length} 个`, "ok");
         } catch (error) {
           showMsg(`刷新代理缓存失败：${apiErrorMessage(error)}`, "err");
         } finally {
@@ -4733,7 +5576,7 @@
         summaryEl.innerHTML = Array.from(grouped.entries())
           .map(
             ([id, list]) => `<div class="proxy-summary-item">
-              <span>代理 ID <b>${escapeHtml(String(id))}</b> · ${list.length} 个账号</span>
+              <span>代理 ID <b>${escapeHtml(String(id))}</b>，${list.length} 个账号</span>
               <button type="button" class="btn-ghost btn-sm" data-select-invalid-id="${escapeHtml(String(id))}">选中这批</button>
             </div>`
           )
@@ -4849,7 +5692,7 @@
               item,
               UPLOAD_STATUS.NONE,
               "",
-              `已跳过 · 代理 ID ${getItemProxyId(item) ?? "-"} 无效`,
+              `已跳过，代理 ID ${getItemProxyId(item) ?? "-"} 无效`,
               0
             );
           }
@@ -4939,6 +5782,8 @@
         item.uploadTarget = target;
         item.uploadMessage = message;
         item.uploadAttempts = attempts;
+        // 上传状态变更较频繁：防抖写入；批次结束处会 immediate flush
+        scheduleWorkspaceSave();
       }
 
       function isUploadCancellation(error) {
@@ -5116,17 +5961,17 @@
 
         setUploadProgressVisible(true);
         $("uploadProgressTitle").textContent = `${target} 上传进度`;
-        $("uploadProgressPct").textContent = `${pct}% · ${settled}/${total}`;
+        $("uploadProgressPct").textContent = `${pct}% ${settled}/${total}`;
         const desired = noteUploadBatchOutcome.desired || adaptiveUploadConcurrency || 1;
         $("uploadProgressMeta").innerHTML =
-          `<span>成功: <b>${success}</b></span>` +
-          `<span>失败: <b>${failed}</b></span>` +
-          `<span>未知: <b>${unknown}</b></span>` +
-          `<span>处理中: <b>${uploading}</b></span>` +
-          `<span>等待: <b>${queued}</b></span>` +
-          `<span>已取消: <b>${cancelled}</b></span>` +
-          `<span>并发: <b>${adaptiveUploadConcurrency}/${desired}</b></span>` +
-          `<span>共: <b>${total}</b></span>`;
+          `<span>成功：<b>${success}</b></span>` +
+          `<span>失败：<b>${failed}</b></span>` +
+          `<span>未知：<b>${unknown}</b></span>` +
+          `<span>处理中：<b>${uploading}</b></span>` +
+          `<span>等待：<b>${queued}</b></span>` +
+          `<span>已取消：<b>${cancelled}</b></span>` +
+          `<span>并发：<b>${adaptiveUploadConcurrency}/${desired}</b></span>` +
+          `<span>共：<b>${total}</b></span>`;
 
         const fill = $("uploadProgressFill");
         fill.style.width = `${pct}%`;
@@ -5167,7 +6012,7 @@
             entry.item,
             UPLOAD_STATUS.UPLOADING,
             TARGET_SUB2API,
-            `正在处理第 ${batchNumber}/${batchCount} 批 · ${entries.length} 个`
+            `正在处理第 ${batchNumber}/${batchCount} 批，本批 ${entries.length} 个`
           );
         }
         uploadProgressMessage(TARGET_SUB2API, total);
@@ -5264,6 +6109,8 @@
         } finally {
           uploadProgressMessage(TARGET_SUB2API, total);
           renderTable();
+          // 每批结束强制落盘，刷新后可从成功点续传
+          flushWorkspaceSave({ interrupted: true });
         }
       }
 
@@ -5293,7 +6140,7 @@
             entry.item,
             UPLOAD_STATUS.UPLOADING,
             TARGET_CPA,
-            `正在处理第 ${batchNumber}/${batchCount} 批 · ${entries.length} 个`,
+            `正在处理第 ${batchNumber}/${batchCount} 批，本批 ${entries.length} 个`,
             0
           );
         }
@@ -5324,7 +6171,7 @@
                 entry.item,
                 UPLOAD_STATUS.SUCCESS,
                 TARGET_CPA,
-                `上传成功 · Worker 尝试 ${result.attempts || 1} 次`,
+                `上传成功，Worker 尝试 ${result.attempts || 1} 次`,
                 result.attempts || 1
               );
             } else {
@@ -5356,6 +6203,7 @@
         } finally {
           uploadProgressMessage(TARGET_CPA, total);
           renderTable();
+          flushWorkspaceSave({ interrupted: true });
         }
       }
 
@@ -5371,11 +6219,20 @@
         uploadAbortController?.abort();
       }
 
-      async function uploadToServer(target, showConfigOnly = false) {
+      async function uploadToServer(target, showConfigOnly = false, options = {}) {
         if (uploadBusy) return;
-        const operationItems = getOperationItems();
+        const operationItems = Array.isArray(options.itemsOverride)
+          ? options.itemsOverride.filter((item) => item && !item.error && item.account)
+          : getOperationItems();
         if (!showConfigOnly && !operationItems.length) {
-          showMsg(selectionMode ? "请先勾选要上传的账号" : "没有可上传的账号", "err");
+          showMsg(
+            options.itemsOverride
+              ? "没有可续传的账号"
+              : selectionMode
+                ? "请先勾选要上传的账号"
+                : "没有可上传的账号",
+            "err"
+          );
           return;
         }
 
@@ -5391,14 +6248,14 @@
               const expiredText = item.expiresAt
                 ? `已于 ${formatExpiryDisplay(item.expiresAt) || item.expiresAt} 过期`
                 : "账号已过期";
-              setItemUploadState(item, UPLOAD_STATUS.NONE, "", `已跳过 · ${expiredText}`, 0);
+              setItemUploadState(item, UPLOAD_STATUS.NONE, "", `已跳过，${expiredText}`, 0);
             }
             renderTable();
           }
           if (!uploadItems.length) {
             showMsg(
               expiredItems.length
-                ? `所选 ${expiredItems.length} 个账号均已失效，跳过 ${expiredItems.length} 个失效账号。可在「过期处理」中改为仍包含`
+                ? `所选 ${expiredItems.length} 个账号均已失效。可在「过期处理」中改为仍包含`
                 : selectionMode
                   ? "请先勾选要上传的账号"
                   : "没有可上传的账号",
@@ -5451,6 +6308,10 @@
         }
 
         activeUploadItemIds = new Set(uploadItems.map((item) => item.id));
+        restoredJobMeta = {
+          target,
+          itemIds: Array.from(activeUploadItemIds),
+        };
         uploadCancelRequested = false;
         uploadAbortController = new AbortController();
         resetAdaptiveUpload(uploadConcurrency);
@@ -5524,13 +6385,14 @@
           const skipped = expiredItems.length + skippedInvalidProxy.length;
           uploadProgressMessage(target, uploadItems.length);
           showMsg(
-            `${target} 上传完成，成功: ${success}  失败: ${failed}  未知: ${unknown}` +
+            `${target} 上传完成，成功：${success}, 失败：${failed}, 未知：${unknown}` +
               (skipped
-                ? `  跳过 ${skipped} 个（失效 ${expiredItems.length}` +
-                  (skippedInvalidProxy.length ? ` / 无效代理 ${skippedInvalidProxy.length}` : "") +
-                  `）`
+                ? `, 跳过：${skipped}, 失效：${expiredItems.length}` +
+                  (skippedInvalidProxy.length
+                    ? `, 无效代理：${skippedInvalidProxy.length}`
+                    : "")
                 : "") +
-              (forcedInvalidProxy ? " · 含强制上传" : ""),
+              (forcedInvalidProxy ? ", 含强制上传" : ""),
             failed || unknown ? "info" : "ok"
           );
         } catch (error) {
@@ -5572,22 +6434,144 @@
           $("btnCancelUpload").textContent = "取消上传";
           setUploadBusy(false);
           renderTable();
+          flushWorkspaceSave({ interrupted: false });
         }
       }
 
+      async function resumeRestoredUploadJob() {
+        const target = restoredJobMeta?.target || activeUploadTarget || "";
+        if (!target) {
+          showMsg("没有可续传的上传任务", "info");
+          return;
+        }
+        if (uploadBusy) {
+          showMsg("上传进行中", "err");
+          return;
+        }
+        const jobItemIds = restoredJobMeta?.itemIds || null;
+        const stats = countUploadStats(
+          jobItemIds ? items.filter((item) => jobItemIds.includes(item.id)) : items,
+          target
+        );
+        const resumable = summarizeResumeCandidates(items, target, {
+          includeUnknown: false,
+          itemIds: jobItemIds,
+        });
+        const unknownCount = summarizeResumeCandidates(items, target, {
+          includeUnknown: true,
+          itemIds: jobItemIds,
+        }).filter(
+          (item) =>
+            item.uploadStatus === UPLOAD_STATUS.UNKNOWN ||
+            item.uploadStatus === UPLOAD_STATUS.UPLOADING
+        ).length;
+        if (!resumable.length && !unknownCount) {
+          showMsg(`${target} 没有可续传的账号，成功：${stats.success}`, "info");
+          hideWorkspaceRestoreBanner();
+          return;
+        }
+        const decision = await openResumeUploadModal({
+          target,
+          resumableCount: resumable.length,
+          unknownCount,
+          successCount: stats.success,
+        });
+        if (!decision?.ok) {
+          showMsg("已取消续传", "info");
+          return;
+        }
+        const toUpload = summarizeResumeCandidates(items, target, {
+          includeUnknown: Boolean(decision.includeUnknown),
+          itemIds: jobItemIds,
+        });
+        if (!toUpload.length) {
+          showMsg("没有符合条件的续传账号", "err");
+          return;
+        }
+        selectionMode = false;
+        for (const item of items) item.selected = false;
+        hideWorkspaceRestoreBanner();
+        renderTable();
+        await uploadToServer(target, false, { itemsOverride: toUpload });
+      }
+
+      async function restoreWorkspaceFromPending({ resume = false } = {}) {
+        // 列表已在内存中时，「继续续传」只走续传，不再重新灌快照
+        if (!pendingWorkspaceSnapshot && items.length && restoredJobMeta?.target && resume) {
+          await resumeRestoredUploadJob();
+          return;
+        }
+        const snapshot = pendingWorkspaceSnapshot || (await readWorkspaceSnapshot());
+        if (!snapshot?.items?.length) {
+          if (items.length && restoredJobMeta?.target && resume) {
+            await resumeRestoredUploadJob();
+            return;
+          }
+          showMsg("没有可恢复的工作区快照", "info");
+          hideWorkspaceRestoreBanner();
+          return;
+        }
+        if (uploadBusy) {
+          showMsg("上传进行中，无法恢复快照", "err");
+          return;
+        }
+        if (items.length && pendingWorkspaceSnapshot) {
+          const ok = window.confirm(
+            `当前列表已有 ${items.length} 个账号。恢复快照将替换当前列表，是否继续？`
+          );
+          if (!ok) return;
+        }
+        const target = snapshot.uploadJob?.target || "";
+        applyWorkspaceSnapshot(snapshot, { normalizeUpload: true });
+        showMsg(`已恢复 ${items.length} 个账号到本地列表`, "ok");
+        if (resume && target) {
+          await resumeRestoredUploadJob();
+          return;
+        }
+        if (target) showPostRestoreResumeBanner(target);
+      }
+
+      async function discardPendingWorkspace() {
+        if (uploadBusy) {
+          showMsg("上传进行中，无法丢弃快照", "err");
+          return;
+        }
+        // 列表已恢复后的「关闭提示」：只隐藏横幅，不删快照
+        if (!pendingWorkspaceSnapshot && items.length) {
+          hideWorkspaceRestoreBanner();
+          const discardBtn = $("btnDiscardWorkspace");
+          if (discardBtn) discardBtn.textContent = "丢弃快照";
+          return;
+        }
+        const count = pendingWorkspaceSnapshot?.items?.length || 0;
+        const ok = window.confirm(
+          count
+            ? `确定丢弃本机保存的 ${count} 个账号快照？此操作不可恢复。`
+            : "确定丢弃本机工作区快照？"
+        );
+        if (!ok) return;
+        restoredJobMeta = null;
+        await clearWorkspaceSnapshot();
+        showMsg("已丢弃本地工作区快照", "info");
+      }
+
       async function handleFiles(fileList) {
+        if (uploadBusy) {
+          showMsg("上传进行中，请先取消或等待完成后再导入", "err");
+          return;
+        }
         clearMsg();
-        converted = false;
         const files = Array.from(fileList || []);
         if (!files.length) return;
 
+        const incoming = [];
         for (const file of files) {
           try {
             const text = await file.text();
             const parsed = parseFileContent(file.name, text);
-            items.push(...parsed);
+            incoming.push(...parsed);
           } catch (e) {
-            items.push(
+            incoming.push(
               prepareItem({
                 sourceFile: file.name,
                 sourceFormat: "unknown",
@@ -5597,12 +6581,85 @@
             );
           }
         }
+        if (!incoming.length) {
+          showMsg("未从所选文件中解析到账号", "err");
+          return;
+        }
 
+        // 用户已看到恢复横幅但尚未恢复：导入时先询问是否丢弃快照
+        if (!items.length && pendingWorkspaceSnapshot?.items?.length) {
+          const snapCount = pendingWorkspaceSnapshot.items.length;
+          const go = window.confirm(
+            `本机还有上次 ${snapCount} 个账号的工作区快照尚未恢复。\n` +
+              `确定继续导入将丢弃该快照，仅使用本次文件。\n\n` +
+              `点击「取消」可先恢复快照。`
+          );
+          if (!go) {
+            fileInput.value = "";
+            return;
+          }
+          await clearWorkspaceSnapshot();
+        }
+
+        let mode = "merge";
+        if (items.length) {
+          mode = await openImportConflictModal({
+            existingCount: items.length,
+            incomingCount: incoming.length,
+          });
+          if (mode === "cancel") {
+            fileInput.value = "";
+            showMsg("已取消本次导入", "info");
+            return;
+          }
+        }
+
+        // 本次文件内部先去重
+        const incomingDeduped = dedupeItemList(incoming);
+        const internalDropped = incoming.length - incomingDeduped.length;
+
+        let finalItems = [];
+        let mergeInfo = { replaced: 0, keptOld: 0, added: 0 };
+        if (mode === "replace" || !items.length) {
+          finalItems = incomingDeduped;
+          mergeInfo = { replaced: 0, keptOld: 0, added: incomingDeduped.length };
+          // 替换后转换态以新数据为准
+          converted = false;
+          restoredJobMeta = null;
+        } else {
+          mergeInfo = mergeItemsByIdentity(items, incomingDeduped, {
+            preferIncomingOnTie: true,
+          });
+          finalItems = mergeInfo.items;
+          converted = finalItems.some((item) => item.converted);
+        }
+
+        items = finalItems;
+        // 新导入默认不沿用选择态
+        for (const item of items) item.selected = false;
+        fileInput.value = "";
+        hideWorkspaceRestoreBanner();
+        pendingWorkspaceSnapshot = null;
+        const discardBtn = $("btnDiscardWorkspace");
+        if (discardBtn) discardBtn.textContent = "丢弃快照";
         renderTable();
-        showMsg(`已导入 ${files.length} 个文件，累计账号: ${items.length}`, "info");
+        scheduleWorkspaceSave({ immediate: true });
+
+        const parts = [`已导入 ${files.length} 个文件`];
+        if (mode === "replace") parts.push("已替换原列表");
+        else if (mergeInfo.added) parts.push(`新增：${mergeInfo.added}`);
+        if (mergeInfo.replaced) parts.push(`更新：${mergeInfo.replaced}`);
+        if (mergeInfo.keptOld) parts.push(`保留较新已有：${mergeInfo.keptOld}`);
+        if (internalDropped > 0) parts.push(`文件内去重：${internalDropped}`);
+        parts.push(`当前共 ${items.length} 个账号`);
+        showMsg(parts.join(", "), "ok");
       }
 
       function clearAll() {
+        if (uploadBusy) {
+          showMsg("上传进行中，无法清空", "err");
+          return;
+        }
         items = [];
         converted = false;
         fileInput.value = "";
@@ -5610,6 +6667,7 @@
         tableSearch = "";
         tableSort = { key: "", dir: "asc" };
         proxyEditingItemId = null;
+        restoredJobMeta = null;
         $("accountSearch").value = "";
         document.querySelectorAll("[data-upload-select]").forEach((input) => {
           input.checked = false;
@@ -5617,8 +6675,14 @@
         document.querySelectorAll("[data-account-select]").forEach((input) => {
           input.checked = false;
         });
+        setUploadProgressVisible(false);
         clearMsg();
         renderTable();
+        clearWorkspaceSnapshot();
+        pendingWorkspaceSnapshot = null;
+        hideWorkspaceRestoreBanner();
+        const discardBtn = $("btnDiscardWorkspace");
+        if (discardBtn) discardBtn.textContent = "丢弃快照";
       }
 
       function commitProxyInlineEdit(itemId, rawValue) {
@@ -5640,6 +6704,7 @@
         }
         proxyEditingItemId = null;
         renderTable();
+        scheduleWorkspaceSave({ immediate: true });
         return true;
       }
 
@@ -5784,6 +6849,7 @@
         }
         renderTable();
         saveUiSettingsSoon();
+        scheduleWorkspaceSave();
       });
 
       function bindClampedNumber(inputId, getMax, getFallback) {
@@ -6000,8 +7066,69 @@
         }
       });
 
+      // 工作区恢复横幅
+      $("btnRestoreWorkspace")?.addEventListener("click", () => {
+        restoreWorkspaceFromPending({ resume: false }).catch((error) =>
+          showMsg(error?.message || String(error), "err")
+        );
+      });
+      $("btnRestoreListOnly")?.addEventListener("click", () => {
+        restoreWorkspaceFromPending({ resume: false }).catch((error) =>
+          showMsg(error?.message || String(error), "err")
+        );
+      });
+      $("btnRestoreAndResume")?.addEventListener("click", () => {
+        restoreWorkspaceFromPending({ resume: true }).catch((error) =>
+          showMsg(error?.message || String(error), "err")
+        );
+      });
+      $("btnDiscardWorkspace")?.addEventListener("click", () => {
+        discardPendingWorkspace().catch((error) => showMsg(error?.message || String(error), "err"));
+      });
+
+      // 导入冲突弹窗
+      $("btnCloseImportConflict")?.addEventListener("click", () => closeImportConflictModal("cancel"));
+      $("btnCancelImportConflict")?.addEventListener("click", () =>
+        closeImportConflictModal("cancel")
+      );
+      $("importConflictModal")?.addEventListener("click", (event) => {
+        if (event.target === $("importConflictModal")) closeImportConflictModal("cancel");
+      });
+      $("importConflictModal")?.addEventListener("click", (event) => {
+        const btn = event.target.closest?.("[data-import-action]");
+        if (!btn) return;
+        closeImportConflictModal(btn.getAttribute("data-import-action") || "cancel");
+      });
+
+      // 续传确认弹窗
+      $("btnCloseResumeUpload")?.addEventListener("click", () =>
+        closeResumeUploadModal({ ok: false, includeUnknown: false })
+      );
+      $("btnCancelResumeUpload")?.addEventListener("click", () =>
+        closeResumeUploadModal({ ok: false, includeUnknown: false })
+      );
+      $("resumeUploadModal")?.addEventListener("click", (event) => {
+        if (event.target === $("resumeUploadModal")) {
+          closeResumeUploadModal({ ok: false, includeUnknown: false });
+        }
+      });
+      $("btnConfirmResumeUpload")?.addEventListener("click", () => {
+        closeResumeUploadModal({
+          ok: true,
+          includeUnknown: Boolean($("resumeIncludeUnknown")?.checked),
+        });
+      });
+
       document.addEventListener("keydown", (event) => {
         if (event.key !== "Escape") return;
+        if ($("resumeUploadModal")?.classList.contains("show")) {
+          closeResumeUploadModal({ ok: false, includeUnknown: false });
+          return;
+        }
+        if ($("importConflictModal")?.classList.contains("show")) {
+          closeImportConflictModal("cancel");
+          return;
+        }
         if ($("proxyValidateModal")?.classList.contains("show")) {
           closeProxyValidateModal("cancel");
           return;
@@ -6154,9 +7281,32 @@
         if (floatingTipAnchor) positionFloatingTip(floatingTipAnchor);
       });
 
+      bindBeforeUnloadGuard();
       renderTable();
       updateRuntimeConfigUi();
       loadRuntimeConfigStatus(false);
+
+      // 启动时检测本机工作区快照（不自动灌入，避免干扰新导入）
+      (async () => {
+        try {
+          const snapshot = await readWorkspaceSnapshot();
+          if (!snapshot?.items?.length) return;
+          pendingWorkspaceSnapshot = snapshot;
+          // 规范化展示用副本中的 uploading → 文案统计
+          const previewItems = snapshot.items.map((raw) => ({ ...raw }));
+          for (const item of previewItems) {
+            if (item.uploadStatus === UPLOAD_STATUS.UPLOADING) {
+              item.uploadStatus = UPLOAD_STATUS.UNKNOWN;
+            }
+          }
+          showWorkspaceRestoreBanner({
+            ...snapshot,
+            items: previewItems,
+          });
+        } catch (error) {
+          console.warn("[workspace] restore probe failed", error);
+        }
+      })();
     </script>
   </body>
 </html>
