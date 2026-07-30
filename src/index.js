@@ -168,6 +168,33 @@ async function handleApi(request, env, url) {
     return jsonResponse({ ok: true, target: "SUB2API", ...result });
   }
 
+  // 扫描 SUB2API 同邮箱/名称重复账号（仅预览，不删除）
+  if (url.pathname === "/api/sub2api/dedupe/scan" && request.method === "POST") {
+    const body = await readJsonBody(request, 32 * 1024);
+    const override = extractConfigOverride(body?.config ?? body);
+    const result = await scanSub2apiDuplicates(env, override, request.signal);
+    return jsonResponse({ ok: true, target: "SUB2API", ...result });
+  }
+
+  // 按确认后的账号 ID 列表并发删除 SUB2API 重复账号
+  if (url.pathname === "/api/sub2api/dedupe/apply" && request.method === "POST") {
+    const body = await readJsonBody(request, 2 * 1024 * 1024);
+    const override = extractConfigOverride(body?.config ?? body);
+    const ids = body?.ids ?? body?.accountIds ?? body?.account_ids;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new HttpError(400, "ids 必须是非空数组。", "INVALID_PAYLOAD");
+    }
+    if (ids.length > 5000) {
+      throw new HttpError(400, "单次最多删除 5000 个账号。", "BATCH_TOO_LARGE");
+    }
+    const result = await applySub2apiDedupe(env, ids, override, request.signal);
+    return jsonResponse({
+      ok: result.failedCount === 0,
+      target: "SUB2API",
+      ...result,
+    });
+  }
+
   if (url.pathname === "/api/upload/cpa" && request.method === "POST") {
     const body = await readJsonBody(request, 20 * 1024 * 1024);
     const files = body?.files;
@@ -1231,6 +1258,361 @@ async function listSub2apiProxies(
     kvEnabled: Boolean(getProxyCacheKv(env)),
     count: mapped.proxyIds.length,
     proxyIds: mapped.proxyIds,
+  };
+}
+
+const DEDUPE_PAGE_SIZE = 200;
+const DEDUPE_SCAN_CONCURRENCY = 4;
+const DEDUPE_DELETE_CONCURRENCY = 4;
+const DEDUPE_NORMAL_STATUSES = new Set([
+  "active",
+  "normal",
+  "enabled",
+  "ok",
+  "running",
+  "success",
+  "valid",
+  "healthy",
+  "1",
+  "true",
+]);
+
+function extractAccountsPageItems(payload) {
+  const root = payload?.data !== undefined ? payload.data : payload;
+  if (Array.isArray(root)) return { items: root, total: root.length, pages: 1 };
+  if (!root || typeof root !== "object") {
+    throw new HttpError(502, "SUB2API 账号列表响应无效。", "INVALID_UPSTREAM_RESPONSE");
+  }
+  const items = root.items ?? root.accounts ?? root.list ?? root.records;
+  if (!Array.isArray(items)) {
+    throw new HttpError(502, "SUB2API 账号列表缺少 items 数组。", "INVALID_UPSTREAM_RESPONSE");
+  }
+  const totalRaw = root.total ?? root.count ?? root.total_count;
+  const pagesRaw = root.pages ?? root.page_count ?? root.total_pages;
+  const total = Number.isFinite(Number(totalRaw)) ? Math.max(0, Math.floor(Number(totalRaw))) : items.length;
+  const pages = Number.isFinite(Number(pagesRaw))
+    ? Math.max(1, Math.floor(Number(pagesRaw)))
+    : Math.max(1, Math.ceil(total / DEDUPE_PAGE_SIZE) || 1);
+  return { items, total, pages };
+}
+
+async function fetchSub2apiAccountsPage(config, page, pageSize, clientSignal) {
+  const query = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+    sort_by: "id",
+    sort_order: "asc",
+    lite: "1",
+  });
+  const result = await sub2apiRequest(
+    config,
+    `/api/v1/admin/accounts?${query.toString()}`,
+    { method: "GET" },
+    VERIFY_TIMEOUT_MS,
+    3,
+    clientSignal
+  );
+  const parsed = extractAccountsPageItems(result.data);
+  for (const item of parsed.items) {
+    if (!item || typeof item !== "object" || item.id == null) {
+      throw new HttpError(502, `SUB2API 账号列表第 ${page} 页存在缺少 id 的记录。`, "INVALID_UPSTREAM_RESPONSE");
+    }
+  }
+  return { ...parsed, attempts: result.attempts };
+}
+
+async function listAllSub2apiAccounts(config, clientSignal) {
+  const first = await fetchSub2apiAccountsPage(config, 1, DEDUPE_PAGE_SIZE, clientSignal);
+  const expectedTotal = first.total;
+  let expectedPages = first.pages;
+  if (!expectedPages || expectedPages < 1) {
+    expectedPages = Math.max(1, Math.ceil(expectedTotal / DEDUPE_PAGE_SIZE) || 1);
+  }
+  if (expectedPages > 1_000_000) {
+    throw new HttpError(502, "SUB2API 账号分页数量异常，已停止扫描。", "INVALID_UPSTREAM_RESPONSE");
+  }
+
+  const pages = new Map([[1, first]]);
+  let attempts = first.attempts || 1;
+
+  if (expectedPages > 1) {
+    const pageNumbers = Array.from({ length: expectedPages - 1 }, (_, i) => i + 2);
+    const rest = await mapWithConcurrency(pageNumbers, DEDUPE_SCAN_CONCURRENCY, async (page) => {
+      const data = await fetchSub2apiAccountsPage(config, page, DEDUPE_PAGE_SIZE, clientSignal);
+      return { page, data };
+    });
+    for (const entry of rest) {
+      pages.set(entry.page, entry.data);
+      attempts += entry.data.attempts || 0;
+    }
+  }
+
+  const allAccounts = [];
+  const seenIds = new Set();
+  for (let page = 1; page <= expectedPages; page++) {
+    const data = pages.get(page);
+    if (!data) {
+      throw new HttpError(502, `SUB2API 账号第 ${page} 页缺失，扫描不完整。`, "INVALID_UPSTREAM_RESPONSE");
+    }
+    if (data.total !== expectedTotal || data.pages !== expectedPages) {
+      // pages 可能因 total 推算与上游不一致；仅在 total 变化时判定为数据漂移
+      if (data.total !== expectedTotal) {
+        throw new HttpError(
+          409,
+          `扫描期间账号数据发生变化：第 1 页 total=${expectedTotal}，第 ${page} 页 total=${data.total}。请重试。`,
+          "SCAN_RACE"
+        );
+      }
+    }
+    for (const item of data.items) {
+      const marker = String(item.id);
+      if (seenIds.has(marker)) {
+        throw new HttpError(502, `分页结果重复出现账号 ID=${marker}。`, "INVALID_UPSTREAM_RESPONSE");
+      }
+      seenIds.add(marker);
+      allAccounts.push(item);
+    }
+  }
+
+  if (expectedTotal > 0 && seenIds.size !== expectedTotal) {
+    // 部分上游 total 不准时仍返回实际列表，但标注不一致
+    console.warn(
+      `SUB2API dedupe scan total mismatch: expected=${expectedTotal}, unique=${seenIds.size}`
+    );
+  }
+
+  allAccounts.sort(compareAccountIdAsc);
+  return { accounts: allAccounts, attempts, reportedTotal: expectedTotal };
+}
+
+function compareAccountIdAsc(a, b) {
+  const av = a?.id;
+  const bv = b?.id;
+  const an = Number(av);
+  const bn = Number(bv);
+  const aNum = Number.isFinite(an);
+  const bNum = Number.isFinite(bn);
+  if (aNum && bNum) return an - bn;
+  if (aNum) return -1;
+  if (bNum) return 1;
+  return String(av).localeCompare(String(bv));
+}
+
+function normalizeDedupeEmail(value) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase();
+}
+
+/** 去重分组键：优先邮箱，其次 name；无标识则不参与去重 */
+function accountDedupeKey(account) {
+  if (!account || typeof account !== "object") return "";
+  const email = normalizeDedupeEmail(
+    account.credentials?.email || account.extra?.email || account.email || ""
+  );
+  if (email) return `email:${email}`;
+
+  const name = String(account.name ?? "").trim();
+  if (!name) return "";
+  const nameKey = name.toLowerCase();
+  if (nameKey.includes("@")) return `email:${nameKey}`;
+  return `name:${nameKey}`;
+}
+
+function isNormalAccountStatus(status) {
+  if (status == null || status === "") return false;
+  const raw = String(status).trim().toLowerCase();
+  if (DEDUPE_NORMAL_STATUSES.has(raw)) return true;
+  // 数字 1 表示正常
+  const n = Number(status);
+  return Number.isFinite(n) && n === 1;
+}
+
+function accountExpiresUnix(account) {
+  if (!account || typeof account !== "object") return null;
+  const candidates = [
+    account.credentials?.expires_at,
+    account.expires_at,
+    account.expired_at,
+    account.expired,
+    account.extra?.expires_at,
+  ];
+  for (const raw of candidates) {
+    if (raw == null || raw === "") continue;
+    if (typeof raw === "number" && Number.isFinite(raw)) {
+      // 兼容毫秒时间戳
+      return raw > 1e12 ? Math.floor(raw / 1000) : Math.floor(raw);
+    }
+    const asNum = Number(raw);
+    if (Number.isFinite(asNum) && String(raw).trim() !== "" && !String(raw).includes("-")) {
+      return asNum > 1e12 ? Math.floor(asNum / 1000) : Math.floor(asNum);
+    }
+    const text = String(raw).trim();
+    const normalized = text.endsWith("Z") ? `${text.slice(0, -1)}+00:00` : text;
+    const ms = Date.parse(normalized);
+    if (Number.isFinite(ms)) return Math.floor(ms / 1000);
+  }
+  return null;
+}
+
+function summarizeDedupeAccount(account) {
+  const email =
+    normalizeDedupeEmail(
+      account?.credentials?.email || account?.extra?.email || account?.email || ""
+    ) ||
+    (String(account?.name || "").includes("@") ? normalizeDedupeEmail(account.name) : "") ||
+    "";
+  return {
+    id: account?.id,
+    name: account?.name ?? "",
+    email,
+    platform: account?.platform ?? "",
+    type: account?.type ?? "",
+    status: account?.status ?? "",
+    expiresAt: accountExpiresUnix(account),
+    createdAt: account?.created_at ?? account?.createdAt ?? null,
+    normal: isNormalAccountStatus(account?.status),
+  };
+}
+
+/**
+ * 保留策略：
+ * 1. 优先保留正常状态账号
+ * 2. 状态相同时优先保留过期时间较晚者（无过期信息排后）
+ * 3. 再按更小 id 保留
+ */
+function selectDedupeKeeper(members) {
+  return members.slice().sort((a, b) => {
+    const aNormal = isNormalAccountStatus(a.status) ? 1 : 0;
+    const bNormal = isNormalAccountStatus(b.status) ? 1 : 0;
+    if (aNormal !== bNormal) return bNormal - aNormal;
+
+    const aExp = accountExpiresUnix(a);
+    const bExp = accountExpiresUnix(b);
+    const aHas = aExp != null && Number.isFinite(aExp);
+    const bHas = bExp != null && Number.isFinite(bExp);
+    if (aHas && bHas && aExp !== bExp) return bExp - aExp;
+    if (aHas !== bHas) return aHas ? -1 : 1;
+
+    return compareAccountIdAsc(a, b);
+  })[0];
+}
+
+function buildSub2apiDuplicatePlan(accounts) {
+  const groups = new Map();
+  for (const account of accounts) {
+    const key = accountDedupeKey(account);
+    if (!key) continue;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(account);
+  }
+
+  const plan = [];
+  for (const [key, members] of groups.entries()) {
+    if (members.length < 2) continue;
+    const keeper = selectDedupeKeeper(members);
+    const keepId = String(keeper.id);
+    const toDelete = members
+      .filter((item) => String(item.id) !== keepId)
+      .slice()
+      .sort(compareAccountIdAsc);
+    plan.push({
+      key,
+      count: members.length,
+      keep: summarizeDedupeAccount(keeper),
+      delete: toDelete.map(summarizeDedupeAccount),
+      members: members.slice().sort(compareAccountIdAsc).map(summarizeDedupeAccount),
+    });
+  }
+
+  plan.sort((a, b) => {
+    const keyCmp = String(a.key).localeCompare(String(b.key));
+    if (keyCmp !== 0) return keyCmp;
+    return compareAccountIdAsc(a.keep, b.keep);
+  });
+  return plan;
+}
+
+async function scanSub2apiDuplicates(env, override = null, clientSignal = undefined) {
+  const config = resolveTargetConfig(env, "SUB2API", override);
+  const listed = await listAllSub2apiAccounts(config, clientSignal);
+  const plan = buildSub2apiDuplicatePlan(listed.accounts);
+  const plannedDeletionCount = plan.reduce((sum, group) => sum + group.delete.length, 0);
+  const accountsInDuplicateGroups = plan.reduce((sum, group) => sum + group.count, 0);
+  return {
+    baseUrl: config.baseUrl,
+    source: config.source,
+    attempts: listed.attempts,
+    accountCount: listed.accounts.length,
+    reportedTotal: listed.reportedTotal,
+    duplicateGroupCount: plan.length,
+    accountsInDuplicateGroups,
+    plannedDeletionCount,
+    groups: plan,
+  };
+}
+
+async function deleteSub2apiAccount(config, accountId, clientSignal) {
+  const encodedId = encodeURIComponent(String(accountId));
+  try {
+    await sub2apiRequest(
+      config,
+      `/api/v1/admin/accounts/${encodedId}`,
+      { method: "DELETE" },
+      VERIFY_TIMEOUT_MS,
+      3,
+      clientSignal,
+      { writeOperation: true, retryAmbiguous: false }
+    );
+    return { status: "deleted", id: accountId };
+  } catch (error) {
+    if (error?.status === 404) {
+      return { status: "already_absent", id: accountId };
+    }
+    return {
+      status: "failed",
+      id: accountId,
+      error: publicErrorMessage(error),
+      httpStatus: error?.status,
+      code: error?.code,
+    };
+  }
+}
+
+async function applySub2apiDedupe(env, ids, override = null, clientSignal = undefined) {
+  const config = resolveTargetConfig(env, "SUB2API", override);
+  const normalizedIds = [];
+  const seen = new Set();
+  for (const raw of ids) {
+    if (raw == null || raw === "") continue;
+    const id = typeof raw === "number" || typeof raw === "string" ? raw : String(raw);
+    const marker = String(id);
+    if (seen.has(marker)) continue;
+    seen.add(marker);
+    normalizedIds.push(id);
+  }
+  if (!normalizedIds.length) {
+    throw new HttpError(400, "没有可删除的账号 ID。", "INVALID_PAYLOAD");
+  }
+
+  const results = await mapWithConcurrency(
+    normalizedIds,
+    DEDUPE_DELETE_CONCURRENCY,
+    async (id) => deleteSub2apiAccount(config, id, clientSignal)
+  );
+
+  const deletedCount = results.filter((item) => item.status === "deleted").length;
+  const alreadyAbsentCount = results.filter((item) => item.status === "already_absent").length;
+  const failed = results.filter((item) => item.status === "failed");
+  return {
+    baseUrl: config.baseUrl,
+    source: config.source,
+    requestedCount: normalizedIds.length,
+    deletedCount,
+    alreadyAbsentCount,
+    failedCount: failed.length,
+    results,
+    failures: failed,
   };
 }
 
