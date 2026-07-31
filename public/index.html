@@ -285,39 +285,74 @@
         flex: 1 1 auto;
       }
 
-      .import-mode-switch {
+      .card-import-title {
         display: flex;
-        gap: 4px;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
         margin-bottom: 12px;
-        padding: 3px;
-        border-radius: 10px;
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid var(--border);
       }
 
-      .import-mode-btn {
-        flex: 1 1 0;
-        border: 0;
-        background: transparent;
-        color: var(--muted);
+      .card-import-title h2 {
+        margin: 0;
+      }
+
+      .import-mode-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+        user-select: none;
+      }
+
+      .import-mode-toggle-label {
         font-size: 12px;
+        color: var(--muted);
         font-weight: 600;
-        padding: 8px 10px;
-        border-radius: 8px;
-        cursor: pointer;
-        transition: 0.15s ease;
+        white-space: nowrap;
       }
 
-      .import-mode-btn:hover {
+      .import-mode-toggle-label.is-active {
         color: var(--text);
       }
 
-      .import-mode-btn.active {
-        background: var(--accent-soft);
-        color: var(--accent);
+      .import-mode-switch {
+        position: relative;
+        width: 42px;
+        height: 24px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.04);
+        cursor: pointer;
+        padding: 0;
+        transition: 0.18s ease;
+        flex-shrink: 0;
       }
 
-      .import-mode-btn:disabled {
+      .import-mode-switch::after {
+        content: "";
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #e2e8f0;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+        transition: 0.18s ease;
+      }
+
+      .import-mode-switch.is-remote {
+        background: var(--accent-soft);
+        border-color: rgba(96, 165, 250, 0.45);
+      }
+
+      .import-mode-switch.is-remote::after {
+        left: 20px;
+        background: var(--accent);
+      }
+
+      .import-mode-switch:disabled {
         opacity: 0.55;
         cursor: not-allowed;
       }
@@ -326,101 +361,76 @@
         display: none !important;
       }
 
-      .transfer-panel {
+      .remote-panel {
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 14px;
         flex: 1 1 auto;
         min-height: 132px;
       }
 
-      .transfer-dir-row {
-        display: flex;
+      .remote-source-row {
+        display: grid;
+        grid-template-columns: 1fr;
         gap: 6px;
       }
 
-      .transfer-dir-btn {
-        flex: 1 1 0;
-        border: 1px solid var(--border);
-        background: rgba(255, 255, 255, 0.02);
-        color: var(--text);
-        font-size: 12px;
-        font-weight: 600;
-        padding: 10px 8px;
-        border-radius: 8px;
-        cursor: pointer;
-        transition: 0.15s ease;
+      .remote-source-row select {
+        width: 100%;
       }
 
-      .transfer-dir-btn:hover {
-        border-color: var(--accent);
-      }
-
-      .transfer-dir-btn.active {
-        border-color: var(--accent);
-        background: var(--accent-soft);
-        color: var(--accent);
-      }
-
-      .transfer-dir-btn:disabled {
-        opacity: 0.55;
-        cursor: not-allowed;
-      }
-
-      .transfer-source-row {
+      .remote-meta-row {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 8px;
-        flex-wrap: wrap;
+        gap: 10px;
       }
 
-      .transfer-source-meta {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
+      .remote-meta-text {
         min-width: 0;
-      }
-
-      .transfer-source-label {
         font-size: 12px;
         color: var(--muted);
-      }
-
-      .transfer-source-value {
-        font-size: 13px;
-        font-weight: 600;
-        color: var(--text);
+        line-height: 1.45;
         word-break: break-all;
       }
 
-      .transfer-actions {
+      .remote-meta-text strong {
+        color: var(--text);
+        font-weight: 650;
+      }
+
+      .remote-actions {
         display: flex;
         gap: 8px;
         align-items: stretch;
+        flex-wrap: wrap;
       }
 
-      .transfer-actions .btn-ok,
-      .transfer-actions .btn-ghost {
-        flex: 1 1 0;
+      .remote-actions .btn-ok {
+        flex: 1 1 auto;
+        min-width: 120px;
       }
 
-      .transfer-status {
+      .remote-actions .btn-ghost {
+        flex: 0 0 auto;
+      }
+
+      .remote-status {
         min-height: 18px;
         font-size: 12px;
         color: var(--muted);
         line-height: 1.45;
       }
 
-      .transfer-status.info {
+      .remote-status.info {
         color: var(--muted);
       }
 
-      .transfer-status.ok {
+      .remote-status.ok {
         color: #86efac;
       }
 
-      .transfer-status.err {
+      .remote-status.err {
         color: #fca5a5;
       }
 
@@ -2180,33 +2190,6 @@
       <div class="runtime-bar">
         <span class="runtime-badge" id="badgeSub2Config">SUB2API · …</span>
         <span class="runtime-badge" id="badgeCpaConfig">CPA · …</span>
-        <button
-          class="btn-ghost btn-sm"
-          id="btnSub2Dedupe"
-          type="button"
-          hidden
-          title="扫描并清理 SUB2API 服务端重复账号"
-        >
-          SUB2API 去重
-        </button>
-        <button
-          class="btn-ghost btn-sm"
-          id="btnSub2RemoteExport"
-          type="button"
-          hidden
-          title="从 SUB2API 服务端拉取账号并导出合并包"
-        >
-          从 SUB2API 导出
-        </button>
-        <button
-          class="btn-ghost btn-sm"
-          id="btnCpaRemoteDownload"
-          type="button"
-          hidden
-          title="从 CPA 服务端拉取认证文件并打包下载"
-        >
-          从 CPA 导出
-        </button>
         <span class="toolbar-spacer"></span>
         <span class="toolbar-label" style="font-size: 12px">点击徽章配置服务器 · 本机优先</span>
       </div>
@@ -2228,73 +2211,72 @@
 
       <div class="grid">
         <div class="card card-import">
-          <h2>导入</h2>
-          <div class="import-mode-switch" role="tablist" aria-label="导入方式">
-            <button
-              type="button"
-              class="import-mode-btn active"
-              id="btnImportModeLocal"
-              data-import-mode="local"
-              role="tab"
-              aria-selected="true"
-            >
-              本机文件
-            </button>
-            <button
-              type="button"
-              class="import-mode-btn"
-              id="btnImportModeTransfer"
-              data-import-mode="transfer"
-              role="tab"
-              aria-selected="false"
-            >
-              服务端互传
-            </button>
+          <div class="card-import-title">
+            <h2>导入</h2>
+            <div class="import-mode-toggle" title="切换本地文件或远端服务器">
+              <span class="import-mode-toggle-label is-active" id="importModeLabelLocal">本地</span>
+              <button
+                type="button"
+                class="import-mode-switch"
+                id="btnImportModeToggle"
+                role="switch"
+                aria-checked="false"
+                aria-label="远端导入"
+              ></button>
+              <span class="import-mode-toggle-label" id="importModeLabelRemote">远端</span>
+            </div>
           </div>
-          <div class="import-panel" id="importPanelLocal" role="tabpanel">
+          <div class="import-panel" id="importPanelLocal">
             <div class="drop" id="dropzone">
               <strong>拖入 JSON，或点击选择</strong>
               <span>支持多选 · 自动识别 CPA / SUB2API</span>
             </div>
             <input type="file" id="fileInput" accept=".json,application/json" multiple />
           </div>
-          <div class="import-panel transfer-panel" id="importPanelTransfer" role="tabpanel" hidden>
-            <div>
-              <div class="field-mini-label">互传方向</div>
-              <div class="transfer-dir-row" role="group" aria-label="互传方向">
-                <button
-                  type="button"
-                  class="transfer-dir-btn active"
-                  id="btnTransferDirCpaToSub2"
-                  data-transfer-dir="cpa-to-sub2"
-                >
-                  CPA → SUB2API
-                </button>
-                <button
-                  type="button"
-                  class="transfer-dir-btn"
-                  id="btnTransferDirSub2ToCpa"
-                  data-transfer-dir="sub2-to-cpa"
-                >
-                  SUB2API → CPA
-                </button>
-              </div>
+          <div class="import-panel remote-panel" id="importPanelRemote" hidden>
+            <div class="remote-source-row">
+              <label class="field-mini-label" for="remoteSourceSelect">源服务器</label>
+              <select id="remoteSourceSelect">
+                <option value="CPA" selected>CPA</option>
+                <option value="SUB2API">SUB2API</option>
+              </select>
             </div>
-            <div class="transfer-source-row">
-              <div class="transfer-source-meta">
-                <span class="transfer-source-label">源端</span>
-                <span class="transfer-source-value" id="transferSourceValue">CPA · 未配置</span>
-              </div>
-              <button class="btn-ghost btn-sm" type="button" id="btnTransferConfigSource">
-                配置源端
+            <div class="remote-meta-row">
+              <div class="remote-meta-text" id="remoteSourceValue">源端未配置</div>
+              <button class="btn-ghost btn-sm" type="button" id="btnRemoteConfigSource">
+                配置
               </button>
             </div>
-            <div class="hint">一次拉取源端全部账号进主列表，再转换并上传到目标端</div>
-            <div class="transfer-actions">
-              <button class="btn-ok" type="button" id="btnTransferPullAll">拉取全部</button>
-              <button class="btn-ghost" type="button" id="btnTransferAbort" hidden>取消拉取</button>
+            <div class="remote-actions">
+              <button
+                class="btn-ok"
+                type="button"
+                id="btnRemotePullList"
+                title="仅拉取账号列表进主列表，完整凭证在转换、导出或上传时再获取"
+              >
+                拉取列表
+              </button>
+              <button
+                class="btn-ghost"
+                type="button"
+                id="btnRemoteSub2Dedupe"
+                hidden
+                title="扫描并清理 SUB2API 服务端重复账号"
+              >
+                服务端去重
+              </button>
+              <button class="btn-ghost" type="button" id="btnRemoteAbort" hidden>取消</button>
             </div>
-            <div class="transfer-status" id="transferStatus" aria-live="polite"></div>
+            <div class="remote-status" id="remoteImportStatus" aria-live="polite"></div>
+            <div class="hint">
+              先快速载入列表，转换 / 导出 / 上传时再拉取完整凭证
+              <span
+                class="field-tip"
+                tabindex="0"
+                data-tip="列表阶段只请求源端账号元数据，速度更快。完整 token 会在转换、导出或上传时按需分批获取。远端账号不可回传到同一端"
+                >i</span
+              >
+            </div>
           </div>
         </div>
 
@@ -2310,7 +2292,7 @@
                   <option value="to-cpa">全部 → CPA</option>
                 </select>
                 <div class="direction-lock-note" id="directionLockNote" hidden>
-                  已按互传方向锁定
+                  已按远端来源锁定
                   <button type="button" id="btnUnlockDirection">解除锁定</button>
                 </div>
               </div>
@@ -3283,16 +3265,18 @@
       let sub2RemoteAbortController = null;
       let sub2RemoteCancelRequested = false;
 
-      /** 导入模式：本机文件 | 服务端互传 */
+      /** 导入模式：本地文件 | 远端服务器 */
       let importMode = "local";
-      /** 互传方向：cpa-to-sub2 | sub2-to-cpa */
-      let transferDirection = "cpa-to-sub2";
-      let transferImportBusy = false;
+      /** 远端源服务器：CPA | SUB2API */
+      let remoteSourceTarget = TARGET_CPA;
+      let remoteImportBusy = false;
       /** @type {AbortController|null} */
-      let transferAbortController = null;
-      let transferCancelRequested = false;
-      /** 互传成功后锁定转换方向 */
-      let directionLockedByTransfer = false;
+      let remoteImportAbortController = null;
+      let remoteImportCancelRequested = false;
+      /** 远端加载后锁定转换方向 */
+      let directionLockedByRemote = false;
+      /** 当前主列表中是否含待补全凭证的远端账号 */
+      let hasPendingRemoteHydration = false;
 
       const DEFAULT_BATCH_SUB2API = 100;
       const DEFAULT_BATCH_CPA = 20;
@@ -3490,6 +3474,9 @@
           expiresAt: null,
           proxyId: null,
           proxyValid: null,
+          needsHydration: false,
+          remoteOrigin: null,
+          remoteRef: null,
           ...item,
         };
         if (base.proxyId == null) {
@@ -3497,10 +3484,48 @@
         } else {
           base.proxyId = parseProxyId(base.proxyId);
         }
+        if (base.remoteOrigin != null) {
+          const origin = String(base.remoteOrigin || "").toUpperCase();
+          base.remoteOrigin =
+            origin === TARGET_SUB2API || origin === "SUB2API"
+              ? TARGET_SUB2API
+              : origin === TARGET_CPA || origin === "CPA"
+                ? TARGET_CPA
+                : null;
+        }
+        if (base.remoteRef != null && typeof base.remoteRef !== "object") {
+          base.remoteRef = null;
+        }
+        base.needsHydration = Boolean(base.needsHydration);
         const expiry = resolveAccountExpiry(base);
         base.expiresAt = expiry.expiresAt;
         base.accountStatus = expiry.accountStatus;
         return base;
+      }
+
+      function itemNeedsHydration(item) {
+        return Boolean(item?.needsHydration && item.remoteRef && !item.error);
+      }
+
+      function itemRemoteOrigin(item) {
+        if (!item) return null;
+        if (item.remoteOrigin === TARGET_CPA || item.remoteOrigin === TARGET_SUB2API) {
+          return item.remoteOrigin;
+        }
+        return null;
+      }
+
+      function listHasRemoteOrigin(target) {
+        return items.some((item) => itemRemoteOrigin(item) === target);
+      }
+
+      function refreshPendingRemoteHydrationFlag() {
+        hasPendingRemoteHydration = items.some((item) => itemNeedsHydration(item));
+        return hasPendingRemoteHydration;
+      }
+
+      function sameSideUploadBlocked(target) {
+        return listHasRemoteOrigin(target);
       }
 
       /**
@@ -4235,14 +4260,20 @@
       function refreshActionButtons() {
         const operationItems = getOperationItems();
         const hasItems = operationItems.length > 0;
-        const anyBusy = uploadBusy || transferImportBusy;
+        const anyBusy = uploadBusy || remoteImportBusy || sub2DedupeBusy;
         const idleUsable = hasItems && !anyBusy;
+        const blockUploadSub2 = sameSideUploadBlocked(TARGET_SUB2API);
+        const blockUploadCpa = sameSideUploadBlocked(TARGET_CPA);
         $("btnConvert").disabled = !idleUsable;
-        // 无配置时也可点击，点击后弹窗引导配置
-        $("btnUploadSub2").disabled = !idleUsable;
-        $("btnUploadCpa").disabled = !idleUsable;
-        $("btnUploadSub2").title = targetConfigTooltip(TARGET_SUB2API);
-        $("btnUploadCpa").title = targetConfigTooltip(TARGET_CPA);
+        // 无配置时也可点击，点击后弹窗引导配置；远端同源禁止回传
+        $("btnUploadSub2").disabled = !idleUsable || blockUploadSub2;
+        $("btnUploadCpa").disabled = !idleUsable || blockUploadCpa;
+        $("btnUploadSub2").title = blockUploadSub2
+          ? "列表含从 SUB2API 远端载入的账号，不可回传到 SUB2API"
+          : targetConfigTooltip(TARGET_SUB2API);
+        $("btnUploadCpa").title = blockUploadCpa
+          ? "列表含从 CPA 远端载入的账号，不可回传到 CPA"
+          : targetConfigTooltip(TARGET_CPA);
         $("btnClear").disabled = !items.length || anyBusy;
         const hasSub2 = operationItems.some(
           (item) => item.converted && item.targetFormat === TARGET_SUB2API
@@ -4250,6 +4281,7 @@
         const hasCpa = operationItems.some(
           (item) => item.converted && item.targetFormat === TARGET_CPA
         );
+        // 本地导出不受同源限制
         $("btnExportSub2").disabled = !hasSub2 || anyBusy;
         $("btnExportCpaZip").disabled = !hasCpa || anyBusy;
         $("btnExportCpaEach").disabled = !hasCpa || anyBusy;
@@ -4257,7 +4289,7 @@
         $("btnCancelUpload").hidden = !uploadBusy;
         $("btnCancelUpload").disabled = !uploadBusy || uploadCancelRequested;
         refreshRemoteActionButtons();
-        refreshTransferImportUi();
+        refreshRemoteImportUi();
       }
 
       function hasSub2apiConfigReady() {
@@ -4269,43 +4301,13 @@
       }
 
       function refreshSub2DedupeButton() {
-        const btn = $("btnSub2Dedupe");
-        if (!btn) return;
-        const ready = hasSub2apiConfigReady();
-        btn.hidden = !ready;
-        btn.disabled =
-          !ready || uploadBusy || transferImportBusy || sub2DedupeBusy || sub2RemoteBusy;
-        btn.title = ready
-          ? "扫描并清理 SUB2API 服务端重复账号"
-          : "配置 SUB2API 地址与管理员密钥后可用";
-        if (!sub2DedupeBusy) {
-          btn.innerHTML = "SUB2API 去重";
-        }
+        // 去重入口已并入远端导入面板；保留函数名供 setSub2DedupeBusy 调用
+        refreshRemoteImportUi();
       }
 
       function refreshRemoteActionButtons() {
-        const sub2Btn = $("btnSub2RemoteExport");
-        if (sub2Btn) {
-          const ready = hasSub2apiConfigReady();
-          sub2Btn.hidden = !ready;
-          sub2Btn.disabled =
-            !ready || uploadBusy || transferImportBusy || sub2DedupeBusy || sub2RemoteBusy;
-          sub2Btn.title = ready
-            ? "从 SUB2API 服务端拉取账号并导出合并包"
-            : "配置 SUB2API 地址与管理员密钥后可用";
-          if (!sub2RemoteBusy) sub2Btn.innerHTML = "从 SUB2API 导出";
-        }
-        const cpaBtn = $("btnCpaRemoteDownload");
-        if (cpaBtn) {
-          const ready = hasCpaConfigReady();
-          cpaBtn.hidden = !ready;
-          cpaBtn.disabled = !ready || uploadBusy || transferImportBusy || cpaRemoteBusy;
-          cpaBtn.title = ready
-            ? "从 CPA 服务端拉取认证文件并打包下载"
-            : "配置 CPA 地址与管理密钥后可用";
-          if (!cpaRemoteBusy) cpaBtn.innerHTML = "从 CPA 下载";
-        }
-        refreshSub2DedupeButton();
+        // 顶栏远端导出/下载已并入「远端」导入；仅刷新远端面板与去重入口
+        refreshRemoteImportUi();
       }
 
       function setUploadBusy(busy, target = "") {
@@ -4924,6 +4926,9 @@
           uploadTarget: item.uploadTarget || "",
           uploadMessage: item.uploadMessage || "",
           uploadAttempts: item.uploadAttempts || 0,
+          needsHydration: Boolean(item.needsHydration),
+          remoteOrigin: item.remoteOrigin || null,
+          remoteRef: item.remoteRef || null,
         };
       }
 
@@ -4944,6 +4949,9 @@
           uploadAttempts: Number(raw.uploadAttempts) || 0,
           proxyId: raw.proxyId ?? null,
           proxyValid: raw.proxyValid ?? null,
+          needsHydration: Boolean(raw.needsHydration),
+          remoteOrigin: raw.remoteOrigin || null,
+          remoteRef: raw.remoteRef || null,
         });
         // prepareItem 会重算过期；保留快照里的上传字段
         if (raw.uploadStatus) item.uploadStatus = raw.uploadStatus;
@@ -5626,10 +5634,10 @@
         throw new Error("无法判定目标格式");
       }
 
-      function convertAll() {
+      async function convertAll() {
         clearMsg();
-        if (transferImportBusy) {
-          showMsg("服务端互传进行中，请稍后再转换", "err");
+        if (remoteImportBusy) {
+          showMsg("远端导入进行中，请稍后再转换", "err");
           return;
         }
         const targets = getOperationItems();
@@ -5637,13 +5645,31 @@
           showMsg(selectionMode ? "请先选择账号" : "没有可转换的账号", "err");
           return;
         }
+        try {
+          const hydrate = await ensureItemsHydrated(targets, {
+            progressLabel: "转换",
+            allowPartial: true,
+          });
+          if (hydrate.cancelled) {
+            showMsg("已取消补全凭证", "info");
+            return;
+          }
+          if (hydrate.failedCount && !hydrate.okCount) {
+            showMsg(`补全凭证失败 ${hydrate.failedCount} 个，无法转换`, "err");
+            return;
+          }
+        } catch (error) {
+          showMsg(`补全凭证失败：${apiErrorMessage(error)}`, "err");
+          return;
+        }
+
         let ok = 0;
         let skip = 0;
         let failed = 0;
         for (const item of targets) {
           item.converted = null;
           item.targetFormat = null;
-          if (item.error || !item.account) {
+          if (item.error || !item.account || itemNeedsHydration(item)) {
             skip++;
             continue;
           }
@@ -5700,9 +5726,45 @@
         );
       }
 
-      function exportSub2() {
-        const candidates = getOperationItems().filter(
+      async function exportSub2() {
+        if (remoteImportBusy) {
+          showMsg("远端导入进行中，请稍后再导出", "err");
+          return;
+        }
+        const preCandidates = getOperationItems().filter(
           (i) => i.converted && i.targetFormat === TARGET_SUB2API
+        );
+        if (!preCandidates.length) {
+          showMsg("没有可导出的 SUB2API 账号", "err");
+          return;
+        }
+        try {
+          const hydrate = await ensureItemsHydrated(preCandidates, {
+            progressLabel: "导出 SUB2API",
+            allowPartial: true,
+          });
+          if (hydrate.cancelled) {
+            showMsg("已取消补全凭证", "info");
+            return;
+          }
+        } catch (error) {
+          showMsg(`补全凭证失败：${apiErrorMessage(error)}`, "err");
+          return;
+        }
+        // 补全后可能需要重新转换
+        for (const item of preCandidates) {
+          if (itemNeedsHydration(item) || item.error || !item.account) continue;
+          if (!item.converted || item.targetFormat !== TARGET_SUB2API) {
+            try {
+              item.converted = convertItemTo(item, TARGET_SUB2API);
+              item.targetFormat = TARGET_SUB2API;
+            } catch (e) {
+              item.error = "转换失败: " + e.message;
+            }
+          }
+        }
+        const candidates = preCandidates.filter(
+          (i) => i.converted && i.targetFormat === TARGET_SUB2API && !itemNeedsHydration(i)
         );
         const { items: list, skipped } = filterExportOrUploadItems(candidates, {
           announce: false,
@@ -5821,10 +5883,50 @@
         return concat([...locals, centralDir, end]);
       }
 
-      function exportCpaZip() {
-        const candidates = getOperationItems().filter(
+      async function prepareCpaExportCandidates() {
+        if (remoteImportBusy) {
+          showMsg("远端导入进行中，请稍后再导出", "err");
+          return null;
+        }
+        const preCandidates = getOperationItems().filter(
           (i) => i.converted && i.targetFormat === "cpa"
         );
+        if (!preCandidates.length) {
+          showMsg("没有可导出的 CPA 记录", "err");
+          return null;
+        }
+        try {
+          const hydrate = await ensureItemsHydrated(preCandidates, {
+            progressLabel: "导出 CPA",
+            allowPartial: true,
+          });
+          if (hydrate.cancelled) {
+            showMsg("已取消补全凭证", "info");
+            return null;
+          }
+        } catch (error) {
+          showMsg(`补全凭证失败：${apiErrorMessage(error)}`, "err");
+          return null;
+        }
+        for (const item of preCandidates) {
+          if (itemNeedsHydration(item) || item.error || !item.account) continue;
+          if (!item.converted || item.targetFormat !== "cpa") {
+            try {
+              item.converted = convertItemTo(item, TARGET_CPA);
+              item.targetFormat = "cpa";
+            } catch (e) {
+              item.error = "转换失败: " + e.message;
+            }
+          }
+        }
+        return preCandidates.filter(
+          (i) => i.converted && i.targetFormat === "cpa" && !itemNeedsHydration(i)
+        );
+      }
+
+      async function exportCpaZip() {
+        const candidates = await prepareCpaExportCandidates();
+        if (!candidates) return;
         const { items: list, skipped } = filterExportOrUploadItems(candidates, {
           announce: false,
           actionLabel: "导出",
@@ -5865,9 +5967,8 @@
       }
 
       async function exportCpaEach() {
-        const candidates = getOperationItems().filter(
-          (i) => i.converted && i.targetFormat === "cpa"
-        );
+        const candidates = await prepareCpaExportCandidates();
+        if (!candidates) return;
         const { items: list, skipped } = filterExportOrUploadItems(candidates, {
           announce: false,
           actionLabel: "导出",
@@ -6046,7 +6147,7 @@
         }
         refreshSub2DedupeButton();
         refreshActionButtons();
-        refreshTransferImportUi();
+        refreshRemoteImportUi();
       }
 
       async function loadRuntimeConfigStatus(showError = false) {
@@ -6518,7 +6619,7 @@
         const applyBtn = $("btnApplySub2Dedupe");
         const closeBtn = $("btnCloseSub2Dedupe");
         const cancelBtn = $("btnCancelSub2Dedupe");
-        const topBtn = $("btnSub2Dedupe");
+        const remoteBtn = $("btnRemoteSub2Dedupe");
         if (scanBtn) {
           scanBtn.disabled = sub2DedupeBusy;
           if (sub2DedupeBusy && phase === "scan" && !scanBtn.hidden) {
@@ -6533,16 +6634,15 @@
         }
         if (closeBtn) closeBtn.disabled = sub2DedupeBusy;
         if (cancelBtn) cancelBtn.disabled = sub2DedupeBusy;
-        if (topBtn) {
-          topBtn.disabled =
-            sub2DedupeBusy || uploadBusy || sub2RemoteBusy || !hasSub2apiConfigReady();
+        if (remoteBtn) {
           if (sub2DedupeBusy) {
-            topBtn.innerHTML =
+            remoteBtn.disabled = true;
+            remoteBtn.innerHTML =
               phase === "apply"
-                ? '<span class="busy-spin"></span>正在删除重复'
-                : '<span class="busy-spin"></span>正在扫描重复';
+                ? '<span class="busy-spin"></span>正在删除'
+                : '<span class="busy-spin"></span>正在扫描';
           } else {
-            topBtn.innerHTML = "SUB2API 去重";
+            remoteBtn.innerHTML = "服务端去重";
           }
         }
         refreshRemoteActionButtons();
@@ -6550,9 +6650,9 @@
 
       async function scanSub2apiDuplicates() {
         if (sub2DedupeBusy) return;
-        if (uploadBusy || transferImportBusy) {
+        if (uploadBusy || remoteImportBusy) {
           setSub2DedupeStatus(
-            transferImportBusy ? "服务端互传进行中，请稍后再扫描" : "上传进行中，请稍后再扫描",
+            remoteImportBusy ? "远端导入进行中，请稍后再扫描" : "上传进行中，请稍后再扫描",
             "err"
           );
           return;
@@ -6606,9 +6706,9 @@
 
       async function applySub2apiDuplicates() {
         if (sub2DedupeBusy) return;
-        if (uploadBusy || transferImportBusy) {
+        if (uploadBusy || remoteImportBusy) {
           setSub2DedupeStatus(
-            transferImportBusy ? "服务端互传进行中，请稍后再删除" : "上传进行中，请稍后再删除",
+            remoteImportBusy ? "远端导入进行中，请稍后再删除" : "上传进行中，请稍后再删除",
             "err"
           );
           return;
@@ -7339,11 +7439,9 @@
 
       async function loadCpaRemoteAuthList() {
         if (cpaRemoteBusy) return;
-        if (uploadBusy || transferImportBusy) {
+        if (uploadBusy || remoteImportBusy) {
           setCpaRemoteStatus(
-            transferImportBusy
-              ? "服务端互传进行中，请稍后再拉取列表"
-              : "上传进行中，请稍后再拉取列表",
+            remoteImportBusy ? "远端导入进行中，请稍后再拉取列表" : "上传进行中，请稍后再拉取列表",
             "err"
           );
           return;
@@ -7415,9 +7513,9 @@
 
       async function downloadSelectedCpaRemoteAuth() {
         if (cpaRemoteBusy) return;
-        if (uploadBusy || transferImportBusy) {
+        if (uploadBusy || remoteImportBusy) {
           setCpaRemoteStatus(
-            transferImportBusy ? "服务端互传进行中，请稍后再下载" : "上传进行中，请稍后再下载",
+            remoteImportBusy ? "远端导入进行中，请稍后再下载" : "上传进行中，请稍后再下载",
             "err"
           );
           return;
@@ -7599,11 +7697,9 @@
 
       async function loadSub2RemoteAccountList() {
         if (sub2RemoteBusy) return;
-        if (uploadBusy || transferImportBusy) {
+        if (uploadBusy || remoteImportBusy) {
           setSub2RemoteStatus(
-            transferImportBusy
-              ? "服务端互传进行中，请稍后再拉取列表"
-              : "上传进行中，请稍后再拉取列表",
+            remoteImportBusy ? "远端导入进行中，请稍后再拉取列表" : "上传进行中，请稍后再拉取列表",
             "err"
           );
           return;
@@ -7678,9 +7774,9 @@
 
       async function exportSelectedSub2RemoteAccounts() {
         if (sub2RemoteBusy) return;
-        if (uploadBusy || transferImportBusy) {
+        if (uploadBusy || remoteImportBusy) {
           setSub2RemoteStatus(
-            transferImportBusy ? "服务端互传进行中，请稍后再导出" : "上传进行中，请稍后再导出",
+            remoteImportBusy ? "远端导入进行中，请稍后再导出" : "上传进行中，请稍后再导出",
             "err"
           );
           return;
@@ -8738,8 +8834,17 @@
 
       async function uploadToServer(target, showConfigOnly = false, options = {}) {
         if (uploadBusy) return;
-        if (transferImportBusy) {
-          showMsg("服务端互传进行中，请先取消或等待完成后再上传", "err");
+        if (remoteImportBusy) {
+          showMsg("远端导入进行中，请先取消或等待完成后再上传", "err");
+          return;
+        }
+        if (!showConfigOnly && sameSideUploadBlocked(target)) {
+          showMsg(
+            target === TARGET_SUB2API
+              ? "列表含从 SUB2API 远端载入的账号，不可回传到 SUB2API"
+              : "列表含从 CPA 远端载入的账号，不可回传到 CPA",
+            "err"
+          );
           return;
         }
         const operationItems = Array.isArray(options.itemsOverride)
@@ -8757,11 +8862,37 @@
           return;
         }
 
+        if (!showConfigOnly) {
+          try {
+            const hydrate = await ensureItemsHydrated(operationItems, {
+              progressLabel: "上传",
+              allowPartial: true,
+            });
+            if (hydrate.cancelled) {
+              showMsg("已取消补全凭证", "info");
+              return;
+            }
+            if (hydrate.failedCount && !hydrate.okCount && hydrate.pending) {
+              showMsg(`补全凭证失败 ${hydrate.failedCount} 个，无法上传`, "err");
+              return;
+            }
+          } catch (error) {
+            showMsg(`补全凭证失败：${apiErrorMessage(error)}`, "err");
+            return;
+          }
+        }
+
         // 过期处理：按选项决定是否跳过失效账号
         let expiredItems = [];
-        let uploadItems = operationItems;
+        let uploadItems = operationItems.filter(
+          (item) => item && !item.error && item.account && !itemNeedsHydration(item)
+        );
+        if (!showConfigOnly && !uploadItems.length) {
+          showMsg("没有可上传的账号，请先补全远端凭证", "err");
+          return;
+        }
         if (!showConfigOnly && shouldSkipExpiredAccounts()) {
-          const filtered = filterExportOrUploadItems(operationItems);
+          const filtered = filterExportOrUploadItems(uploadItems);
           expiredItems = filtered.skipped;
           uploadItems = filtered.items;
           if (expiredItems.length) {
@@ -9074,18 +9205,14 @@
         showMsg("已丢弃本地工作区快照", "info");
       }
 
-      function transferSourceTarget() {
-        return transferDirection === "sub2-to-cpa" ? TARGET_SUB2API : TARGET_CPA;
-      }
-
-      function setTransferStatus(text, type = "info") {
-        const el = $("transferStatus");
+      function setRemoteImportStatus(text, type = "info") {
+        const el = $("remoteImportStatus");
         if (!el) return;
         el.textContent = text || "";
-        el.className = "transfer-status" + (text ? ` ${type}` : "");
+        el.className = "remote-status" + (text ? ` ${type}` : "");
       }
 
-      function describeTransferSource(target) {
+      function describeRemoteSource(target) {
         const effective = getEffectiveClientConfig(target);
         if (effective?.source === "local") {
           return `${target} · 本机 · ${effective.baseUrl || "已配置"}`;
@@ -9097,37 +9224,40 @@
         return `${target} · 未配置`;
       }
 
-      function setImportMode(mode) {
-        if (transferImportBusy && mode !== importMode) {
-          showMsg("服务端互传进行中，请先取消或等待完成", "err");
-          return;
-        }
-        importMode = mode === "transfer" ? "transfer" : "local";
-        const localBtn = $("btnImportModeLocal");
-        const transferBtn = $("btnImportModeTransfer");
-        const localPanel = $("importPanelLocal");
-        const transferPanel = $("importPanelTransfer");
-        if (localBtn) {
-          localBtn.classList.toggle("active", importMode === "local");
-          localBtn.setAttribute("aria-selected", importMode === "local" ? "true" : "false");
-        }
-        if (transferBtn) {
-          transferBtn.classList.toggle("active", importMode === "transfer");
-          transferBtn.setAttribute("aria-selected", importMode === "transfer" ? "true" : "false");
-        }
-        if (localPanel) localPanel.hidden = importMode !== "local";
-        if (transferPanel) transferPanel.hidden = importMode !== "transfer";
-        refreshTransferImportUi();
+      function normalizeRemoteSourceTarget(value) {
+        const raw = String(value || "").toUpperCase();
+        return raw === TARGET_SUB2API || raw === "SUB2API" ? TARGET_SUB2API : TARGET_CPA;
       }
 
-      function setTransferDirection(dir) {
-        if (transferImportBusy) return;
-        transferDirection = dir === "sub2-to-cpa" ? "sub2-to-cpa" : "cpa-to-sub2";
-        const cpaBtn = $("btnTransferDirCpaToSub2");
-        const sub2Btn = $("btnTransferDirSub2ToCpa");
-        if (cpaBtn) cpaBtn.classList.toggle("active", transferDirection === "cpa-to-sub2");
-        if (sub2Btn) sub2Btn.classList.toggle("active", transferDirection === "sub2-to-cpa");
-        refreshTransferImportUi();
+      function setRemoteSourceTarget(value, options = {}) {
+        if (remoteImportBusy && !options.force) return;
+        remoteSourceTarget = normalizeRemoteSourceTarget(value);
+        const select = $("remoteSourceSelect");
+        if (select && select.value !== remoteSourceTarget) select.value = remoteSourceTarget;
+        refreshRemoteImportUi();
+      }
+
+      function setImportMode(mode) {
+        if (remoteImportBusy && mode !== importMode) {
+          showMsg("远端导入进行中，请先取消或等待完成", "err");
+          return;
+        }
+        importMode = mode === "remote" || mode === "transfer" ? "remote" : "local";
+        const toggle = $("btnImportModeToggle");
+        const localLabel = $("importModeLabelLocal");
+        const remoteLabel = $("importModeLabelRemote");
+        const localPanel = $("importPanelLocal");
+        const remotePanel = $("importPanelRemote");
+        if (toggle) {
+          toggle.classList.toggle("is-remote", importMode === "remote");
+          toggle.setAttribute("aria-checked", importMode === "remote" ? "true" : "false");
+          toggle.setAttribute("aria-label", importMode === "remote" ? "远端导入" : "本地导入");
+        }
+        if (localLabel) localLabel.classList.toggle("is-active", importMode === "local");
+        if (remoteLabel) remoteLabel.classList.toggle("is-active", importMode === "remote");
+        if (localPanel) localPanel.hidden = importMode !== "local";
+        if (remotePanel) remotePanel.hidden = importMode !== "remote";
+        refreshRemoteImportUi();
       }
 
       function clearConvertedState() {
@@ -9141,15 +9271,16 @@
       function applyDirectionLockUi() {
         const select = $("direction");
         const note = $("directionLockNote");
-        if (select) select.disabled = Boolean(directionLockedByTransfer);
-        if (note) note.hidden = !directionLockedByTransfer;
+        if (select) select.disabled = Boolean(directionLockedByRemote);
+        if (note) note.hidden = !directionLockedByRemote;
       }
 
-      function lockDirectionForTransfer(dir = transferDirection) {
-        const value = dir === "sub2-to-cpa" ? "to-cpa" : "to-SUB2API";
+      function lockDirectionForRemoteSource(sourceTarget = remoteSourceTarget) {
+        const value =
+          normalizeRemoteSourceTarget(sourceTarget) === TARGET_SUB2API ? "to-cpa" : "to-SUB2API";
         const select = $("direction");
         if (select) select.value = value;
-        directionLockedByTransfer = true;
+        directionLockedByRemote = true;
         clearConvertedState();
         applyDirectionLockUi();
         saveUiSettingsSoon();
@@ -9159,11 +9290,11 @@
 
       function unlockDirection(options = {}) {
         const { silent = false } = options;
-        if (!directionLockedByTransfer) {
+        if (!directionLockedByRemote) {
           applyDirectionLockUi();
           return;
         }
-        directionLockedByTransfer = false;
+        directionLockedByRemote = false;
         applyDirectionLockUi();
         if (!silent) {
           showMsg("已解除转换方向锁定", "info");
@@ -9172,92 +9303,109 @@
         saveUiSettingsSoon();
       }
 
-      function refreshTransferImportUi() {
-        const sourceTarget = transferSourceTarget();
-        const sourceValue = $("transferSourceValue");
-        if (sourceValue) sourceValue.textContent = describeTransferSource(sourceTarget);
+      function hasEffectiveConfig(target) {
+        return Boolean(getEffectiveClientConfig(target));
+      }
 
-        const modeLocalBtn = $("btnImportModeLocal");
-        const modeTransferBtn = $("btnImportModeTransfer");
-        if (modeLocalBtn) modeLocalBtn.disabled = transferImportBusy;
-        if (modeTransferBtn) modeTransferBtn.disabled = transferImportBusy;
-
-        const dirButtons = [$("btnTransferDirCpaToSub2"), $("btnTransferDirSub2ToCpa")];
-        for (const btn of dirButtons) {
-          if (btn) btn.disabled = transferImportBusy;
+      function refreshRemoteImportUi() {
+        const sourceTarget = normalizeRemoteSourceTarget(remoteSourceTarget);
+        remoteSourceTarget = sourceTarget;
+        const sourceSelect = $("remoteSourceSelect");
+        if (sourceSelect) {
+          sourceSelect.value = sourceTarget;
+          sourceSelect.disabled = remoteImportBusy;
         }
 
-        const configBtn = $("btnTransferConfigSource");
+        const sourceValue = $("remoteSourceValue");
+        if (sourceValue) sourceValue.textContent = describeRemoteSource(sourceTarget);
+
+        const toggle = $("btnImportModeToggle");
+        if (toggle) toggle.disabled = remoteImportBusy;
+
+        const configBtn = $("btnRemoteConfigSource");
         if (configBtn) {
-          configBtn.disabled = transferImportBusy;
-          configBtn.textContent = hasEffectiveConfig(sourceTarget) ? "管理源端" : "配置源端";
+          configBtn.disabled = remoteImportBusy;
+          configBtn.textContent = hasEffectiveConfig(sourceTarget) ? "管理" : "配置";
         }
 
-        const pullBtn = $("btnTransferPullAll");
+        const pullBtn = $("btnRemotePullList");
         if (pullBtn) {
           pullBtn.disabled =
-            transferImportBusy || uploadBusy || cpaRemoteBusy || sub2RemoteBusy || sub2DedupeBusy;
-          if (transferImportBusy) {
+            remoteImportBusy || uploadBusy || cpaRemoteBusy || sub2RemoteBusy || sub2DedupeBusy;
+          if (remoteImportBusy) {
             pullBtn.innerHTML = '<span class="busy-spin"></span>正在拉取';
           } else {
-            pullBtn.textContent = "拉取全部";
+            pullBtn.textContent = "拉取列表";
           }
         }
 
-        const abortBtn = $("btnTransferAbort");
+        const dedupeBtn = $("btnRemoteSub2Dedupe");
+        if (dedupeBtn) {
+          const showDedupe =
+            sourceTarget === TARGET_SUB2API &&
+            (listHasRemoteOrigin(TARGET_SUB2API) || hasSub2apiConfigReady());
+          dedupeBtn.hidden = !showDedupe;
+          dedupeBtn.disabled =
+            !showDedupe ||
+            remoteImportBusy ||
+            uploadBusy ||
+            sub2DedupeBusy ||
+            sub2RemoteBusy ||
+            !hasSub2apiConfigReady();
+          if (!sub2DedupeBusy) dedupeBtn.innerHTML = "服务端去重";
+        }
+
+        const abortBtn = $("btnRemoteAbort");
         if (abortBtn) {
-          abortBtn.hidden = !transferImportBusy;
-          abortBtn.disabled = !transferImportBusy || transferCancelRequested;
-          abortBtn.textContent = transferCancelRequested ? "正在取消…" : "取消拉取";
+          abortBtn.hidden = !remoteImportBusy;
+          abortBtn.disabled = !remoteImportBusy || remoteImportCancelRequested;
+          abortBtn.textContent = remoteImportCancelRequested ? "正在取消…" : "取消";
         }
 
         applyDirectionLockUi();
       }
 
-      function hasEffectiveConfig(target) {
-        return Boolean(getEffectiveClientConfig(target));
-      }
-
-      function setTransferImportBusy(busy) {
-        transferImportBusy = Boolean(busy);
+      function setRemoteImportBusy(busy) {
+        remoteImportBusy = Boolean(busy);
         refreshActionButtons();
       }
 
-      function throwIfTransferCancelled() {
-        if (transferCancelRequested || transferAbortController?.signal?.aborted) {
+      function throwIfRemoteImportCancelled() {
+        if (remoteImportCancelRequested || remoteImportAbortController?.signal?.aborted) {
           const err = new Error("已取消");
           err.name = "RemoteCancelledError";
           throw err;
         }
       }
 
-      function cancelTransferImport() {
-        if (!transferImportBusy) return;
-        transferCancelRequested = true;
-        transferAbortController?.abort();
-        refreshTransferImportUi();
-        setTransferStatus("正在取消拉取，当前批次结束后停止", "info");
-        showMsg("正在取消服务端互传拉取", "info");
+      function cancelRemoteImport() {
+        if (!remoteImportBusy) return;
+        remoteImportCancelRequested = true;
+        remoteImportAbortController?.abort();
+        refreshRemoteImportUi();
+        setRemoteImportStatus("正在取消拉取，当前请求结束后停止", "info");
+        showMsg("正在取消远端导入", "info");
       }
 
       function itemFromRemoteCpaContent(name, content, index = 0) {
         const sourceFile = String(name || `cpa-remote-${index + 1}.json`);
+        let parsedItems = [];
         if (content == null) {
-          return prepareItem({
-            sourceFile,
-            sourceFormat: "unknown",
-            account: null,
-            error: "下载内容为空",
-          });
-        }
-        if (typeof content === "string") {
-          return parseFileContent(sourceFile, content);
-        }
-        if (typeof content === "object") {
+          parsedItems = [
+            prepareItem({
+              sourceFile,
+              sourceFormat: "unknown",
+              account: null,
+              error: "下载内容为空",
+            }),
+          ];
+        } else if (typeof content === "string") {
+          parsedItems = parseFileContent(sourceFile, content);
+        } else if (typeof content === "object") {
           try {
-            return parseFileContent(sourceFile, JSON.stringify(content));
+            parsedItems = parseFileContent(sourceFile, JSON.stringify(content));
           } catch (error) {
-            return [
+            parsedItems = [
               prepareItem({
                 sourceFile,
                 sourceFormat: "unknown",
@@ -9266,18 +9414,26 @@
               }),
             ];
           }
+        } else {
+          parsedItems = [
+            prepareItem({
+              sourceFile,
+              sourceFormat: "unknown",
+              account: null,
+              error: "无法识别的下载内容",
+            }),
+          ];
         }
-        return [
-          prepareItem({
-            sourceFile,
-            sourceFormat: "unknown",
-            account: null,
-            error: "无法识别的下载内容",
-          }),
-        ];
+        return (parsedItems || []).map((item) => {
+          item.remoteOrigin = TARGET_CPA;
+          item.remoteRef = { kind: "cpa", name: sourceFile };
+          item.needsHydration = false;
+          return item;
+        });
       }
 
-      function itemsFromSub2RemoteAccounts(accounts) {
+      function itemsFromSub2RemoteAccounts(accounts, options = {}) {
+        const { asStub = false } = options;
         const out = [];
         for (const account of accounts || []) {
           const idPart =
@@ -9285,12 +9441,50 @@
               ? String(account.id)
               : account?.email || account?.name || account?.credentials?.email || "unknown";
           const sourceFile = `sub2-remote:${idPart}`;
+          if (asStub) {
+            const email = String(account?.email || account?.name || "").trim();
+            const stubAccount = {
+              id: account?.id,
+              name: account?.name || email || `id=${idPart}`,
+              credentials: email ? { email } : {},
+              extra: email ? { email } : {},
+              status: account?.status,
+              platform: account?.platform,
+              type: account?.type,
+            };
+            if (account?.expiresAt != null) {
+              stubAccount.credentials.expires_at = account.expiresAt;
+            }
+            out.push(
+              prepareItem({
+                sourceFile,
+                sourceFormat: "sub2api",
+                account: stubAccount,
+                needsHydration: true,
+                remoteOrigin: TARGET_SUB2API,
+                remoteRef: {
+                  kind: "sub2",
+                  id: account?.id != null ? account.id : idPart,
+                  email,
+                  name: account?.name || "",
+                },
+                expiresAt: account?.expiresAt ?? null,
+              })
+            );
+            continue;
+          }
           if (isSub2Account(account) || (account && account.credentials)) {
             out.push(
               prepareItem({
                 sourceFile,
                 sourceFormat: "sub2api",
                 account: normalizeSub2(account),
+                needsHydration: false,
+                remoteOrigin: TARGET_SUB2API,
+                remoteRef: {
+                  kind: "sub2",
+                  id: account?.id != null ? account.id : idPart,
+                },
               })
             );
           } else if (isCpaRecord(account)) {
@@ -9299,6 +9493,12 @@
                 sourceFile,
                 sourceFormat: "cpa",
                 account: normalizeCpa(account),
+                needsHydration: false,
+                remoteOrigin: TARGET_SUB2API,
+                remoteRef: {
+                  kind: "sub2",
+                  id: account?.id != null ? account.id : idPart,
+                },
               })
             );
           } else {
@@ -9308,6 +9508,11 @@
                 sourceFormat: "unknown",
                 account: null,
                 error: "账号结构无法识别",
+                remoteOrigin: TARGET_SUB2API,
+                remoteRef: {
+                  kind: "sub2",
+                  id: account?.id != null ? account.id : idPart,
+                },
               })
             );
           }
@@ -9315,8 +9520,33 @@
         return out;
       }
 
+      function stubsFromCpaRemoteFiles(files) {
+        const out = [];
+        for (const file of files || []) {
+          const name = String(file?.name || "").trim();
+          if (!name) continue;
+          const label = file?.account || file?.accountId || name.replace(/\.json$/i, "") || name;
+          out.push(
+            prepareItem({
+              sourceFile: name,
+              sourceFormat: "cpa",
+              account: {
+                type: "xai",
+                auth_kind: "oauth",
+                email: String(label),
+                name,
+              },
+              needsHydration: true,
+              remoteOrigin: TARGET_CPA,
+              remoteRef: { kind: "cpa", name },
+            })
+          );
+        }
+        return out;
+      }
+
       /**
-       * 将解析后的账号写入主列表；供本机导入与服务端互传共用
+       * 将解析后的账号写入主列表；供本地导入与远端导入共用
        * @returns {Promise<null|{mode:string,mergeInfo:any,internalDropped:number,count:number}>}
        */
       async function commitIncomingItems(incoming, options = {}) {
@@ -9332,8 +9562,8 @@
           showMsg("上传进行中，请先取消或等待完成后再导入", "err");
           return null;
         }
-        if (transferImportBusy && !options.allowDuringTransfer) {
-          showMsg("服务端互传进行中，请稍后再导入", "err");
+        if (remoteImportBusy && !options.allowDuringRemoteImport) {
+          showMsg("远端导入进行中，请稍后再导入", "err");
           return null;
         }
         if (!Array.isArray(incoming) || !incoming.length) {
@@ -9395,7 +9625,8 @@
         if (discardBtn) discardBtn.textContent = "丢弃快照";
 
         if (unlockDirectionOnSuccess) unlockDirection({ silent: true });
-        if (lockDirectionAfter) lockDirectionForTransfer(lockDirectionAfter);
+        if (lockDirectionAfter) lockDirectionForRemoteSource(lockDirectionAfter);
+        refreshPendingRemoteHydrationFlag();
 
         renderTable();
         scheduleWorkspaceSave({ immediate: true });
@@ -9422,7 +9653,7 @@
         return parts.join(", ");
       }
 
-      async function listCpaAuthFileNamesForTransfer(signal) {
+      async function listCpaRemoteFilesMeta(signal) {
         const effective = getEffectiveClientConfig(TARGET_CPA);
         if (!effective) throw new Error("请先配置 CPA");
         const body = {};
@@ -9438,11 +9669,10 @@
           },
           2 * 60 * 1000
         );
-        const files = Array.isArray(data?.files) ? data.files : [];
-        return files.map((f) => String(f?.name || "")).filter(Boolean);
+        return Array.isArray(data?.files) ? data.files : [];
       }
 
-      async function listSub2AccountIdsForTransfer(signal) {
+      async function listSub2RemoteAccountsMeta(signal) {
         const effective = getEffectiveClientConfig(TARGET_SUB2API);
         if (!effective) throw new Error("请先配置 SUB2API");
         const body = {};
@@ -9458,14 +9688,13 @@
           },
           10 * 60 * 1000
         );
-        const accounts = Array.isArray(data?.accounts) ? data.accounts : [];
-        return accounts
-          .map((account) => (account?.id == null ? "" : String(account.id)))
-          .filter(Boolean);
+        return Array.isArray(data?.accounts) ? data.accounts : [];
       }
 
       async function fetchAllCpaRemoteAuthContents(names, options = {}) {
-        const { signal, onProgress } = options;
+        const { signal, onProgress, cancelChecker } = options;
+        const checkCancel =
+          typeof cancelChecker === "function" ? cancelChecker : throwIfRemoteImportCancelled;
         const effective = getEffectiveClientConfig(TARGET_CPA);
         if (!effective) throw new Error("请先配置 CPA");
         const maxPerRequest = currentMaxCpaAuthDownload();
@@ -9477,7 +9706,7 @@
         let cancelled = false;
 
         for (let i = 0; i < chunks.length; i++) {
-          throwIfTransferCancelled();
+          checkCancel();
           if (signal?.aborted) {
             cancelled = true;
             break;
@@ -9506,7 +9735,7 @@
               },
               10 * 60 * 1000
             );
-            throwIfTransferCancelled();
+            checkCancel();
             const files = Array.isArray(data?.files) ? data.files : [];
             const okNames = new Set();
             for (const item of files) {
@@ -9522,7 +9751,6 @@
             if (
               chunkError?.name === "RemoteCancelledError" ||
               chunkError?.name === "AbortError" ||
-              transferCancelRequested ||
               signal?.aborted
             ) {
               cancelled = true;
@@ -9547,7 +9775,9 @@
       }
 
       async function fetchAllSub2RemoteAccounts(ids, options = {}) {
-        const { signal, onProgress } = options;
+        const { signal, onProgress, cancelChecker } = options;
+        const checkCancel =
+          typeof cancelChecker === "function" ? cancelChecker : throwIfRemoteImportCancelled;
         const effective = getEffectiveClientConfig(TARGET_SUB2API);
         if (!effective) throw new Error("请先配置 SUB2API");
         const maxPerRequest = currentMaxSub2apiExport();
@@ -9555,13 +9785,15 @@
         const chunks = chunkArray(ids, chunkSize);
         const config = uploadConfigPayload(effective);
         const accounts = [];
+        /** @type {Map<string, any>} */
+        const accountById = new Map();
         let failedCount = 0;
         let hardError = null;
         let cancelled = false;
         let exportedAt = "";
 
         for (let i = 0; i < chunks.length; i++) {
-          throwIfTransferCancelled();
+          checkCancel();
           if (signal?.aborted) {
             cancelled = true;
             break;
@@ -9593,11 +9825,24 @@
               },
               10 * 60 * 1000
             );
-            throwIfTransferCancelled();
+            checkCancel();
             const pack = data?.pack;
             if (pack?.exported_at && !exportedAt) exportedAt = pack.exported_at;
             const packAccounts = Array.isArray(pack?.accounts) ? pack.accounts : [];
-            if (packAccounts.length) accounts.push(...packAccounts);
+            const successIds = Array.isArray(data?.successIds)
+              ? data.successIds.map((id) => String(id))
+              : [];
+            if (packAccounts.length) {
+              accounts.push(...packAccounts);
+              for (let idx = 0; idx < packAccounts.length; idx++) {
+                const account = packAccounts[idx];
+                const matchedId =
+                  account?.id != null
+                    ? String(account.id)
+                    : successIds[idx] || (chunk[idx] != null ? String(chunk[idx]) : "");
+                if (matchedId) accountById.set(matchedId, account);
+              }
+            }
             const reportedFailed = Number(data?.failedCount || 0);
             if (packAccounts.length >= chunk.length && reportedFailed === 0) {
               // 整批成功
@@ -9610,7 +9855,6 @@
             if (
               chunkError?.name === "RemoteCancelledError" ||
               chunkError?.name === "AbortError" ||
-              transferCancelRequested ||
               signal?.aborted
             ) {
               cancelled = true;
@@ -9629,7 +9873,20 @@
             const partialAccounts = Array.isArray(chunkError?.data?.pack?.accounts)
               ? chunkError.data.pack.accounts
               : [];
-            if (partialAccounts.length) accounts.push(...partialAccounts);
+            if (partialAccounts.length) {
+              accounts.push(...partialAccounts);
+              const successIds = Array.isArray(chunkError?.data?.successIds)
+                ? chunkError.data.successIds.map((id) => String(id))
+                : [];
+              for (let idx = 0; idx < partialAccounts.length; idx++) {
+                const account = partialAccounts[idx];
+                const matchedId =
+                  account?.id != null
+                    ? String(account.id)
+                    : successIds[idx] || (chunk[idx] != null ? String(chunk[idx]) : "");
+                if (matchedId) accountById.set(matchedId, account);
+              }
+            }
             const reportedFailed = Number(
               chunkError?.data?.failedCount ?? chunk.length - partialAccounts.length
             );
@@ -9641,207 +9898,369 @@
           await yieldToBrowser();
         }
 
-        return { accounts, failedCount, hardError, cancelled, exportedAt };
+        return { accounts, accountById, failedCount, hardError, cancelled, exportedAt };
       }
 
-      async function pullAllFromTransferSource() {
-        if (transferImportBusy) return;
+      function applyHydratedAccountToItem(item, fullAccount) {
+        if (!item || !fullAccount) return false;
+        const origin = itemRemoteOrigin(item) || remoteSourceTarget;
+        if (origin === TARGET_CPA || item.sourceFormat === "cpa") {
+          if (isCpaRecord(fullAccount) || fullAccount.email || fullAccount.access_token) {
+            item.account = normalizeCpa(fullAccount);
+            item.sourceFormat = "cpa";
+          } else if (isSub2Account(fullAccount) || fullAccount.credentials) {
+            item.account = normalizeSub2(fullAccount);
+            item.sourceFormat = "sub2api";
+          } else {
+            return false;
+          }
+        } else {
+          if (isSub2Account(fullAccount) || fullAccount.credentials) {
+            item.account = normalizeSub2(fullAccount);
+            item.sourceFormat = "sub2api";
+          } else if (isCpaRecord(fullAccount)) {
+            item.account = normalizeCpa(fullAccount);
+            item.sourceFormat = "cpa";
+          } else {
+            return false;
+          }
+        }
+        item.needsHydration = false;
+        item.error = "";
+        item.converted = null;
+        item.targetFormat = null;
+        if (item.proxyId == null) item.proxyId = extractProxyIdFromAccount(item.account);
+        refreshAccountExpiry(item);
+        return true;
+      }
+
+      async function ensureItemsHydrated(targetItems, options = {}) {
+        const {
+          progressLabel = "操作",
+          allowPartial = true,
+          signal: externalSignal = null,
+        } = options;
+        const pending = (targetItems || []).filter((item) => itemNeedsHydration(item));
+        if (!pending.length) {
+          return { okCount: 0, failedCount: 0, cancelled: false, pending: 0 };
+        }
+
+        const cpaNames = [];
+        const sub2Ids = [];
+        /** @type {Map<string, any[]>} */
+        const cpaItemsByName = new Map();
+        /** @type {Map<string, any[]>} */
+        const sub2ItemsById = new Map();
+
+        for (const item of pending) {
+          const ref = item.remoteRef || {};
+          if (ref.kind === "cpa" || itemRemoteOrigin(item) === TARGET_CPA) {
+            const name = String(ref.name || item.sourceFile || "").trim();
+            if (!name) continue;
+            cpaNames.push(name);
+            if (!cpaItemsByName.has(name)) cpaItemsByName.set(name, []);
+            cpaItemsByName.get(name).push(item);
+          } else {
+            const id =
+              ref.id != null ? ref.id : String(item.sourceFile || "").replace(/^sub2-remote:/, "");
+            if (id == null || id === "") continue;
+            const key = String(id);
+            sub2Ids.push(id);
+            if (!sub2ItemsById.has(key)) sub2ItemsById.set(key, []);
+            sub2ItemsById.get(key).push(item);
+          }
+        }
+
+        const uniqueCpaNames = [...new Set(cpaNames.filter(Boolean))];
+        const uniqueSub2Ids = [];
+        const seenSub2 = new Set();
+        for (const id of sub2Ids) {
+          const key = String(id);
+          if (seenSub2.has(key)) continue;
+          seenSub2.add(key);
+          uniqueSub2Ids.push(id);
+        }
+
+        if (!uniqueCpaNames.length && !uniqueSub2Ids.length) {
+          return {
+            okCount: 0,
+            failedCount: pending.length,
+            cancelled: false,
+            pending: pending.length,
+          };
+        }
+
+        let localController = null;
+        let signal = externalSignal;
+        let ownBusy = false;
+        if (!signal) {
+          if (remoteImportBusy || uploadBusy) {
+            throw new Error("其他任务进行中，请稍后再补全凭证");
+          }
+          remoteImportCancelRequested = false;
+          localController = new AbortController();
+          remoteImportAbortController = localController;
+          signal = localController.signal;
+          setRemoteImportBusy(true);
+          ownBusy = true;
+        }
+
+        let okCount = 0;
+        let failedCount = 0;
+        let cancelled = false;
+        let hardError = null;
+
+        try {
+          showMsg(`正在为${progressLabel}补全 ${pending.length} 个远端账号凭证`, "info");
+          setRemoteImportStatus(`正在补全凭证，待处理 ${pending.length} 个账号`, "info");
+
+          if (uniqueCpaNames.length) {
+            const verified = await ensureVerifiedConfig(TARGET_CPA, false);
+            if (!verified) throw new Error("请先配置 CPA 后再补全凭证");
+            const {
+              files,
+              failedCount: cpaFailed,
+              cancelled: cpaCancelled,
+            } = await fetchAllCpaRemoteAuthContents(uniqueCpaNames, {
+              signal,
+              cancelChecker: throwIfRemoteImportCancelled,
+              onProgress: ({ chunkIndex, chunkTotal, okCount: done }) => {
+                setRemoteImportStatus(
+                  `正在补全 CPA 凭证第 ${chunkIndex}/${chunkTotal} 批，累计 ${done} 个`,
+                  "info"
+                );
+              },
+            });
+            if (cpaCancelled) cancelled = true;
+            failedCount += cpaFailed;
+            const gotNames = new Set();
+            for (const file of files) {
+              const name = String(file?.name || "");
+              if (!name || file?.content == null) continue;
+              gotNames.add(name);
+              const parsed = itemFromRemoteCpaContent(name, file.content);
+              const full = parsed.find((row) => row && !row.error && row.account);
+              const targets = cpaItemsByName.get(name) || [];
+              if (!full) {
+                failedCount += targets.length || 1;
+                for (const item of targets) {
+                  item.error = "补全凭证失败：内容无法识别";
+                }
+                continue;
+              }
+              for (const item of targets) {
+                if (applyHydratedAccountToItem(item, full.account)) okCount += 1;
+                else {
+                  failedCount += 1;
+                  item.error = "补全凭证失败：无法应用到列表项";
+                }
+              }
+            }
+            for (const name of uniqueCpaNames) {
+              if (gotNames.has(name)) continue;
+              for (const item of cpaItemsByName.get(name) || []) {
+                if (itemNeedsHydration(item)) {
+                  item.error = item.error || "补全凭证失败";
+                }
+              }
+            }
+          }
+
+          if (!cancelled && uniqueSub2Ids.length) {
+            const verified = await ensureVerifiedConfig(TARGET_SUB2API, false);
+            if (!verified) throw new Error("请先配置 SUB2API 后再补全凭证");
+            const {
+              accountById,
+              failedCount: sub2Failed,
+              hardError: sub2HardError,
+              cancelled: sub2Cancelled,
+            } = await fetchAllSub2RemoteAccounts(uniqueSub2Ids, {
+              signal,
+              cancelChecker: throwIfRemoteImportCancelled,
+              onProgress: ({ chunkIndex, chunkTotal, okCount: done }) => {
+                setRemoteImportStatus(
+                  `正在补全 SUB2API 凭证第 ${chunkIndex}/${chunkTotal} 批，累计 ${done} 个`,
+                  "info"
+                );
+              },
+            });
+            if (sub2Cancelled) cancelled = true;
+            failedCount += sub2Failed;
+            if (sub2HardError) hardError = sub2HardError;
+            const stepUpBlocked =
+              hardError?.code === "SUB2API_STEP_UP_REQUIRED" ||
+              hardError?.data?.code === "SUB2API_STEP_UP_REQUIRED" ||
+              hardError?.code === "SUB2API_TOTP_ENABLED" ||
+              hardError?.data?.code === "SUB2API_TOTP_ENABLED" ||
+              /totp|step[_ -]?up|two-factor|二次验证/i.test(String(hardError?.message || ""));
+            if (stepUpBlocked) {
+              const detail =
+                apiErrorMessage(hardError) ||
+                "源端 SUB2API 已开启二次验证，Admin API Key 无法导出完整凭证";
+              throw Object.assign(new Error(detail), {
+                code: hardError?.code || "SUB2API_STEP_UP_REQUIRED",
+                data: hardError?.data,
+              });
+            }
+            for (const id of uniqueSub2Ids) {
+              const key = String(id);
+              const account = accountById.get(key);
+              const targets = sub2ItemsById.get(key) || [];
+              if (!account) {
+                failedCount += targets.length || 1;
+                for (const item of targets) {
+                  if (itemNeedsHydration(item)) item.error = item.error || "补全凭证失败";
+                }
+                continue;
+              }
+              for (const item of targets) {
+                if (applyHydratedAccountToItem(item, account)) okCount += 1;
+                else {
+                  failedCount += 1;
+                  item.error = "补全凭证失败：无法应用到列表项";
+                }
+              }
+            }
+          }
+
+          refreshPendingRemoteHydrationFlag();
+          converted = items.some((item) => item.converted);
+          renderTable();
+          scheduleWorkspaceSave({ immediate: true });
+
+          if (cancelled) {
+            setRemoteImportStatus(
+              `已取消补全，成功 ${okCount} 个` + (failedCount ? `，失败 ${failedCount} 个` : ""),
+              "info"
+            );
+          } else if (failedCount && !okCount) {
+            setRemoteImportStatus(`补全凭证失败 ${failedCount} 个`, "err");
+          } else if (failedCount) {
+            setRemoteImportStatus(
+              `已补全 ${okCount} 个，失败 ${failedCount} 个`,
+              allowPartial ? "info" : "err"
+            );
+          } else {
+            setRemoteImportStatus(`已补全 ${okCount} 个账号凭证`, "ok");
+          }
+
+          return {
+            okCount,
+            failedCount,
+            cancelled,
+            pending: pending.length,
+            hardError,
+          };
+        } finally {
+          if (ownBusy) {
+            remoteImportAbortController = null;
+            remoteImportCancelRequested = false;
+            setRemoteImportBusy(false);
+            refreshRemoteImportUi();
+          }
+        }
+      }
+
+      async function pullRemoteAccountList() {
+        if (remoteImportBusy) return;
         if (uploadBusy) {
-          setTransferStatus("上传进行中，请先取消或等待完成后再拉取", "err");
+          setRemoteImportStatus("上传进行中，请先取消或等待完成后再拉取", "err");
           showMsg("上传进行中，请先取消或等待完成后再拉取", "err");
           return;
         }
         if (cpaRemoteBusy || sub2RemoteBusy || sub2DedupeBusy) {
-          setTransferStatus("其他远端任务进行中，请稍后再拉取", "err");
+          setRemoteImportStatus("其他远端任务进行中，请稍后再拉取", "err");
           showMsg("其他远端任务进行中，请稍后再拉取", "err");
           return;
         }
 
-        const sourceTarget = transferSourceTarget();
-        const directionSnapshot = transferDirection;
+        const sourceTarget = normalizeRemoteSourceTarget(remoteSourceTarget);
         const verified = await ensureVerifiedConfig(sourceTarget, false);
         if (!verified) {
-          setTransferStatus(`请先配置源端 ${sourceTarget} 后再拉取`, "err");
+          setRemoteImportStatus(`请先配置源端 ${sourceTarget} 后再拉取`, "err");
           showMsg(`请先配置源端 ${sourceTarget} 后再拉取`, "err");
-          refreshTransferImportUi();
+          refreshRemoteImportUi();
           return;
         }
 
-        transferCancelRequested = false;
-        transferAbortController = new AbortController();
-        setTransferImportBusy(true);
+        remoteImportCancelRequested = false;
+        remoteImportAbortController = new AbortController();
+        setRemoteImportBusy(true);
         clearMsg();
 
         try {
           if (sourceTarget === TARGET_CPA) {
-            setTransferStatus("正在拉取 CPA 认证文件列表", "info");
-            showMsg("正在从 CPA 拉取全部认证文件", "info");
-            const names = await listCpaAuthFileNamesForTransfer(transferAbortController.signal);
-            throwIfTransferCancelled();
-            if (!names.length) {
-              setTransferStatus("源端 CPA 没有可拉取的认证文件", "info");
+            setRemoteImportStatus("正在拉取 CPA 认证文件列表", "info");
+            showMsg("正在从 CPA 拉取账号列表", "info");
+            const files = await listCpaRemoteFilesMeta(remoteImportAbortController.signal);
+            throwIfRemoteImportCancelled();
+            if (!files.length) {
+              setRemoteImportStatus("源端 CPA 没有可拉取的认证文件", "info");
               showMsg("源端 CPA 没有可拉取的认证文件", "info");
               return;
             }
-            setTransferStatus(`列表已加载，共 ${names.length} 个文件，开始分批下载`, "info");
-            const { files, failedCount, cancelled } = await fetchAllCpaRemoteAuthContents(names, {
-              signal: transferAbortController.signal,
-              onProgress: ({ chunkIndex, chunkTotal, okCount }) => {
-                setTransferStatus(
-                  `正在拉取第 ${chunkIndex}/${chunkTotal} 批，累计 ${okCount} 个账号`,
-                  "info"
-                );
-              },
-            });
-
-            const incoming = [];
-            files.forEach((file, index) => {
-              incoming.push(...itemFromRemoteCpaContent(file.name, file.content, index));
-            });
-            const usable = incoming.filter((item) => item && !item.error && item.account);
-            if (!usable.length) {
-              if (cancelled || transferCancelRequested) {
-                setTransferStatus("已取消拉取", "info");
-                showMsg("已取消服务端互传拉取", "info");
-              } else {
-                setTransferStatus(
-                  failedCount
-                    ? `拉取失败，全部 ${failedCount} 个文件未成功`
-                    : "拉取失败，没有可用账号",
-                  "err"
-                );
-                showMsg("从 CPA 拉取失败，没有可用账号", "err");
-              }
-              return;
-            }
-
-            const result = await commitIncomingItems(usable, {
+            const incoming = stubsFromCpaRemoteFiles(files);
+            const result = await commitIncomingItems(incoming, {
               sourceLabel: "CPA",
               emptyMessage: "从 CPA 未解析到可用账号",
-              allowDuringTransfer: true,
-              lockDirectionAfter: directionSnapshot,
+              allowDuringRemoteImport: true,
+              lockDirectionAfter: TARGET_CPA,
             });
             if (!result) {
-              setTransferStatus("已取消写入主列表", "info");
+              setRemoteImportStatus("已取消写入主列表", "info");
               return;
             }
-            const extras = [
-              cancelled || transferCancelRequested
-                ? `已取消，已从 CPA 写入 ${usable.length} 个账号`
-                : `已从 CPA 拉取 ${usable.length} 个账号`,
-            ];
-            if (failedCount) extras.push(`失败 ${failedCount} 个`);
-            const msg = formatCommitMessage(result, extras);
-            setTransferStatus(msg, failedCount || cancelled ? "info" : "ok");
-            showMsg(msg, failedCount ? "err" : "ok");
-            showToast(
-              cancelled
-                ? `已取消，已导入 ${usable.length} 个账号`
-                : `已按互传方向锁定为全部 → SUB2API`,
-              failedCount ? "err" : "ok",
-              4200
-            );
+            const msg = formatCommitMessage(result, [
+              `已从 CPA 快载 ${incoming.length} 个账号`,
+              "完整凭证将在转换或上传时获取",
+            ]);
+            setRemoteImportStatus(msg, "ok");
+            showMsg(msg, "ok");
+            showToast("已按远端来源锁定为全部 → SUB2API", "ok", 3600);
             return;
           }
 
-          // SUB2API → CPA
-          setTransferStatus("正在拉取 SUB2API 账号列表", "info");
-          showMsg("正在从 SUB2API 拉取全部账号", "info");
-          const ids = await listSub2AccountIdsForTransfer(transferAbortController.signal);
-          throwIfTransferCancelled();
-          if (!ids.length) {
-            setTransferStatus("源端 SUB2API 没有可拉取的账号", "info");
+          setRemoteImportStatus("正在拉取 SUB2API 账号列表", "info");
+          showMsg("正在从 SUB2API 拉取账号列表", "info");
+          const accounts = await listSub2RemoteAccountsMeta(remoteImportAbortController.signal);
+          throwIfRemoteImportCancelled();
+          if (!accounts.length) {
+            setRemoteImportStatus("源端 SUB2API 没有可拉取的账号", "info");
             showMsg("源端 SUB2API 没有可拉取的账号", "info");
             return;
           }
-          setTransferStatus(`列表已加载，共 ${ids.length} 个账号，开始分批导出`, "info");
-          const { accounts, failedCount, hardError, cancelled } = await fetchAllSub2RemoteAccounts(
-            ids,
-            {
-              signal: transferAbortController.signal,
-              onProgress: ({ chunkIndex, chunkTotal, okCount }) => {
-                setTransferStatus(
-                  `正在拉取第 ${chunkIndex}/${chunkTotal} 批，累计 ${okCount} 个账号`,
-                  "info"
-                );
-              },
-            }
-          );
-
-          const stepUpBlocked =
-            hardError?.code === "SUB2API_STEP_UP_REQUIRED" ||
-            hardError?.data?.code === "SUB2API_STEP_UP_REQUIRED" ||
-            hardError?.code === "SUB2API_TOTP_ENABLED" ||
-            hardError?.data?.code === "SUB2API_TOTP_ENABLED" ||
-            /totp|step[_ -]?up|two-factor|二次验证/i.test(String(hardError?.message || ""));
-          if (stepUpBlocked) {
-            const detail =
-              apiErrorMessage(hardError) || "源端 SUB2API 已开启二次验证，Admin API Key 无法导出";
-            setTransferStatus(detail, "err");
-            showMsg(detail, "err");
-            showToast(detail, "err", 5200);
-            return;
-          }
-
-          const incoming = itemsFromSub2RemoteAccounts(accounts);
-          const usable = incoming.filter((item) => item && !item.error && item.account);
-          if (!usable.length) {
-            if (cancelled || transferCancelRequested) {
-              setTransferStatus("已取消拉取", "info");
-              showMsg("已取消服务端互传拉取", "info");
-            } else {
-              const detail = hardError ? apiErrorMessage(hardError) : "";
-              setTransferStatus(
-                detail
-                  ? `拉取失败：${detail}`
-                  : failedCount
-                    ? `拉取失败，全部 ${failedCount} 个账号无完整凭证`
-                    : "拉取失败，没有可用账号",
-                "err"
-              );
-              showMsg("从 SUB2API 拉取失败，没有可用账号", "err");
-            }
-            return;
-          }
-
-          const result = await commitIncomingItems(usable, {
+          const incoming = itemsFromSub2RemoteAccounts(accounts, { asStub: true });
+          const result = await commitIncomingItems(incoming, {
             sourceLabel: "SUB2API",
             emptyMessage: "从 SUB2API 未解析到可用账号",
-            allowDuringTransfer: true,
-            lockDirectionAfter: directionSnapshot,
+            allowDuringRemoteImport: true,
+            lockDirectionAfter: TARGET_SUB2API,
           });
           if (!result) {
-            setTransferStatus("已取消写入主列表", "info");
+            setRemoteImportStatus("已取消写入主列表", "info");
             return;
           }
-          const extras = [
-            cancelled || transferCancelRequested
-              ? `已取消，已从 SUB2API 写入 ${usable.length} 个账号`
-              : `已从 SUB2API 拉取 ${usable.length} 个账号`,
-          ];
-          if (failedCount) extras.push(`失败 ${failedCount} 个`);
-          const msg = formatCommitMessage(result, extras);
-          setTransferStatus(msg, failedCount || cancelled ? "info" : "ok");
-          showMsg(msg, failedCount ? "err" : "ok");
-          showToast(
-            cancelled ? `已取消，已导入 ${usable.length} 个账号` : `已按互传方向锁定为全部 → CPA`,
-            failedCount ? "err" : "ok",
-            4200
-          );
+          const msg = formatCommitMessage(result, [
+            `已从 SUB2API 快载 ${incoming.length} 个账号`,
+            "完整凭证将在转换或上传时获取",
+          ]);
+          setRemoteImportStatus(msg, "ok");
+          showMsg(msg, "ok");
+          showToast("已按远端来源锁定为全部 → CPA", "ok", 3600);
         } catch (error) {
-          if (error?.name === "RemoteCancelledError" || transferCancelRequested) {
-            setTransferStatus("已取消拉取", "info");
-            showMsg("已取消服务端互传拉取", "info");
+          if (error?.name === "RemoteCancelledError" || remoteImportCancelRequested) {
+            setRemoteImportStatus("已取消拉取", "info");
+            showMsg("已取消远端导入", "info");
           } else {
             const detail = apiErrorMessage(error);
-            setTransferStatus(`拉取失败：${detail}`, "err");
-            showMsg(`服务端互传拉取失败：${detail}`, "err");
+            setRemoteImportStatus(`拉取失败：${detail}`, "err");
+            showMsg(`远端导入失败：${detail}`, "err");
           }
         } finally {
-          transferAbortController = null;
-          transferCancelRequested = false;
-          setTransferImportBusy(false);
-          refreshTransferImportUi();
+          remoteImportAbortController = null;
+          remoteImportCancelRequested = false;
+          setRemoteImportBusy(false);
+          refreshRemoteImportUi();
         }
       }
 
@@ -9850,8 +10269,8 @@
           showMsg("上传进行中，请先取消或等待完成后再导入", "err");
           return;
         }
-        if (transferImportBusy) {
-          showMsg("服务端互传进行中，请先取消或等待完成后再导入", "err");
+        if (remoteImportBusy) {
+          showMsg("远端导入进行中，请先取消或等待完成后再导入", "err");
           return;
         }
         clearMsg();
@@ -9897,8 +10316,8 @@
           showMsg("上传进行中，无法清空", "err");
           return;
         }
-        if (transferImportBusy) {
-          showMsg("服务端互传进行中，无法清空", "err");
+        if (remoteImportBusy) {
+          showMsg("远端导入进行中，无法清空", "err");
           return;
         }
         items = [];
@@ -9909,6 +10328,7 @@
         tableSort = { key: "", dir: "asc" };
         proxyEditingItemId = null;
         restoredJobMeta = null;
+        hasPendingRemoteHydration = false;
         unlockDirection({ silent: true });
         $("accountSearch").value = "";
         document.querySelectorAll("[data-upload-select]").forEach((input) => {
@@ -9968,34 +10388,34 @@
         handleFiles(e.dataTransfer.files);
       });
       fileInput.addEventListener("change", () => handleFiles(fileInput.files));
-      $("btnImportModeLocal")?.addEventListener("click", () => setImportMode("local"));
-      $("btnImportModeTransfer")?.addEventListener("click", () => setImportMode("transfer"));
-      $("btnTransferDirCpaToSub2")?.addEventListener("click", () =>
-        setTransferDirection("cpa-to-sub2")
-      );
-      $("btnTransferDirSub2ToCpa")?.addEventListener("click", () =>
-        setTransferDirection("sub2-to-cpa")
-      );
-      $("btnTransferConfigSource")?.addEventListener("click", async () => {
-        const sourceTarget = transferSourceTarget();
+      $("btnImportModeToggle")?.addEventListener("click", () => {
+        setImportMode(importMode === "remote" ? "local" : "remote");
+      });
+      $("remoteSourceSelect")?.addEventListener("change", (event) => {
+        setRemoteSourceTarget(event.target.value);
+      });
+      $("btnRemoteConfigSource")?.addEventListener("click", async () => {
+        const sourceTarget = normalizeRemoteSourceTarget(remoteSourceTarget);
         await openConfigDialog({
           target: sourceTarget,
-          reason: `配置源端 ${sourceTarget} 后可拉取全部账号`,
+          reason: `配置源端 ${sourceTarget} 后可拉取账号列表`,
           mode: "manage",
         });
-        refreshTransferImportUi();
+        refreshRemoteImportUi();
       });
-      $("btnTransferPullAll")?.addEventListener("click", () => {
-        pullAllFromTransferSource().catch((error) => {
+      $("btnRemotePullList")?.addEventListener("click", () => {
+        pullRemoteAccountList().catch((error) => {
           const detail = apiErrorMessage(error);
-          setTransferStatus(`拉取失败：${detail}`, "err");
-          showMsg(`服务端互传拉取失败：${detail}`, "err");
-          transferAbortController = null;
-          transferCancelRequested = false;
-          setTransferImportBusy(false);
+          setRemoteImportStatus(`拉取失败：${detail}`, "err");
+          showMsg(`远端导入失败：${detail}`, "err");
+          remoteImportAbortController = null;
+          remoteImportCancelRequested = false;
+          setRemoteImportBusy(false);
+          refreshRemoteImportUi();
         });
       });
-      $("btnTransferAbort")?.addEventListener("click", cancelTransferImport);
+      $("btnRemoteSub2Dedupe")?.addEventListener("click", () => openSub2DedupeModal());
+      $("btnRemoteAbort")?.addEventListener("click", cancelRemoteImport);
       $("btnUnlockDirection")?.addEventListener("click", () => unlockDirection());
       $("btnConvert").addEventListener("click", convertAll);
       $("btnExportSub2").addEventListener("click", exportSub2);
@@ -10113,7 +10533,7 @@
       }
 
       $("direction").addEventListener("change", () => {
-        if (directionLockedByTransfer) {
+        if (directionLockedByRemote) {
           // 锁定期间 select 应为 disabled；若仍触发则忽略
           return;
         }
@@ -10217,7 +10637,6 @@
       $("badgeCpaConfig").addEventListener("click", () => {
         openConfigDialog({ target: TARGET_CPA, reason: "", mode: "manage" });
       });
-      $("btnSub2Dedupe")?.addEventListener("click", () => openSub2DedupeModal());
       $("btnCloseSub2Dedupe")?.addEventListener("click", () => closeSub2DedupeModal());
       $("btnCancelSub2Dedupe")?.addEventListener("click", () => closeSub2DedupeModal());
       $("sub2DedupeModal")?.addEventListener("click", (event) => {
@@ -10680,8 +11099,8 @@
       });
 
       bindBeforeUnloadGuard();
+      setRemoteSourceTarget(TARGET_CPA, { force: true });
       setImportMode("local");
-      setTransferDirection("cpa-to-sub2");
       applyDirectionLockUi();
       renderTable();
       updateRuntimeConfigUi();
