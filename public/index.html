@@ -519,8 +519,27 @@
         display: flex;
         flex-wrap: wrap;
         align-items: center;
-        gap: 6px;
+        justify-content: space-between;
+        gap: 6px 10px;
         margin-top: 4px;
+        width: 100%;
+      }
+
+      .opt-grid > .opt {
+        flex: 1 1 0;
+        min-width: 0;
+        justify-content: flex-start;
+      }
+
+      @media (max-width: 560px) {
+        .opt-grid {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .opt-grid > .opt {
+          flex: 0 0 auto;
+        }
       }
 
       .opt-note {
@@ -3265,19 +3284,6 @@
       let sub2RemoteAbortController = null;
       let sub2RemoteCancelRequested = false;
 
-      /** 导入模式：本地文件 | 远端服务器 */
-      let importMode = "local";
-      /** 远端源服务器：CPA | SUB2API */
-      let remoteSourceTarget = TARGET_CPA;
-      let remoteImportBusy = false;
-      /** @type {AbortController|null} */
-      let remoteImportAbortController = null;
-      let remoteImportCancelRequested = false;
-      /** 远端加载后锁定转换方向 */
-      let directionLockedByRemote = false;
-      /** 当前主列表中是否含待补全凭证的远端账号 */
-      let hasPendingRemoteHydration = false;
-
       const DEFAULT_BATCH_SUB2API = 100;
       const DEFAULT_BATCH_CPA = 20;
       const DEFAULT_UPLOAD_CONCURRENCY = 1;
@@ -3356,6 +3362,19 @@
         UPLOAD_STATUS.FAILED,
         UPLOAD_STATUS.CANCELLED,
       ]);
+
+      /** 导入模式：本地文件 | 远端服务器 */
+      let importMode = "local";
+      /** 远端源服务器：CPA | SUB2API */
+      let remoteSourceTarget = TARGET_CPA;
+      let remoteImportBusy = false;
+      /** @type {AbortController|null} */
+      let remoteImportAbortController = null;
+      let remoteImportCancelRequested = false;
+      /** 远端加载后锁定转换方向 */
+      let directionLockedByRemote = false;
+      /** 当前主列表中是否含待补全凭证的远端账号 */
+      let hasPendingRemoteHydration = false;
 
       const $ = (id) => document.getElementById(id);
       const dropzone = $("dropzone");
