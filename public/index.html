@@ -2445,10 +2445,7 @@
             </div>
           </div>
           <div class="opt-grid">
-            <label
-              class="opt"
-              title="写入 SUB2API 账号字段 auto_pause_on_expired：账号在 SUB2API 侧过期后是否自动暂停调度。与本页「账号状态/上传跳过失效」无关"
-            >
+            <label class="opt">
               <input type="checkbox" id="autoPause" checked />
               过期自动暂停<span class="opt-note">SUB2API</span>
               <span
@@ -2642,6 +2639,21 @@
                 >
                 <label class="status-select"
                   ><input type="checkbox" data-upload-select="cancelled" />已取消</label
+                >
+              </div>
+              <div class="selection-filter-group">
+                <span class="toolbar-label">导出状态</span>
+                <label class="status-select"
+                  ><input type="checkbox" data-export-select="not-exported" />未导出</label
+                >
+                <label class="status-select"
+                  ><input type="checkbox" data-export-select="preparing" />准备中</label
+                >
+                <label class="status-select"
+                  ><input type="checkbox" data-export-select="exported" />已导出</label
+                >
+                <label class="status-select"
+                  ><input type="checkbox" data-export-select="failed" />失败</label
                 >
               </div>
             </div>
@@ -3871,6 +3883,18 @@
               item.uploadTarget,
               item.uploadMessage,
               item.uploadStatus,
+              item.exportTarget,
+              item.exportMessage,
+              item.exportStatus,
+              item.exportStatus === EXPORT_STATUS.NONE
+                ? "未导出"
+                : item.exportStatus === EXPORT_STATUS.PREPARING
+                  ? "准备中"
+                  : item.exportStatus === EXPORT_STATUS.SUCCESS
+                    ? "已导出"
+                    : item.exportStatus === EXPORT_STATUS.FAILED
+                      ? "导出失败"
+                      : "",
               accountStatusLabel(item.accountStatus),
               item.accountStatus,
               formatExpiryDisplay(item.expiresAt),
@@ -3888,8 +3912,9 @@
       }
 
       function getOperationItems() {
-        if (!selectionMode) return items.filter((item) => !item.error && item.account);
-        return items.filter((item) => item.selected && !item.error && item.account);
+        const usable = (item) => !item.error && (Boolean(item.account) || itemNeedsHydration(item));
+        if (!selectionMode) return items.filter(usable);
+        return items.filter((item) => item.selected && usable(item));
       }
 
       function selectedCount() {
@@ -4341,13 +4366,19 @@
       }
 
       function canTargetFormat(item, target) {
-        // 远端 stub 仅有元数据时也可作为导出/上传候选，点击后再补全与转换
+        // 上传候选：遵循转换方向。远端 stub 仅有元数据时也可点，点击后再补全与转换
         if (!item || item.error) return false;
         if (!item.account && !itemNeedsHydration(item)) return false;
         const key = resolveItemTargetKey(item);
         if (target === TARGET_SUB2API) return key === "sub2api" || key === TARGET_SUB2API;
         if (target === TARGET_CPA || target === "cpa") return key === "cpa";
         return false;
+      }
+
+      function canExportFormat(item) {
+        // 导出不受转换方向与同源限制：任意可操作账号都可导出到 CPA 或 SUB2API，点击后再补全并自动转换
+        if (!item || item.error) return false;
+        return Boolean(item.account) || itemNeedsHydration(item);
       }
 
       function refreshActionButtons() {
@@ -4367,11 +4398,12 @@
           ? "列表含从 CPA 远端载入的账号，不可回传到 CPA"
           : targetConfigTooltip(TARGET_CPA);
         $("btnClear").disabled = !items.length || anyBusy;
-        // 导出不受同源限制；按转换方向与源格式判断目标，导出/上传时再自动转换
-        const canExportSub2 = operationItems.some((item) => canTargetFormat(item, TARGET_SUB2API));
-        const canExportCpa = operationItems.some((item) => canTargetFormat(item, TARGET_CPA));
-        $("btnExportSub2").disabled = !canExportSub2 || anyBusy;
-        $("btnExportCpaZip").disabled = !canExportCpa || anyBusy;
+        // 导出不受同源与转换方向限制；导出时再按目标自动转换
+        const canExport = operationItems.some((item) => canExportFormat(item));
+        $("btnExportSub2").disabled = !canExport || anyBusy;
+        $("btnExportCpaZip").disabled = !canExport || anyBusy;
+        $("btnExportSub2").title = canExport ? "导出为 SUB2API 格式；必要时自动补全凭证并转换" : "";
+        $("btnExportCpaZip").title = canExport ? "导出为 CPA 格式；必要时自动补全凭证并转换" : "";
         $("btnCancelUpload").hidden = !uploadBusy;
         $("btnCancelUpload").disabled = !uploadBusy || uploadCancelRequested;
         refreshRemoteActionButtons();
@@ -5770,7 +5802,7 @@
       function exportProgressMessage(target, total, phaseText = "") {
         const scope = activeExportItemIds
           ? items.filter((item) => activeExportItemIds.has(item.id))
-          : getOperationItems().filter((item) => canTargetFormat(item, target));
+          : getOperationItems().filter((item) => canExportFormat(item));
         const success = scope.filter((item) => item.exportStatus === EXPORT_STATUS.SUCCESS).length;
         const failed = scope.filter((item) => item.exportStatus === EXPORT_STATUS.FAILED).length;
         const preparing = scope.filter(
@@ -5810,15 +5842,12 @@
           showMsg(`上传进行中，请稍后再${progressLabel}`, "err");
           return null;
         }
-        const operationItems = getOperationItems().filter((item) =>
-          canTargetFormat(item, exportTarget)
-        );
+        // 导出不受转换方向限制：操作集内可导出项均可转到目标格式
+        const operationItems = getOperationItems().filter((item) => canExportFormat(item));
         if (!operationItems.length) {
           if (announceEmpty) {
             showMsg(
-              selectionMode
-                ? `请先选择可${progressLabel}到 ${exportTarget === TARGET_SUB2API ? "SUB2API" : "CPA"} 的账号`
-                : `没有可${progressLabel}的 ${exportTarget === TARGET_SUB2API ? "SUB2API" : "CPA"} 账号`,
+              selectionMode ? `请先选择可${progressLabel}的账号` : `没有可${progressLabel}的账号`,
               "err"
             );
           }
@@ -10553,6 +10582,9 @@
         document.querySelectorAll("[data-account-select]").forEach((input) => {
           input.checked = false;
         });
+        document.querySelectorAll("[data-export-select]").forEach((input) => {
+          input.checked = false;
+        });
         setUploadProgressVisible(false);
         clearMsg();
         renderTable();
@@ -10654,6 +10686,9 @@
           document.querySelectorAll("[data-account-select]").forEach((input) => {
             input.checked = false;
           });
+          document.querySelectorAll("[data-export-select]").forEach((input) => {
+            input.checked = false;
+          });
         }
         renderTable();
       });
@@ -10666,11 +10701,14 @@
         document.querySelectorAll("[data-account-select]").forEach((input) => {
           input.checked = false;
         });
+        document.querySelectorAll("[data-export-select]").forEach((input) => {
+          input.checked = false;
+        });
         renderTable();
       });
       $("btnSelectVisible").addEventListener("click", () => {
         for (const { item } of getVisibleItems()) {
-          if (!item.error && item.account) item.selected = true;
+          if (!item.error && (item.account || itemNeedsHydration(item))) item.selected = true;
         }
         renderTable();
       });
@@ -10680,6 +10718,9 @@
           input.checked = false;
         });
         document.querySelectorAll("[data-account-select]").forEach((input) => {
+          input.checked = false;
+        });
+        document.querySelectorAll("[data-export-select]").forEach((input) => {
           input.checked = false;
         });
         renderTable();
@@ -10695,7 +10736,7 @@
         checkbox.addEventListener("change", () => {
           const status = checkbox.dataset.uploadSelect;
           for (const { item } of getVisibleItems()) {
-            if (item.error || !item.account) continue;
+            if (item.error || !(item.account || itemNeedsHydration(item))) continue;
             if (item.uploadStatus === status) item.selected = checkbox.checked;
           }
           renderTable();
@@ -10705,8 +10746,19 @@
         checkbox.addEventListener("change", () => {
           const status = checkbox.dataset.accountSelect;
           for (const { item } of getVisibleItems()) {
-            if (item.error || !item.account) continue;
+            if (item.error || !(item.account || itemNeedsHydration(item))) continue;
             if (item.accountStatus === status) item.selected = checkbox.checked;
+          }
+          renderTable();
+        });
+      });
+      document.querySelectorAll("[data-export-select]").forEach((checkbox) => {
+        checkbox.addEventListener("change", () => {
+          const status = checkbox.dataset.exportSelect;
+          for (const { item } of getVisibleItems()) {
+            if (item.error || !(item.account || itemNeedsHydration(item))) continue;
+            const exportStatus = item.exportStatus || EXPORT_STATUS.NONE;
+            if (exportStatus === status) item.selected = checkbox.checked;
           }
           renderTable();
         });
