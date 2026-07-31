@@ -281,8 +281,18 @@
         min-height: 100%;
       }
 
-      .card-import .drop {
+      .card-import .import-panel {
         flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: 168px;
+      }
+
+      .card-import .drop {
+        flex: 0 0 auto;
+        width: 100%;
+        min-height: 168px;
       }
 
       .card-import-title {
@@ -291,6 +301,7 @@
         justify-content: space-between;
         gap: 12px;
         margin-bottom: 12px;
+        flex-shrink: 0;
       }
 
       .card-import-title h2 {
@@ -362,76 +373,105 @@
       }
 
       .remote-panel {
-        display: flex;
-        flex-direction: column;
-        gap: 14px;
-        flex: 1 1 auto;
-        min-height: 132px;
+        gap: 18px;
       }
 
-      .remote-source-row {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 6px;
-      }
-
-      .remote-source-row select {
-        width: 100%;
-      }
-
-      .remote-meta-row {
+      .remote-row {
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-      }
-
-      .remote-meta-text {
+        gap: 8px;
+        width: 100%;
         min-width: 0;
-        font-size: 12px;
-        color: var(--muted);
-        line-height: 1.45;
-        word-break: break-all;
       }
 
-      .remote-meta-text strong {
+      .remote-row-source {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .remote-source-combo {
+        display: flex;
+        align-items: stretch;
+        min-width: 0;
+        width: 100%;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+        transition:
+          border-color 0.15s ease,
+          box-shadow 0.15s ease;
+      }
+
+      .remote-source-combo:focus-within {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+      }
+
+      .remote-source-combo select {
+        width: auto;
+        min-width: 108px;
+        max-width: 138px;
+        flex: 0 0 auto;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        padding: 7px 10px;
+      }
+
+      .remote-source-combo select:focus {
+        outline: none;
+        border: 0;
+        box-shadow: none;
+      }
+
+      .remote-source-divider {
+        width: 1px;
+        flex: 0 0 1px;
+        align-self: stretch;
+        background: var(--border);
+        margin: 6px 0;
+      }
+
+      .remote-source-url {
+        display: block;
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
         color: var(--text);
-        font-weight: 650;
+        padding: 7px 10px;
+        font-size: 12.5px;
+        line-height: 1.35;
       }
 
-      .remote-actions {
+      .remote-source-url.is-empty {
+        color: var(--muted);
+      }
+
+      .remote-row-source .btn-ghost {
+        min-height: 34px;
+        padding: 7px 12px;
+      }
+
+      .remote-row-actions {
         display: flex;
         gap: 8px;
         align-items: stretch;
         flex-wrap: wrap;
       }
 
-      .remote-actions .btn-ok {
+      .remote-row-actions .btn-ok {
         flex: 1 1 auto;
         min-width: 120px;
       }
 
-      .remote-actions .btn-ghost {
+      .remote-row-actions .btn-ghost {
         flex: 0 0 auto;
-      }
-
-      .remote-status {
-        min-height: 18px;
-        font-size: 12px;
-        color: var(--muted);
-        line-height: 1.45;
-      }
-
-      .remote-status.info {
-        color: var(--muted);
-      }
-
-      .remote-status.ok {
-        color: #86efac;
-      }
-
-      .remote-status.err {
-        color: #fca5a5;
       }
 
       .direction-lock-note {
@@ -466,7 +506,7 @@
       .drop {
         border: 1.5px dashed var(--border);
         border-radius: 10px;
-        padding: 22px 16px;
+        padding: 28px 16px;
         text-align: center;
         cursor: pointer;
         transition: 0.15s ease;
@@ -475,7 +515,7 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        min-height: 132px;
+        min-height: 168px;
       }
 
       .drop:hover,
@@ -2209,8 +2249,21 @@
         }
 
         .drop {
-          min-height: 96px;
-          padding: 14px 12px;
+          min-height: 128px;
+          padding: 18px 12px;
+        }
+
+        .remote-row-source {
+          grid-template-columns: 1fr;
+          align-items: stretch;
+        }
+
+        .remote-source-combo select {
+          min-width: 96px;
+        }
+
+        .remote-row-source .btn-ghost {
+          width: 100%;
         }
       }
 
@@ -2284,20 +2337,22 @@
             <input type="file" id="fileInput" accept=".json,application/json" multiple />
           </div>
           <div class="import-panel remote-panel" id="importPanelRemote" hidden>
-            <div class="remote-source-row">
-              <label class="field-mini-label" for="remoteSourceSelect">源服务器</label>
-              <select id="remoteSourceSelect">
-                <option value="CPA" selected>CPA</option>
-                <option value="SUB2API">SUB2API</option>
-              </select>
-            </div>
-            <div class="remote-meta-row">
-              <div class="remote-meta-text" id="remoteSourceValue">源端未配置</div>
+            <div class="remote-row remote-row-source">
+              <div class="remote-source-combo">
+                <select id="remoteSourceSelect" aria-label="源服务器类型">
+                  <option value="CPA" selected>CPA</option>
+                  <option value="SUB2API">SUB2API</option>
+                </select>
+                <span class="remote-source-divider" aria-hidden="true"></span>
+                <div class="remote-source-url mono is-empty" id="remoteSourceValue" title="">
+                  未配置
+                </div>
+              </div>
               <button class="btn-ghost btn-sm" type="button" id="btnRemoteConfigSource">
-                配置
+                管理
               </button>
             </div>
-            <div class="remote-actions">
+            <div class="remote-row remote-row-actions">
               <button
                 class="btn-ok"
                 type="button"
@@ -2316,16 +2371,6 @@
                 服务端去重
               </button>
               <button class="btn-ghost" type="button" id="btnRemoteAbort" hidden>取消</button>
-            </div>
-            <div class="remote-status" id="remoteImportStatus" aria-live="polite"></div>
-            <div class="hint">
-              先快速载入列表，转换 / 导出 / 上传时再拉取完整凭证
-              <span
-                class="field-tip"
-                tabindex="0"
-                data-tip="列表阶段只请求源端账号元数据，速度更快。完整 token 会在导出或上传时按需分批获取并自动转换。远端账号不可回传到同一端，导出不受此限"
-                >i</span
-              >
             </div>
           </div>
         </div>
@@ -2669,7 +2714,6 @@
               >
                 刷新代理缓存
               </button>
-              <span class="mono" id="proxyCacheMeta" style="opacity: 0.65; font-size: 11px"></span>
               <span class="toolbar-sep"></span>
               <div class="selection-filter-group">
                 <span class="toolbar-label">导出状态</span>
@@ -6530,23 +6574,6 @@
         }
       }
 
-      function formatProxyCacheMeta(data) {
-        if (!data) return "";
-        const bits = [];
-        if (data.refreshed) bits.push("已强制刷新");
-        else if (data.cacheHit) bits.push(`缓存命中 ${data.cacheSource || "?"}`);
-        else bits.push("已从上游拉取");
-        if (data.count != null) bits.push(`${data.count} 个`);
-        if (data.ttlSeconds) bits.push(`TTL ${data.ttlSeconds}s`);
-        if (data.kvEnabled) bits.push("KV");
-        return bits.join(", ");
-      }
-
-      function setProxyCacheMeta(text) {
-        const el = $("proxyCacheMeta");
-        if (el) el.textContent = text || "";
-      }
-
       /**
        * 拉取可用代理 ID 列表。
        * 服务端不返回 proxy_key；forceRefresh 会跳过 Worker 内存/KV 并回写缓存。
@@ -6575,7 +6602,6 @@
         }
         cachedSub2ProxyIds = ids;
         cachedSub2ProxyIdSet = new Set(ids);
-        setProxyCacheMeta(formatProxyCacheMeta(data));
         return ids;
       }
 
@@ -9475,23 +9501,30 @@
         showMsg("已丢弃本地工作区快照", "info");
       }
 
-      function setRemoteImportStatus(text, type = "info") {
-        const el = $("remoteImportStatus");
-        if (!el) return;
-        el.textContent = text || "";
-        el.className = "remote-status" + (text ? ` ${type}` : "");
+      function setRemoteImportStatus(text, type = "info", options = {}) {
+        const raw = String(text || "").trim();
+        if (!raw) return;
+        const { toast = false, toastMs, skipMsg = false } = options;
+        if (!skipMsg) {
+          if (type === "err") showMsg(raw, "err");
+          else if (type === "ok") showMsg(raw, "ok");
+          else showMsg(raw, "info");
+        }
+        if (toast) {
+          showToast(raw, type === "err" ? "err" : type === "ok" ? "ok" : "info", toastMs);
+        }
       }
 
       function describeRemoteSource(target) {
         const effective = getEffectiveClientConfig(target);
-        if (effective?.source === "local") {
-          return `${target} · 本机 · ${effective.baseUrl || "已配置"}`;
-        }
+        if (effective?.baseUrl) return String(effective.baseUrl).trim();
         if (effective?.source === "env") {
           const baseUrl = targetConfigInfo(target)?.baseUrl || "";
-          return baseUrl ? `${target} · 环境变量 · ${baseUrl}` : `${target} · 环境变量`;
+          if (baseUrl) return String(baseUrl).trim();
+          return "环境变量已配置";
         }
-        return `${target} · 未配置`;
+        if (effective?.source === "local") return "本机已配置";
+        return "未配置";
       }
 
       function normalizeRemoteSourceTarget(value) {
@@ -9590,7 +9623,12 @@
         }
 
         const sourceValue = $("remoteSourceValue");
-        if (sourceValue) sourceValue.textContent = describeRemoteSource(sourceTarget);
+        if (sourceValue) {
+          const label = describeRemoteSource(sourceTarget);
+          sourceValue.textContent = label;
+          sourceValue.title = label;
+          sourceValue.classList.toggle("is-empty", !hasEffectiveConfig(sourceTarget));
+        }
 
         const toggle = $("btnImportModeToggle");
         if (toggle) toggle.disabled = remoteImportBusy;
@@ -9662,8 +9700,7 @@
         remoteImportCancelRequested = true;
         remoteImportAbortController?.abort();
         refreshRemoteImportUi();
-        setRemoteImportStatus("正在取消拉取，当前请求结束后停止", "info");
-        showMsg("正在取消远端导入", "info");
+        setRemoteImportStatus("正在取消拉取，当前请求结束后停止", "info", { toast: true });
       }
 
       function itemFromRemoteCpaContent(name, content, index = 0) {
@@ -10443,21 +10480,24 @@
       async function pullRemoteAccountList() {
         if (remoteImportBusy) return;
         if (uploadBusy) {
-          setRemoteImportStatus("上传进行中，请先取消或等待完成后再拉取", "err");
-          showMsg("上传进行中，请先取消或等待完成后再拉取", "err");
+          setRemoteImportStatus("上传进行中，请先取消或等待完成后再拉取", "err", {
+            toast: true,
+          });
+          return;
+        }
+        if (exportBusy) {
+          setRemoteImportStatus("导出进行中，请先等待完成后再拉取", "err", { toast: true });
           return;
         }
         if (cpaRemoteBusy || sub2RemoteBusy || sub2DedupeBusy) {
-          setRemoteImportStatus("其他远端任务进行中，请稍后再拉取", "err");
-          showMsg("其他远端任务进行中，请稍后再拉取", "err");
+          setRemoteImportStatus("其他远端任务进行中，请稍后再拉取", "err", { toast: true });
           return;
         }
 
         const sourceTarget = normalizeRemoteSourceTarget(remoteSourceTarget);
         const verified = await ensureVerifiedConfig(sourceTarget, false);
         if (!verified) {
-          setRemoteImportStatus(`请先配置源端 ${sourceTarget} 后再拉取`, "err");
-          showMsg(`请先配置源端 ${sourceTarget} 后再拉取`, "err");
+          setRemoteImportStatus(`请先配置源端 ${sourceTarget} 后再拉取`, "err", { toast: true });
           refreshRemoteImportUi();
           return;
         }
@@ -10466,16 +10506,15 @@
         remoteImportAbortController = new AbortController();
         setRemoteImportBusy(true);
         clearMsg();
+        refreshRemoteImportUi();
 
         try {
           if (sourceTarget === TARGET_CPA) {
             setRemoteImportStatus("正在拉取 CPA 认证文件列表", "info");
-            showMsg("正在从 CPA 拉取账号列表", "info");
             const files = await listCpaRemoteFilesMeta(remoteImportAbortController.signal);
             throwIfRemoteImportCancelled();
             if (!files.length) {
-              setRemoteImportStatus("源端 CPA 没有可拉取的认证文件", "info");
-              showMsg("源端 CPA 没有可拉取的认证文件", "info");
+              setRemoteImportStatus("源端 CPA 没有可拉取的认证文件", "info", { toast: true });
               return;
             }
             const incoming = stubsFromCpaRemoteFiles(files);
@@ -10486,26 +10525,23 @@
               lockDirectionAfter: TARGET_CPA,
             });
             if (!result) {
-              setRemoteImportStatus("已取消写入主列表", "info");
+              setRemoteImportStatus("已取消写入主列表", "info", { toast: true });
               return;
             }
             const msg = formatCommitMessage(result, [
               `已从 CPA 快载 ${incoming.length} 个账号`,
               "完整凭证将在转换或上传时获取",
             ]);
-            setRemoteImportStatus(msg, "ok");
-            showMsg(msg, "ok");
+            setRemoteImportStatus(msg, "ok", { toast: true, toastMs: 4200 });
             showToast("已按远端来源锁定为全部 → SUB2API", "ok", 3600);
             return;
           }
 
           setRemoteImportStatus("正在拉取 SUB2API 账号列表", "info");
-          showMsg("正在从 SUB2API 拉取账号列表", "info");
           const accounts = await listSub2RemoteAccountsMeta(remoteImportAbortController.signal);
           throwIfRemoteImportCancelled();
           if (!accounts.length) {
-            setRemoteImportStatus("源端 SUB2API 没有可拉取的账号", "info");
-            showMsg("源端 SUB2API 没有可拉取的账号", "info");
+            setRemoteImportStatus("源端 SUB2API 没有可拉取的账号", "info", { toast: true });
             return;
           }
           const incoming = itemsFromSub2RemoteAccounts(accounts, { asStub: true });
@@ -10516,24 +10552,21 @@
             lockDirectionAfter: TARGET_SUB2API,
           });
           if (!result) {
-            setRemoteImportStatus("已取消写入主列表", "info");
+            setRemoteImportStatus("已取消写入主列表", "info", { toast: true });
             return;
           }
           const msg = formatCommitMessage(result, [
             `已从 SUB2API 快载 ${incoming.length} 个账号`,
             "完整凭证将在转换或上传时获取",
           ]);
-          setRemoteImportStatus(msg, "ok");
-          showMsg(msg, "ok");
+          setRemoteImportStatus(msg, "ok", { toast: true, toastMs: 4200 });
           showToast("已按远端来源锁定为全部 → CPA", "ok", 3600);
         } catch (error) {
           if (error?.name === "RemoteCancelledError" || remoteImportCancelRequested) {
-            setRemoteImportStatus("已取消拉取", "info");
-            showMsg("已取消远端导入", "info");
+            setRemoteImportStatus("已取消拉取", "info", { toast: true });
           } else {
             const detail = apiErrorMessage(error);
-            setRemoteImportStatus(`拉取失败：${detail}`, "err");
-            showMsg(`远端导入失败：${detail}`, "err");
+            setRemoteImportStatus(`拉取失败：${detail}`, "err", { toast: true });
           }
         } finally {
           remoteImportAbortController = null;
@@ -10693,8 +10726,7 @@
       $("btnRemotePullList")?.addEventListener("click", () => {
         pullRemoteAccountList().catch((error) => {
           const detail = apiErrorMessage(error);
-          setRemoteImportStatus(`拉取失败：${detail}`, "err");
-          showMsg(`远端导入失败：${detail}`, "err");
+          setRemoteImportStatus(`拉取失败：${detail}`, "err", { toast: true });
           remoteImportAbortController = null;
           remoteImportCancelRequested = false;
           setRemoteImportBusy(false);
