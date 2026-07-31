@@ -285,6 +285,166 @@
         flex: 1 1 auto;
       }
 
+      .import-mode-switch {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 12px;
+        padding: 3px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--border);
+      }
+
+      .import-mode-btn {
+        flex: 1 1 0;
+        border: 0;
+        background: transparent;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 600;
+        padding: 8px 10px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: 0.15s ease;
+      }
+
+      .import-mode-btn:hover {
+        color: var(--text);
+      }
+
+      .import-mode-btn.active {
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+
+      .import-mode-btn:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+
+      .import-panel[hidden] {
+        display: none !important;
+      }
+
+      .transfer-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        flex: 1 1 auto;
+        min-height: 132px;
+      }
+
+      .transfer-dir-row {
+        display: flex;
+        gap: 6px;
+      }
+
+      .transfer-dir-btn {
+        flex: 1 1 0;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.02);
+        color: var(--text);
+        font-size: 12px;
+        font-weight: 600;
+        padding: 10px 8px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: 0.15s ease;
+      }
+
+      .transfer-dir-btn:hover {
+        border-color: var(--accent);
+      }
+
+      .transfer-dir-btn.active {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+
+      .transfer-dir-btn:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+
+      .transfer-source-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .transfer-source-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+      }
+
+      .transfer-source-label {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .transfer-source-value {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text);
+        word-break: break-all;
+      }
+
+      .transfer-actions {
+        display: flex;
+        gap: 8px;
+        align-items: stretch;
+      }
+
+      .transfer-actions .btn-ok,
+      .transfer-actions .btn-ghost {
+        flex: 1 1 0;
+      }
+
+      .transfer-status {
+        min-height: 18px;
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.45;
+      }
+
+      .transfer-status.info {
+        color: var(--muted);
+      }
+
+      .transfer-status.ok {
+        color: #86efac;
+      }
+
+      .transfer-status.err {
+        color: #fca5a5;
+      }
+
+      .direction-lock-note {
+        margin-top: 6px;
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.4;
+      }
+
+      .direction-lock-note[hidden] {
+        display: none !important;
+      }
+
+      .direction-lock-note button {
+        margin-left: 6px;
+        border: 0;
+        background: transparent;
+        color: var(--accent);
+        font-size: 12px;
+        cursor: pointer;
+        padding: 0;
+      }
+
       .drop {
         border: 1.5px dashed var(--border);
         border-radius: 10px;
@@ -2045,7 +2205,7 @@
           hidden
           title="从 CPA 服务端拉取认证文件并打包下载"
         >
-          从 CPA 下载
+          从 CPA 导出
         </button>
         <span class="toolbar-spacer"></span>
         <span class="toolbar-label" style="font-size: 12px">点击徽章配置服务器 · 本机优先</span>
@@ -2069,11 +2229,73 @@
       <div class="grid">
         <div class="card card-import">
           <h2>导入</h2>
-          <div class="drop" id="dropzone">
-            <strong>拖入 JSON，或点击选择</strong>
-            <span>支持多选 · 自动识别 CPA / SUB2API</span>
+          <div class="import-mode-switch" role="tablist" aria-label="导入方式">
+            <button
+              type="button"
+              class="import-mode-btn active"
+              id="btnImportModeLocal"
+              data-import-mode="local"
+              role="tab"
+              aria-selected="true"
+            >
+              本机文件
+            </button>
+            <button
+              type="button"
+              class="import-mode-btn"
+              id="btnImportModeTransfer"
+              data-import-mode="transfer"
+              role="tab"
+              aria-selected="false"
+            >
+              服务端互传
+            </button>
           </div>
-          <input type="file" id="fileInput" accept=".json,application/json" multiple />
+          <div class="import-panel" id="importPanelLocal" role="tabpanel">
+            <div class="drop" id="dropzone">
+              <strong>拖入 JSON，或点击选择</strong>
+              <span>支持多选 · 自动识别 CPA / SUB2API</span>
+            </div>
+            <input type="file" id="fileInput" accept=".json,application/json" multiple />
+          </div>
+          <div class="import-panel transfer-panel" id="importPanelTransfer" role="tabpanel" hidden>
+            <div>
+              <div class="field-mini-label">互传方向</div>
+              <div class="transfer-dir-row" role="group" aria-label="互传方向">
+                <button
+                  type="button"
+                  class="transfer-dir-btn active"
+                  id="btnTransferDirCpaToSub2"
+                  data-transfer-dir="cpa-to-sub2"
+                >
+                  CPA → SUB2API
+                </button>
+                <button
+                  type="button"
+                  class="transfer-dir-btn"
+                  id="btnTransferDirSub2ToCpa"
+                  data-transfer-dir="sub2-to-cpa"
+                >
+                  SUB2API → CPA
+                </button>
+              </div>
+            </div>
+            <div class="transfer-source-row">
+              <div class="transfer-source-meta">
+                <span class="transfer-source-label">源端</span>
+                <span class="transfer-source-value" id="transferSourceValue">CPA · 未配置</span>
+              </div>
+              <button class="btn-ghost btn-sm" type="button" id="btnTransferConfigSource">
+                配置源端
+              </button>
+            </div>
+            <div class="hint">一次拉取源端全部账号进主列表，再转换并上传到目标端</div>
+            <div class="transfer-actions">
+              <button class="btn-ok" type="button" id="btnTransferPullAll">拉取全部</button>
+              <button class="btn-ghost" type="button" id="btnTransferAbort" hidden>取消拉取</button>
+            </div>
+            <div class="transfer-status" id="transferStatus" aria-live="polite"></div>
+          </div>
         </div>
 
         <div class="card">
@@ -2087,6 +2309,10 @@
                   <option value="to-SUB2API">全部 → SUB2API</option>
                   <option value="to-cpa">全部 → CPA</option>
                 </select>
+                <div class="direction-lock-note" id="directionLockNote" hidden>
+                  已按互传方向锁定
+                  <button type="button" id="btnUnlockDirection">解除锁定</button>
+                </div>
               </div>
               <div>
                 <label for="nameStrategy" class="field-mini-label">SUB2API 账号名</label>
@@ -3057,6 +3283,17 @@
       let sub2RemoteAbortController = null;
       let sub2RemoteCancelRequested = false;
 
+      /** 导入模式：本机文件 | 服务端互传 */
+      let importMode = "local";
+      /** 互传方向：cpa-to-sub2 | sub2-to-cpa */
+      let transferDirection = "cpa-to-sub2";
+      let transferImportBusy = false;
+      /** @type {AbortController|null} */
+      let transferAbortController = null;
+      let transferCancelRequested = false;
+      /** 互传成功后锁定转换方向 */
+      let directionLockedByTransfer = false;
+
       const DEFAULT_BATCH_SUB2API = 100;
       const DEFAULT_BATCH_CPA = 20;
       const DEFAULT_UPLOAD_CONCURRENCY = 1;
@@ -3998,27 +4235,29 @@
       function refreshActionButtons() {
         const operationItems = getOperationItems();
         const hasItems = operationItems.length > 0;
-        const idleUsable = hasItems && !uploadBusy;
+        const anyBusy = uploadBusy || transferImportBusy;
+        const idleUsable = hasItems && !anyBusy;
         $("btnConvert").disabled = !idleUsable;
         // 无配置时也可点击，点击后弹窗引导配置
         $("btnUploadSub2").disabled = !idleUsable;
         $("btnUploadCpa").disabled = !idleUsable;
         $("btnUploadSub2").title = targetConfigTooltip(TARGET_SUB2API);
         $("btnUploadCpa").title = targetConfigTooltip(TARGET_CPA);
-        $("btnClear").disabled = !items.length || uploadBusy;
+        $("btnClear").disabled = !items.length || anyBusy;
         const hasSub2 = operationItems.some(
           (item) => item.converted && item.targetFormat === TARGET_SUB2API
         );
         const hasCpa = operationItems.some(
           (item) => item.converted && item.targetFormat === TARGET_CPA
         );
-        $("btnExportSub2").disabled = !hasSub2 || uploadBusy;
-        $("btnExportCpaZip").disabled = !hasCpa || uploadBusy;
-        $("btnExportCpaEach").disabled = !hasCpa || uploadBusy;
+        $("btnExportSub2").disabled = !hasSub2 || anyBusy;
+        $("btnExportCpaZip").disabled = !hasCpa || anyBusy;
+        $("btnExportCpaEach").disabled = !hasCpa || anyBusy;
         $("btnConvert").textContent = selectionMode ? "转换所选" : "转换全部";
         $("btnCancelUpload").hidden = !uploadBusy;
         $("btnCancelUpload").disabled = !uploadBusy || uploadCancelRequested;
         refreshRemoteActionButtons();
+        refreshTransferImportUi();
       }
 
       function hasSub2apiConfigReady() {
@@ -4034,7 +4273,8 @@
         if (!btn) return;
         const ready = hasSub2apiConfigReady();
         btn.hidden = !ready;
-        btn.disabled = !ready || uploadBusy || sub2DedupeBusy || sub2RemoteBusy;
+        btn.disabled =
+          !ready || uploadBusy || transferImportBusy || sub2DedupeBusy || sub2RemoteBusy;
         btn.title = ready
           ? "扫描并清理 SUB2API 服务端重复账号"
           : "配置 SUB2API 地址与管理员密钥后可用";
@@ -4048,7 +4288,8 @@
         if (sub2Btn) {
           const ready = hasSub2apiConfigReady();
           sub2Btn.hidden = !ready;
-          sub2Btn.disabled = !ready || uploadBusy || sub2DedupeBusy || sub2RemoteBusy;
+          sub2Btn.disabled =
+            !ready || uploadBusy || transferImportBusy || sub2DedupeBusy || sub2RemoteBusy;
           sub2Btn.title = ready
             ? "从 SUB2API 服务端拉取账号并导出合并包"
             : "配置 SUB2API 地址与管理员密钥后可用";
@@ -4058,7 +4299,7 @@
         if (cpaBtn) {
           const ready = hasCpaConfigReady();
           cpaBtn.hidden = !ready;
-          cpaBtn.disabled = !ready || uploadBusy || cpaRemoteBusy;
+          cpaBtn.disabled = !ready || uploadBusy || transferImportBusy || cpaRemoteBusy;
           cpaBtn.title = ready
             ? "从 CPA 服务端拉取认证文件并打包下载"
             : "配置 CPA 地址与管理密钥后可用";
@@ -5387,6 +5628,10 @@
 
       function convertAll() {
         clearMsg();
+        if (transferImportBusy) {
+          showMsg("服务端互传进行中，请稍后再转换", "err");
+          return;
+        }
         const targets = getOperationItems();
         if (!targets.length) {
           showMsg(selectionMode ? "请先选择账号" : "没有可转换的账号", "err");
@@ -5801,6 +6046,7 @@
         }
         refreshSub2DedupeButton();
         refreshActionButtons();
+        refreshTransferImportUi();
       }
 
       async function loadRuntimeConfigStatus(showError = false) {
@@ -6304,8 +6550,11 @@
 
       async function scanSub2apiDuplicates() {
         if (sub2DedupeBusy) return;
-        if (uploadBusy) {
-          setSub2DedupeStatus("上传进行中，请稍后再扫描", "err");
+        if (uploadBusy || transferImportBusy) {
+          setSub2DedupeStatus(
+            transferImportBusy ? "服务端互传进行中，请稍后再扫描" : "上传进行中，请稍后再扫描",
+            "err"
+          );
           return;
         }
         const effective = getEffectiveClientConfig(TARGET_SUB2API);
@@ -6357,8 +6606,11 @@
 
       async function applySub2apiDuplicates() {
         if (sub2DedupeBusy) return;
-        if (uploadBusy) {
-          setSub2DedupeStatus("上传进行中，请稍后再删除", "err");
+        if (uploadBusy || transferImportBusy) {
+          setSub2DedupeStatus(
+            transferImportBusy ? "服务端互传进行中，请稍后再删除" : "上传进行中，请稍后再删除",
+            "err"
+          );
           return;
         }
         const groups = Array.isArray(sub2DedupeScan?.groups) ? sub2DedupeScan.groups : [];
@@ -7087,8 +7339,13 @@
 
       async function loadCpaRemoteAuthList() {
         if (cpaRemoteBusy) return;
-        if (uploadBusy) {
-          setCpaRemoteStatus("上传进行中，请稍后再拉取列表", "err");
+        if (uploadBusy || transferImportBusy) {
+          setCpaRemoteStatus(
+            transferImportBusy
+              ? "服务端互传进行中，请稍后再拉取列表"
+              : "上传进行中，请稍后再拉取列表",
+            "err"
+          );
           return;
         }
         const effective = getEffectiveClientConfig(TARGET_CPA);
@@ -7158,8 +7415,11 @@
 
       async function downloadSelectedCpaRemoteAuth() {
         if (cpaRemoteBusy) return;
-        if (uploadBusy) {
-          setCpaRemoteStatus("上传进行中，请稍后再下载", "err");
+        if (uploadBusy || transferImportBusy) {
+          setCpaRemoteStatus(
+            transferImportBusy ? "服务端互传进行中，请稍后再下载" : "上传进行中，请稍后再下载",
+            "err"
+          );
           return;
         }
         const names = [...cpaRemoteSelected];
@@ -7339,8 +7599,13 @@
 
       async function loadSub2RemoteAccountList() {
         if (sub2RemoteBusy) return;
-        if (uploadBusy) {
-          setSub2RemoteStatus("上传进行中，请稍后再拉取列表", "err");
+        if (uploadBusy || transferImportBusy) {
+          setSub2RemoteStatus(
+            transferImportBusy
+              ? "服务端互传进行中，请稍后再拉取列表"
+              : "上传进行中，请稍后再拉取列表",
+            "err"
+          );
           return;
         }
         const effective = getEffectiveClientConfig(TARGET_SUB2API);
@@ -7413,8 +7678,11 @@
 
       async function exportSelectedSub2RemoteAccounts() {
         if (sub2RemoteBusy) return;
-        if (uploadBusy) {
-          setSub2RemoteStatus("上传进行中，请稍后再导出", "err");
+        if (uploadBusy || transferImportBusy) {
+          setSub2RemoteStatus(
+            transferImportBusy ? "服务端互传进行中，请稍后再导出" : "上传进行中，请稍后再导出",
+            "err"
+          );
           return;
         }
         const ids = [...sub2RemoteSelected];
@@ -8470,6 +8738,10 @@
 
       async function uploadToServer(target, showConfigOnly = false, options = {}) {
         if (uploadBusy) return;
+        if (transferImportBusy) {
+          showMsg("服务端互传进行中，请先取消或等待完成后再上传", "err");
+          return;
+        }
         const operationItems = Array.isArray(options.itemsOverride)
           ? options.itemsOverride.filter((item) => item && !item.error && item.account)
           : getOperationItems();
@@ -8802,9 +9074,784 @@
         showMsg("已丢弃本地工作区快照", "info");
       }
 
+      function transferSourceTarget() {
+        return transferDirection === "sub2-to-cpa" ? TARGET_SUB2API : TARGET_CPA;
+      }
+
+      function setTransferStatus(text, type = "info") {
+        const el = $("transferStatus");
+        if (!el) return;
+        el.textContent = text || "";
+        el.className = "transfer-status" + (text ? ` ${type}` : "");
+      }
+
+      function describeTransferSource(target) {
+        const effective = getEffectiveClientConfig(target);
+        if (effective?.source === "local") {
+          return `${target} · 本机 · ${effective.baseUrl || "已配置"}`;
+        }
+        if (effective?.source === "env") {
+          const baseUrl = targetConfigInfo(target)?.baseUrl || "";
+          return baseUrl ? `${target} · 环境变量 · ${baseUrl}` : `${target} · 环境变量`;
+        }
+        return `${target} · 未配置`;
+      }
+
+      function setImportMode(mode) {
+        if (transferImportBusy && mode !== importMode) {
+          showMsg("服务端互传进行中，请先取消或等待完成", "err");
+          return;
+        }
+        importMode = mode === "transfer" ? "transfer" : "local";
+        const localBtn = $("btnImportModeLocal");
+        const transferBtn = $("btnImportModeTransfer");
+        const localPanel = $("importPanelLocal");
+        const transferPanel = $("importPanelTransfer");
+        if (localBtn) {
+          localBtn.classList.toggle("active", importMode === "local");
+          localBtn.setAttribute("aria-selected", importMode === "local" ? "true" : "false");
+        }
+        if (transferBtn) {
+          transferBtn.classList.toggle("active", importMode === "transfer");
+          transferBtn.setAttribute("aria-selected", importMode === "transfer" ? "true" : "false");
+        }
+        if (localPanel) localPanel.hidden = importMode !== "local";
+        if (transferPanel) transferPanel.hidden = importMode !== "transfer";
+        refreshTransferImportUi();
+      }
+
+      function setTransferDirection(dir) {
+        if (transferImportBusy) return;
+        transferDirection = dir === "sub2-to-cpa" ? "sub2-to-cpa" : "cpa-to-sub2";
+        const cpaBtn = $("btnTransferDirCpaToSub2");
+        const sub2Btn = $("btnTransferDirSub2ToCpa");
+        if (cpaBtn) cpaBtn.classList.toggle("active", transferDirection === "cpa-to-sub2");
+        if (sub2Btn) sub2Btn.classList.toggle("active", transferDirection === "sub2-to-cpa");
+        refreshTransferImportUi();
+      }
+
+      function clearConvertedState() {
+        converted = false;
+        for (const item of items) {
+          item.converted = null;
+          item.targetFormat = null;
+        }
+      }
+
+      function applyDirectionLockUi() {
+        const select = $("direction");
+        const note = $("directionLockNote");
+        if (select) select.disabled = Boolean(directionLockedByTransfer);
+        if (note) note.hidden = !directionLockedByTransfer;
+      }
+
+      function lockDirectionForTransfer(dir = transferDirection) {
+        const value = dir === "sub2-to-cpa" ? "to-cpa" : "to-SUB2API";
+        const select = $("direction");
+        if (select) select.value = value;
+        directionLockedByTransfer = true;
+        clearConvertedState();
+        applyDirectionLockUi();
+        saveUiSettingsSoon();
+        renderTable();
+        scheduleWorkspaceSave();
+      }
+
+      function unlockDirection(options = {}) {
+        const { silent = false } = options;
+        if (!directionLockedByTransfer) {
+          applyDirectionLockUi();
+          return;
+        }
+        directionLockedByTransfer = false;
+        applyDirectionLockUi();
+        if (!silent) {
+          showMsg("已解除转换方向锁定", "info");
+          showToast("已解除转换方向锁定", "info", 2600);
+        }
+        saveUiSettingsSoon();
+      }
+
+      function refreshTransferImportUi() {
+        const sourceTarget = transferSourceTarget();
+        const sourceValue = $("transferSourceValue");
+        if (sourceValue) sourceValue.textContent = describeTransferSource(sourceTarget);
+
+        const modeLocalBtn = $("btnImportModeLocal");
+        const modeTransferBtn = $("btnImportModeTransfer");
+        if (modeLocalBtn) modeLocalBtn.disabled = transferImportBusy;
+        if (modeTransferBtn) modeTransferBtn.disabled = transferImportBusy;
+
+        const dirButtons = [$("btnTransferDirCpaToSub2"), $("btnTransferDirSub2ToCpa")];
+        for (const btn of dirButtons) {
+          if (btn) btn.disabled = transferImportBusy;
+        }
+
+        const configBtn = $("btnTransferConfigSource");
+        if (configBtn) {
+          configBtn.disabled = transferImportBusy;
+          configBtn.textContent = hasEffectiveConfig(sourceTarget) ? "管理源端" : "配置源端";
+        }
+
+        const pullBtn = $("btnTransferPullAll");
+        if (pullBtn) {
+          pullBtn.disabled =
+            transferImportBusy || uploadBusy || cpaRemoteBusy || sub2RemoteBusy || sub2DedupeBusy;
+          if (transferImportBusy) {
+            pullBtn.innerHTML = '<span class="busy-spin"></span>正在拉取';
+          } else {
+            pullBtn.textContent = "拉取全部";
+          }
+        }
+
+        const abortBtn = $("btnTransferAbort");
+        if (abortBtn) {
+          abortBtn.hidden = !transferImportBusy;
+          abortBtn.disabled = !transferImportBusy || transferCancelRequested;
+          abortBtn.textContent = transferCancelRequested ? "正在取消…" : "取消拉取";
+        }
+
+        applyDirectionLockUi();
+      }
+
+      function hasEffectiveConfig(target) {
+        return Boolean(getEffectiveClientConfig(target));
+      }
+
+      function setTransferImportBusy(busy) {
+        transferImportBusy = Boolean(busy);
+        refreshActionButtons();
+      }
+
+      function throwIfTransferCancelled() {
+        if (transferCancelRequested || transferAbortController?.signal?.aborted) {
+          const err = new Error("已取消");
+          err.name = "RemoteCancelledError";
+          throw err;
+        }
+      }
+
+      function cancelTransferImport() {
+        if (!transferImportBusy) return;
+        transferCancelRequested = true;
+        transferAbortController?.abort();
+        refreshTransferImportUi();
+        setTransferStatus("正在取消拉取，当前批次结束后停止", "info");
+        showMsg("正在取消服务端互传拉取", "info");
+      }
+
+      function itemFromRemoteCpaContent(name, content, index = 0) {
+        const sourceFile = String(name || `cpa-remote-${index + 1}.json`);
+        if (content == null) {
+          return prepareItem({
+            sourceFile,
+            sourceFormat: "unknown",
+            account: null,
+            error: "下载内容为空",
+          });
+        }
+        if (typeof content === "string") {
+          return parseFileContent(sourceFile, content);
+        }
+        if (typeof content === "object") {
+          try {
+            return parseFileContent(sourceFile, JSON.stringify(content));
+          } catch (error) {
+            return [
+              prepareItem({
+                sourceFile,
+                sourceFormat: "unknown",
+                account: null,
+                error: "解析失败: " + (error?.message || error),
+              }),
+            ];
+          }
+        }
+        return [
+          prepareItem({
+            sourceFile,
+            sourceFormat: "unknown",
+            account: null,
+            error: "无法识别的下载内容",
+          }),
+        ];
+      }
+
+      function itemsFromSub2RemoteAccounts(accounts) {
+        const out = [];
+        for (const account of accounts || []) {
+          const idPart =
+            account?.id != null
+              ? String(account.id)
+              : account?.email || account?.name || account?.credentials?.email || "unknown";
+          const sourceFile = `sub2-remote:${idPart}`;
+          if (isSub2Account(account) || (account && account.credentials)) {
+            out.push(
+              prepareItem({
+                sourceFile,
+                sourceFormat: "sub2api",
+                account: normalizeSub2(account),
+              })
+            );
+          } else if (isCpaRecord(account)) {
+            out.push(
+              prepareItem({
+                sourceFile,
+                sourceFormat: "cpa",
+                account: normalizeCpa(account),
+              })
+            );
+          } else {
+            out.push(
+              prepareItem({
+                sourceFile,
+                sourceFormat: "unknown",
+                account: null,
+                error: "账号结构无法识别",
+              })
+            );
+          }
+        }
+        return out;
+      }
+
+      /**
+       * 将解析后的账号写入主列表；供本机导入与服务端互传共用
+       * @returns {Promise<null|{mode:string,mergeInfo:any,internalDropped:number,count:number}>}
+       */
+      async function commitIncomingItems(incoming, options = {}) {
+        const {
+          sourceLabel = "导入",
+          emptyMessage = "未解析到可导入账号",
+          resetFileInput = false,
+          unlockDirectionOnSuccess = false,
+          lockDirectionAfter = null,
+        } = options;
+
+        if (uploadBusy) {
+          showMsg("上传进行中，请先取消或等待完成后再导入", "err");
+          return null;
+        }
+        if (transferImportBusy && !options.allowDuringTransfer) {
+          showMsg("服务端互传进行中，请稍后再导入", "err");
+          return null;
+        }
+        if (!Array.isArray(incoming) || !incoming.length) {
+          showMsg(emptyMessage, "err");
+          return null;
+        }
+
+        if (!items.length && pendingWorkspaceSnapshot?.items?.length) {
+          const snapCount = pendingWorkspaceSnapshot.items.length;
+          const go = window.confirm(
+            `本机还有上次 ${snapCount} 个账号的工作区快照尚未恢复。\n` +
+              `确定继续导入将丢弃该快照，仅使用本次数据。\n\n` +
+              `点击「取消」可先恢复快照。`
+          );
+          if (!go) {
+            if (resetFileInput && fileInput) fileInput.value = "";
+            return null;
+          }
+          await clearWorkspaceSnapshot();
+        }
+
+        let mode = "merge";
+        if (items.length) {
+          mode = await openImportConflictModal({
+            existingCount: items.length,
+            incomingCount: incoming.length,
+          });
+          if (mode === "cancel") {
+            if (resetFileInput && fileInput) fileInput.value = "";
+            showMsg("已取消本次导入", "info");
+            return null;
+          }
+        }
+
+        const incomingDeduped = dedupeItemList(incoming);
+        const internalDropped = incoming.length - incomingDeduped.length;
+
+        let finalItems = [];
+        let mergeInfo = { replaced: 0, keptOld: 0, added: 0 };
+        if (mode === "replace" || !items.length) {
+          finalItems = incomingDeduped;
+          mergeInfo = { replaced: 0, keptOld: 0, added: incomingDeduped.length };
+          converted = false;
+          restoredJobMeta = null;
+        } else {
+          mergeInfo = mergeItemsByIdentity(items, incomingDeduped, {
+            preferIncomingOnTie: true,
+          });
+          finalItems = mergeInfo.items;
+          converted = finalItems.some((item) => item.converted);
+        }
+
+        items = finalItems;
+        for (const item of items) item.selected = false;
+        if (resetFileInput && fileInput) fileInput.value = "";
+        hideWorkspaceRestoreBanner();
+        pendingWorkspaceSnapshot = null;
+        const discardBtn = $("btnDiscardWorkspace");
+        if (discardBtn) discardBtn.textContent = "丢弃快照";
+
+        if (unlockDirectionOnSuccess) unlockDirection({ silent: true });
+        if (lockDirectionAfter) lockDirectionForTransfer(lockDirectionAfter);
+
+        renderTable();
+        scheduleWorkspaceSave({ immediate: true });
+
+        return {
+          mode,
+          mergeInfo,
+          internalDropped,
+          count: items.length,
+          sourceLabel,
+        };
+      }
+
+      function formatCommitMessage(result, extras = []) {
+        if (!result) return "";
+        const parts = [];
+        if (extras.length) parts.push(...extras);
+        if (result.mode === "replace") parts.push("已替换原列表");
+        else if (result.mergeInfo?.added) parts.push(`新增：${result.mergeInfo.added}`);
+        if (result.mergeInfo?.replaced) parts.push(`更新：${result.mergeInfo.replaced}`);
+        if (result.mergeInfo?.keptOld) parts.push(`保留较新已有：${result.mergeInfo.keptOld}`);
+        if (result.internalDropped > 0) parts.push(`导入内去重：${result.internalDropped}`);
+        parts.push(`当前共 ${result.count} 个账号`);
+        return parts.join(", ");
+      }
+
+      async function listCpaAuthFileNamesForTransfer(signal) {
+        const effective = getEffectiveClientConfig(TARGET_CPA);
+        if (!effective) throw new Error("请先配置 CPA");
+        const body = {};
+        const config = uploadConfigPayload(effective);
+        if (config) body.config = config;
+        const { data } = await fetchJson(
+          "/api/cpa/auth-files/list",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+            signal,
+          },
+          2 * 60 * 1000
+        );
+        const files = Array.isArray(data?.files) ? data.files : [];
+        return files.map((f) => String(f?.name || "")).filter(Boolean);
+      }
+
+      async function listSub2AccountIdsForTransfer(signal) {
+        const effective = getEffectiveClientConfig(TARGET_SUB2API);
+        if (!effective) throw new Error("请先配置 SUB2API");
+        const body = {};
+        const config = uploadConfigPayload(effective);
+        if (config) body.config = config;
+        const { data } = await fetchJson(
+          "/api/sub2api/accounts/list",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+            signal,
+          },
+          10 * 60 * 1000
+        );
+        const accounts = Array.isArray(data?.accounts) ? data.accounts : [];
+        return accounts
+          .map((account) => (account?.id == null ? "" : String(account.id)))
+          .filter(Boolean);
+      }
+
+      async function fetchAllCpaRemoteAuthContents(names, options = {}) {
+        const { signal, onProgress } = options;
+        const effective = getEffectiveClientConfig(TARGET_CPA);
+        if (!effective) throw new Error("请先配置 CPA");
+        const maxPerRequest = currentMaxCpaAuthDownload();
+        const chunkSize = Math.max(1, Math.min(REMOTE_CPA_DOWNLOAD_CHUNK_DEFAULT, maxPerRequest));
+        const chunks = chunkArray(names, chunkSize);
+        const config = uploadConfigPayload(effective);
+        const okFiles = [];
+        let failedCount = 0;
+        let cancelled = false;
+
+        for (let i = 0; i < chunks.length; i++) {
+          throwIfTransferCancelled();
+          if (signal?.aborted) {
+            cancelled = true;
+            break;
+          }
+          const chunk = chunks[i];
+          if (typeof onProgress === "function") {
+            onProgress({
+              phase: "download",
+              chunkIndex: i + 1,
+              chunkTotal: chunks.length,
+              chunkSize: chunk.length,
+              okCount: okFiles.length,
+              failedCount,
+            });
+          }
+          const body = { names: chunk };
+          if (config) body.config = config;
+          try {
+            const { data } = await fetchJson(
+              "/api/cpa/auth-files/download",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+                signal,
+              },
+              10 * 60 * 1000
+            );
+            throwIfTransferCancelled();
+            const files = Array.isArray(data?.files) ? data.files : [];
+            const okNames = new Set();
+            for (const item of files) {
+              if (item?.ok && item.content != null) {
+                okFiles.push(item);
+                okNames.add(String(item.name || ""));
+              }
+            }
+            for (const name of chunk) {
+              if (!okNames.has(String(name || ""))) failedCount += 1;
+            }
+          } catch (chunkError) {
+            if (
+              chunkError?.name === "RemoteCancelledError" ||
+              chunkError?.name === "AbortError" ||
+              transferCancelRequested ||
+              signal?.aborted
+            ) {
+              cancelled = true;
+              break;
+            }
+            const files = Array.isArray(chunkError?.data?.files) ? chunkError.data.files : [];
+            const okNames = new Set();
+            for (const item of files) {
+              if (item?.ok && item.content != null) {
+                okFiles.push(item);
+                okNames.add(String(item.name || ""));
+              }
+            }
+            for (const name of chunk) {
+              if (!okNames.has(String(name || ""))) failedCount += 1;
+            }
+          }
+          await yieldToBrowser();
+        }
+
+        return { files: okFiles, failedCount, cancelled };
+      }
+
+      async function fetchAllSub2RemoteAccounts(ids, options = {}) {
+        const { signal, onProgress } = options;
+        const effective = getEffectiveClientConfig(TARGET_SUB2API);
+        if (!effective) throw new Error("请先配置 SUB2API");
+        const maxPerRequest = currentMaxSub2apiExport();
+        const chunkSize = Math.max(1, Math.min(REMOTE_EXPORT_CHUNK_DEFAULT, maxPerRequest));
+        const chunks = chunkArray(ids, chunkSize);
+        const config = uploadConfigPayload(effective);
+        const accounts = [];
+        let failedCount = 0;
+        let hardError = null;
+        let cancelled = false;
+        let exportedAt = "";
+
+        for (let i = 0; i < chunks.length; i++) {
+          throwIfTransferCancelled();
+          if (signal?.aborted) {
+            cancelled = true;
+            break;
+          }
+          const chunk = chunks[i];
+          if (typeof onProgress === "function") {
+            onProgress({
+              phase: "export",
+              chunkIndex: i + 1,
+              chunkTotal: chunks.length,
+              chunkSize: chunk.length,
+              okCount: accounts.length,
+              failedCount,
+            });
+          }
+          const body = { ids: chunk };
+          if (config) body.config = config;
+          body.timezone =
+            (typeof Intl !== "undefined" && Intl.DateTimeFormat?.().resolvedOptions?.().timeZone) ||
+            "UTC";
+          try {
+            const { data } = await fetchJson(
+              "/api/sub2api/accounts/export",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+                signal,
+              },
+              10 * 60 * 1000
+            );
+            throwIfTransferCancelled();
+            const pack = data?.pack;
+            if (pack?.exported_at && !exportedAt) exportedAt = pack.exported_at;
+            const packAccounts = Array.isArray(pack?.accounts) ? pack.accounts : [];
+            if (packAccounts.length) accounts.push(...packAccounts);
+            const reportedFailed = Number(data?.failedCount || 0);
+            if (packAccounts.length >= chunk.length && reportedFailed === 0) {
+              // 整批成功
+            } else if (reportedFailed > 0) {
+              failedCount += reportedFailed;
+            } else if (packAccounts.length < chunk.length) {
+              failedCount += chunk.length - packAccounts.length;
+            }
+          } catch (chunkError) {
+            if (
+              chunkError?.name === "RemoteCancelledError" ||
+              chunkError?.name === "AbortError" ||
+              transferCancelRequested ||
+              signal?.aborted
+            ) {
+              cancelled = true;
+              break;
+            }
+            if (
+              chunkError?.code === "SUB2API_STEP_UP_REQUIRED" ||
+              chunkError?.data?.code === "SUB2API_STEP_UP_REQUIRED" ||
+              chunkError?.code === "SUB2API_TOTP_ENABLED" ||
+              chunkError?.data?.code === "SUB2API_TOTP_ENABLED" ||
+              /totp|step[_ -]?up|two-factor|二次验证/i.test(String(chunkError?.message || ""))
+            ) {
+              hardError = chunkError;
+              break;
+            }
+            const partialAccounts = Array.isArray(chunkError?.data?.pack?.accounts)
+              ? chunkError.data.pack.accounts
+              : [];
+            if (partialAccounts.length) accounts.push(...partialAccounts);
+            const reportedFailed = Number(
+              chunkError?.data?.failedCount ?? chunk.length - partialAccounts.length
+            );
+            failedCount += Math.max(0, reportedFailed);
+            const softIncomplete =
+              chunkError?.data?.code === "INCOMPLETE_ACCOUNT_DATA" || chunkError?.status === 502;
+            if (!hardError && !softIncomplete) hardError = chunkError;
+          }
+          await yieldToBrowser();
+        }
+
+        return { accounts, failedCount, hardError, cancelled, exportedAt };
+      }
+
+      async function pullAllFromTransferSource() {
+        if (transferImportBusy) return;
+        if (uploadBusy) {
+          setTransferStatus("上传进行中，请先取消或等待完成后再拉取", "err");
+          showMsg("上传进行中，请先取消或等待完成后再拉取", "err");
+          return;
+        }
+        if (cpaRemoteBusy || sub2RemoteBusy || sub2DedupeBusy) {
+          setTransferStatus("其他远端任务进行中，请稍后再拉取", "err");
+          showMsg("其他远端任务进行中，请稍后再拉取", "err");
+          return;
+        }
+
+        const sourceTarget = transferSourceTarget();
+        const directionSnapshot = transferDirection;
+        const verified = await ensureVerifiedConfig(sourceTarget, false);
+        if (!verified) {
+          setTransferStatus(`请先配置源端 ${sourceTarget} 后再拉取`, "err");
+          showMsg(`请先配置源端 ${sourceTarget} 后再拉取`, "err");
+          refreshTransferImportUi();
+          return;
+        }
+
+        transferCancelRequested = false;
+        transferAbortController = new AbortController();
+        setTransferImportBusy(true);
+        clearMsg();
+
+        try {
+          if (sourceTarget === TARGET_CPA) {
+            setTransferStatus("正在拉取 CPA 认证文件列表", "info");
+            showMsg("正在从 CPA 拉取全部认证文件", "info");
+            const names = await listCpaAuthFileNamesForTransfer(transferAbortController.signal);
+            throwIfTransferCancelled();
+            if (!names.length) {
+              setTransferStatus("源端 CPA 没有可拉取的认证文件", "info");
+              showMsg("源端 CPA 没有可拉取的认证文件", "info");
+              return;
+            }
+            setTransferStatus(`列表已加载，共 ${names.length} 个文件，开始分批下载`, "info");
+            const { files, failedCount, cancelled } = await fetchAllCpaRemoteAuthContents(names, {
+              signal: transferAbortController.signal,
+              onProgress: ({ chunkIndex, chunkTotal, okCount }) => {
+                setTransferStatus(
+                  `正在拉取第 ${chunkIndex}/${chunkTotal} 批，累计 ${okCount} 个账号`,
+                  "info"
+                );
+              },
+            });
+
+            const incoming = [];
+            files.forEach((file, index) => {
+              incoming.push(...itemFromRemoteCpaContent(file.name, file.content, index));
+            });
+            const usable = incoming.filter((item) => item && !item.error && item.account);
+            if (!usable.length) {
+              if (cancelled || transferCancelRequested) {
+                setTransferStatus("已取消拉取", "info");
+                showMsg("已取消服务端互传拉取", "info");
+              } else {
+                setTransferStatus(
+                  failedCount
+                    ? `拉取失败，全部 ${failedCount} 个文件未成功`
+                    : "拉取失败，没有可用账号",
+                  "err"
+                );
+                showMsg("从 CPA 拉取失败，没有可用账号", "err");
+              }
+              return;
+            }
+
+            const result = await commitIncomingItems(usable, {
+              sourceLabel: "CPA",
+              emptyMessage: "从 CPA 未解析到可用账号",
+              allowDuringTransfer: true,
+              lockDirectionAfter: directionSnapshot,
+            });
+            if (!result) {
+              setTransferStatus("已取消写入主列表", "info");
+              return;
+            }
+            const extras = [
+              cancelled || transferCancelRequested
+                ? `已取消，已从 CPA 写入 ${usable.length} 个账号`
+                : `已从 CPA 拉取 ${usable.length} 个账号`,
+            ];
+            if (failedCount) extras.push(`失败 ${failedCount} 个`);
+            const msg = formatCommitMessage(result, extras);
+            setTransferStatus(msg, failedCount || cancelled ? "info" : "ok");
+            showMsg(msg, failedCount ? "err" : "ok");
+            showToast(
+              cancelled
+                ? `已取消，已导入 ${usable.length} 个账号`
+                : `已按互传方向锁定为全部 → SUB2API`,
+              failedCount ? "err" : "ok",
+              4200
+            );
+            return;
+          }
+
+          // SUB2API → CPA
+          setTransferStatus("正在拉取 SUB2API 账号列表", "info");
+          showMsg("正在从 SUB2API 拉取全部账号", "info");
+          const ids = await listSub2AccountIdsForTransfer(transferAbortController.signal);
+          throwIfTransferCancelled();
+          if (!ids.length) {
+            setTransferStatus("源端 SUB2API 没有可拉取的账号", "info");
+            showMsg("源端 SUB2API 没有可拉取的账号", "info");
+            return;
+          }
+          setTransferStatus(`列表已加载，共 ${ids.length} 个账号，开始分批导出`, "info");
+          const { accounts, failedCount, hardError, cancelled } = await fetchAllSub2RemoteAccounts(
+            ids,
+            {
+              signal: transferAbortController.signal,
+              onProgress: ({ chunkIndex, chunkTotal, okCount }) => {
+                setTransferStatus(
+                  `正在拉取第 ${chunkIndex}/${chunkTotal} 批，累计 ${okCount} 个账号`,
+                  "info"
+                );
+              },
+            }
+          );
+
+          const stepUpBlocked =
+            hardError?.code === "SUB2API_STEP_UP_REQUIRED" ||
+            hardError?.data?.code === "SUB2API_STEP_UP_REQUIRED" ||
+            hardError?.code === "SUB2API_TOTP_ENABLED" ||
+            hardError?.data?.code === "SUB2API_TOTP_ENABLED" ||
+            /totp|step[_ -]?up|two-factor|二次验证/i.test(String(hardError?.message || ""));
+          if (stepUpBlocked) {
+            const detail =
+              apiErrorMessage(hardError) || "源端 SUB2API 已开启二次验证，Admin API Key 无法导出";
+            setTransferStatus(detail, "err");
+            showMsg(detail, "err");
+            showToast(detail, "err", 5200);
+            return;
+          }
+
+          const incoming = itemsFromSub2RemoteAccounts(accounts);
+          const usable = incoming.filter((item) => item && !item.error && item.account);
+          if (!usable.length) {
+            if (cancelled || transferCancelRequested) {
+              setTransferStatus("已取消拉取", "info");
+              showMsg("已取消服务端互传拉取", "info");
+            } else {
+              const detail = hardError ? apiErrorMessage(hardError) : "";
+              setTransferStatus(
+                detail
+                  ? `拉取失败：${detail}`
+                  : failedCount
+                    ? `拉取失败，全部 ${failedCount} 个账号无完整凭证`
+                    : "拉取失败，没有可用账号",
+                "err"
+              );
+              showMsg("从 SUB2API 拉取失败，没有可用账号", "err");
+            }
+            return;
+          }
+
+          const result = await commitIncomingItems(usable, {
+            sourceLabel: "SUB2API",
+            emptyMessage: "从 SUB2API 未解析到可用账号",
+            allowDuringTransfer: true,
+            lockDirectionAfter: directionSnapshot,
+          });
+          if (!result) {
+            setTransferStatus("已取消写入主列表", "info");
+            return;
+          }
+          const extras = [
+            cancelled || transferCancelRequested
+              ? `已取消，已从 SUB2API 写入 ${usable.length} 个账号`
+              : `已从 SUB2API 拉取 ${usable.length} 个账号`,
+          ];
+          if (failedCount) extras.push(`失败 ${failedCount} 个`);
+          const msg = formatCommitMessage(result, extras);
+          setTransferStatus(msg, failedCount || cancelled ? "info" : "ok");
+          showMsg(msg, failedCount ? "err" : "ok");
+          showToast(
+            cancelled ? `已取消，已导入 ${usable.length} 个账号` : `已按互传方向锁定为全部 → CPA`,
+            failedCount ? "err" : "ok",
+            4200
+          );
+        } catch (error) {
+          if (error?.name === "RemoteCancelledError" || transferCancelRequested) {
+            setTransferStatus("已取消拉取", "info");
+            showMsg("已取消服务端互传拉取", "info");
+          } else {
+            const detail = apiErrorMessage(error);
+            setTransferStatus(`拉取失败：${detail}`, "err");
+            showMsg(`服务端互传拉取失败：${detail}`, "err");
+          }
+        } finally {
+          transferAbortController = null;
+          transferCancelRequested = false;
+          setTransferImportBusy(false);
+          refreshTransferImportUi();
+        }
+      }
+
       async function handleFiles(fileList) {
         if (uploadBusy) {
           showMsg("上传进行中，请先取消或等待完成后再导入", "err");
+          return;
+        }
+        if (transferImportBusy) {
+          showMsg("服务端互传进行中，请先取消或等待完成后再导入", "err");
           return;
         }
         clearMsg();
@@ -8833,78 +9880,25 @@
           return;
         }
 
-        // 用户已看到恢复横幅但尚未恢复：导入时先询问是否丢弃快照
-        if (!items.length && pendingWorkspaceSnapshot?.items?.length) {
-          const snapCount = pendingWorkspaceSnapshot.items.length;
-          const go = window.confirm(
-            `本机还有上次 ${snapCount} 个账号的工作区快照尚未恢复。\n` +
-              `确定继续导入将丢弃该快照，仅使用本次文件。\n\n` +
-              `点击「取消」可先恢复快照。`
-          );
-          if (!go) {
-            fileInput.value = "";
-            return;
-          }
-          await clearWorkspaceSnapshot();
-        }
+        const result = await commitIncomingItems(incoming, {
+          sourceLabel: "本机文件",
+          emptyMessage: "未从所选文件中解析到账号",
+          resetFileInput: true,
+          unlockDirectionOnSuccess: true,
+        });
+        if (!result) return;
 
-        let mode = "merge";
-        if (items.length) {
-          mode = await openImportConflictModal({
-            existingCount: items.length,
-            incomingCount: incoming.length,
-          });
-          if (mode === "cancel") {
-            fileInput.value = "";
-            showMsg("已取消本次导入", "info");
-            return;
-          }
-        }
-
-        // 本次文件内部先去重
-        const incomingDeduped = dedupeItemList(incoming);
-        const internalDropped = incoming.length - incomingDeduped.length;
-
-        let finalItems = [];
-        let mergeInfo = { replaced: 0, keptOld: 0, added: 0 };
-        if (mode === "replace" || !items.length) {
-          finalItems = incomingDeduped;
-          mergeInfo = { replaced: 0, keptOld: 0, added: incomingDeduped.length };
-          // 替换后转换态以新数据为准
-          converted = false;
-          restoredJobMeta = null;
-        } else {
-          mergeInfo = mergeItemsByIdentity(items, incomingDeduped, {
-            preferIncomingOnTie: true,
-          });
-          finalItems = mergeInfo.items;
-          converted = finalItems.some((item) => item.converted);
-        }
-
-        items = finalItems;
-        // 新导入默认不沿用选择态
-        for (const item of items) item.selected = false;
-        fileInput.value = "";
-        hideWorkspaceRestoreBanner();
-        pendingWorkspaceSnapshot = null;
-        const discardBtn = $("btnDiscardWorkspace");
-        if (discardBtn) discardBtn.textContent = "丢弃快照";
-        renderTable();
-        scheduleWorkspaceSave({ immediate: true });
-
-        const parts = [`已导入 ${files.length} 个文件`];
-        if (mode === "replace") parts.push("已替换原列表");
-        else if (mergeInfo.added) parts.push(`新增：${mergeInfo.added}`);
-        if (mergeInfo.replaced) parts.push(`更新：${mergeInfo.replaced}`);
-        if (mergeInfo.keptOld) parts.push(`保留较新已有：${mergeInfo.keptOld}`);
-        if (internalDropped > 0) parts.push(`文件内去重：${internalDropped}`);
-        parts.push(`当前共 ${items.length} 个账号`);
-        showMsg(parts.join(", "), "ok");
+        const msg = formatCommitMessage(result, [`已导入 ${files.length} 个文件`]);
+        showMsg(msg, "ok");
       }
 
       function clearAll() {
         if (uploadBusy) {
           showMsg("上传进行中，无法清空", "err");
+          return;
+        }
+        if (transferImportBusy) {
+          showMsg("服务端互传进行中，无法清空", "err");
           return;
         }
         items = [];
@@ -8915,6 +9909,7 @@
         tableSort = { key: "", dir: "asc" };
         proxyEditingItemId = null;
         restoredJobMeta = null;
+        unlockDirection({ silent: true });
         $("accountSearch").value = "";
         document.querySelectorAll("[data-upload-select]").forEach((input) => {
           input.checked = false;
@@ -8973,6 +9968,35 @@
         handleFiles(e.dataTransfer.files);
       });
       fileInput.addEventListener("change", () => handleFiles(fileInput.files));
+      $("btnImportModeLocal")?.addEventListener("click", () => setImportMode("local"));
+      $("btnImportModeTransfer")?.addEventListener("click", () => setImportMode("transfer"));
+      $("btnTransferDirCpaToSub2")?.addEventListener("click", () =>
+        setTransferDirection("cpa-to-sub2")
+      );
+      $("btnTransferDirSub2ToCpa")?.addEventListener("click", () =>
+        setTransferDirection("sub2-to-cpa")
+      );
+      $("btnTransferConfigSource")?.addEventListener("click", async () => {
+        const sourceTarget = transferSourceTarget();
+        await openConfigDialog({
+          target: sourceTarget,
+          reason: `配置源端 ${sourceTarget} 后可拉取全部账号`,
+          mode: "manage",
+        });
+        refreshTransferImportUi();
+      });
+      $("btnTransferPullAll")?.addEventListener("click", () => {
+        pullAllFromTransferSource().catch((error) => {
+          const detail = apiErrorMessage(error);
+          setTransferStatus(`拉取失败：${detail}`, "err");
+          showMsg(`服务端互传拉取失败：${detail}`, "err");
+          transferAbortController = null;
+          transferCancelRequested = false;
+          setTransferImportBusy(false);
+        });
+      });
+      $("btnTransferAbort")?.addEventListener("click", cancelTransferImport);
+      $("btnUnlockDirection")?.addEventListener("click", () => unlockDirection());
       $("btnConvert").addEventListener("click", convertAll);
       $("btnExportSub2").addEventListener("click", exportSub2);
       $("btnExportCpaZip").addEventListener("click", exportCpaZip);
@@ -9089,11 +10113,11 @@
       }
 
       $("direction").addEventListener("change", () => {
-        converted = false;
-        for (const i of items) {
-          i.converted = null;
-          i.targetFormat = null;
+        if (directionLockedByTransfer) {
+          // 锁定期间 select 应为 disabled；若仍触发则忽略
+          return;
         }
+        clearConvertedState();
         renderTable();
         saveUiSettingsSoon();
         scheduleWorkspaceSave();
@@ -9656,6 +10680,9 @@
       });
 
       bindBeforeUnloadGuard();
+      setImportMode("local");
+      setTransferDirection("cpa-to-sub2");
+      applyDirectionLockUi();
       renderTable();
       updateRuntimeConfigUi();
       loadRuntimeConfigStatus(false);
