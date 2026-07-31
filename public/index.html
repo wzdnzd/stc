@@ -2870,7 +2870,7 @@
               <input type="checkbox" id="cpaRemoteFailedOnly" />
               仅看失败
             </label>
-            <span class="remote-picker-meta" id="cpaRemoteSelectionMeta">已选 0 / 共 0</span>
+            <span class="remote-picker-meta" id="cpaRemoteSelectionMeta">已选 0 个，共 0 个</span>
           </div>
           <div class="remote-picker-list" id="cpaRemoteList">
             <div class="remote-picker-empty">尚未加载列表</div>
@@ -2879,6 +2879,9 @@
         </div>
         <div class="modal-foot">
           <button class="btn-ghost" id="btnCancelCpaRemoteDownload" type="button">关闭</button>
+          <button class="btn-danger" id="btnAbortCpaRemoteDownload" type="button" hidden>
+            取消下载
+          </button>
           <button class="btn-ghost" id="btnRefreshCpaRemoteList" type="button">刷新列表</button>
           <button class="btn-primary" id="btnDownloadCpaRemoteSelected" type="button" disabled>
             下载所选
@@ -2902,9 +2905,7 @@
           </button>
         </div>
         <div class="modal-body">
-          <p class="hint" style="margin-top: 0" id="sub2RemoteExportHint">
-            勾选服务端账号后导出为可再导入的 sub2api-account 合并包
-          </p>
+          <p class="hint" style="margin-top: 0" id="sub2RemoteExportHint">勾选服务端账号后导出</p>
           <div class="remote-picker-toolbar">
             <input
               type="search"
@@ -2926,7 +2927,7 @@
               <input type="checkbox" id="sub2RemoteFailedOnly" />
               仅看失败
             </label>
-            <span class="remote-picker-meta" id="sub2RemoteSelectionMeta">已选 0 / 共 0</span>
+            <span class="remote-picker-meta" id="sub2RemoteSelectionMeta">已选 0 个，共 0 个</span>
           </div>
           <div class="remote-picker-list" id="sub2RemoteList">
             <div class="remote-picker-empty">尚未加载列表</div>
@@ -2935,6 +2936,9 @@
         </div>
         <div class="modal-foot">
           <button class="btn-ghost" id="btnCancelSub2RemoteExport" type="button">关闭</button>
+          <button class="btn-danger" id="btnAbortSub2RemoteExport" type="button" hidden>
+            取消导出
+          </button>
           <button class="btn-ghost" id="btnRefreshSub2RemoteList" type="button">刷新列表</button>
           <button class="btn-primary" id="btnExportSub2RemoteSelected" type="button" disabled>
             导出所选
@@ -3032,6 +3036,11 @@
       let cpaRemoteSearch = "";
       let cpaRemoteFailedOnly = false;
       let cpaRemoteBusy = false;
+      /** @type {""|"list"|"download"} */
+      let cpaRemotePhase = "";
+      /** @type {AbortController|null} */
+      let cpaRemoteAbortController = null;
+      let cpaRemoteCancelRequested = false;
 
       /** SUB2API 远端导出：列表与勾选 */
       let sub2RemoteAccounts = [];
@@ -3042,6 +3051,11 @@
       let sub2RemoteSearch = "";
       let sub2RemoteFailedOnly = false;
       let sub2RemoteBusy = false;
+      /** @type {""|"list"|"export"} */
+      let sub2RemotePhase = "";
+      /** @type {AbortController|null} */
+      let sub2RemoteAbortController = null;
+      let sub2RemoteCancelRequested = false;
 
       const DEFAULT_BATCH_SUB2API = 100;
       const DEFAULT_BATCH_CPA = 20;
@@ -3060,8 +3074,8 @@
       /** 远端勾选列表最多同时渲染的行数，避免成千上万 DOM 卡死 */
       const REMOTE_PICKER_RENDER_LIMIT = 300;
       /** 前端分批调用 Worker 的默认块大小，实际会再钳到 serverLimits */
-      const REMOTE_EXPORT_CHUNK_DEFAULT = 80;
-      const REMOTE_CPA_DOWNLOAD_CHUNK_DEFAULT = 40;
+      const REMOTE_EXPORT_CHUNK_DEFAULT = 200;
+      const REMOTE_CPA_DOWNLOAD_CHUNK_DEFAULT = 100;
       const LOCAL_CONFIG_STORAGE_KEY = "cpa2sub.targetConfig.v1";
       const LOCAL_UI_SETTINGS_KEY = "cpa2sub.uiSettings.v1";
       const WORKSPACE_DB_NAME = "cpa2sub.workspace";
@@ -5466,7 +5480,7 @@
         };
         downloadJson(pack, `SUB2API-account-${tsStamp()}.json`);
         showMsg(
-          `已导出 SUB2API 合并包 ${accounts.length} 个账号` +
+          `已导出 ${accounts.length} 个账号` +
             (skipped.length ? `，跳过 ${skipped.length} 个失效账号` : ""),
           "ok"
         );
@@ -5645,8 +5659,17 @@
       function apiErrorMessage(error) {
         if (!error) return "未知错误";
         if (error.name === "UploadCancelledError") return "用户已取消上传";
-        if (error.name === "AbortError")
-          return uploadCancelRequested ? "用户已取消上传" : "请求超时";
+        if (error.name === "RemoteCancelledError") {
+          return error.message || "用户已取消操作";
+        }
+        if (error.name === "AbortError") {
+          if (uploadCancelRequested) return "用户已取消上传";
+          if (sub2RemoteCancelRequested) return "用户已取消导出";
+          if (cpaRemoteCancelRequested) return "用户已取消下载";
+          // fetchJson 超时也用 AbortError；无取消标志时按超时处理
+          if (/timeout/i.test(String(error.message || ""))) return "请求超时";
+          return "请求已中断";
+        }
         const raw = error.message || String(error);
         // Cloudflare 边缘连不上源站时常返回 522；与密钥无关
         if (/\b522\b/.test(raw) || /error code:\s*522/i.test(raw)) {
@@ -6533,9 +6556,9 @@
         const filtered = getCpaRemoteFilteredFiles().length;
         const failed = countCpaRemoteFailed();
         if (meta) {
-          const parts = [`已选 ${selected}`, `共 ${total}`];
-          if (filtered < total) parts.push(`当前筛选 ${filtered}`);
-          if (failed > 0) parts.push(`失败 ${failed}`);
+          const parts = [`已选 ${selected} 个`, `共 ${total} 个`];
+          if (filtered < total) parts.push(`当前筛选 ${filtered} 个`);
+          if (failed > 0) parts.push(`失败 ${failed} 个`);
           meta.textContent = parts.join("，");
         }
         if (btn) btn.disabled = selected === 0 || cpaRemoteBusy;
@@ -6551,9 +6574,9 @@
         const filtered = getSub2RemoteFilteredAccounts().length;
         const failed = countSub2RemoteFailed();
         if (meta) {
-          const parts = [`已选 ${selected}`, `共 ${total}`];
-          if (filtered < total) parts.push(`当前筛选 ${filtered}`);
-          if (failed > 0) parts.push(`失败 ${failed}`);
+          const parts = [`已选 ${selected} 个`, `共 ${total} 个`];
+          if (filtered < total) parts.push(`当前筛选 ${filtered} 个`);
+          if (failed > 0) parts.push(`失败 ${failed} 个`);
           meta.textContent = parts.join("，");
         }
         if (btn) btn.disabled = selected === 0 || sub2RemoteBusy;
@@ -6661,8 +6684,19 @@
         updateSub2RemoteSelectionMeta();
       }
 
+      function cpaRemoteAbortLabel() {
+        if (cpaRemoteCancelRequested) return "正在取消…";
+        return cpaRemotePhase === "list" ? "取消拉取" : "取消下载";
+      }
+
+      function sub2RemoteAbortLabel() {
+        if (sub2RemoteCancelRequested) return "正在取消…";
+        return sub2RemotePhase === "list" ? "取消拉取" : "取消导出";
+      }
+
       function setCpaRemoteBusy(busy, phase = "") {
         cpaRemoteBusy = Boolean(busy);
+        cpaRemotePhase = cpaRemoteBusy ? phase || cpaRemotePhase || "" : "";
         const controls = [
           "btnRefreshCpaRemoteList",
           "btnCpaRemoteSelectAll",
@@ -6680,17 +6714,25 @@
         const downloadBtn = $("btnDownloadCpaRemoteSelected");
         if (downloadBtn) {
           downloadBtn.disabled = cpaRemoteBusy || cpaRemoteSelected.size === 0;
-          if (cpaRemoteBusy && phase === "download") {
+          if (cpaRemoteBusy && cpaRemotePhase === "download") {
             downloadBtn.innerHTML = '<span class="busy-spin"></span>下载中';
           } else if (!cpaRemoteBusy) {
             downloadBtn.textContent = "下载所选";
           }
         }
+        const abortBtn = $("btnAbortCpaRemoteDownload");
+        if (abortBtn) {
+          const showAbort =
+            cpaRemoteBusy && (cpaRemotePhase === "download" || cpaRemotePhase === "list");
+          abortBtn.hidden = !showAbort;
+          abortBtn.disabled = !showAbort || cpaRemoteCancelRequested;
+          abortBtn.textContent = cpaRemoteAbortLabel();
+        }
         const topBtn = $("btnCpaRemoteDownload");
         if (topBtn) {
           if (cpaRemoteBusy) {
             topBtn.innerHTML =
-              phase === "download"
+              cpaRemotePhase === "download"
                 ? '<span class="busy-spin"></span>正在下载认证文件'
                 : '<span class="busy-spin"></span>正在拉取列表';
           }
@@ -6701,6 +6743,7 @@
 
       function setSub2RemoteBusy(busy, phase = "") {
         sub2RemoteBusy = Boolean(busy);
+        sub2RemotePhase = sub2RemoteBusy ? phase || sub2RemotePhase || "" : "";
         const controls = [
           "btnRefreshSub2RemoteList",
           "btnSub2RemoteSelectAll",
@@ -6718,23 +6761,86 @@
         const exportBtn = $("btnExportSub2RemoteSelected");
         if (exportBtn) {
           exportBtn.disabled = sub2RemoteBusy || sub2RemoteSelected.size === 0;
-          if (sub2RemoteBusy && phase === "export") {
+          if (sub2RemoteBusy && sub2RemotePhase === "export") {
             exportBtn.innerHTML = '<span class="busy-spin"></span>导出中';
           } else if (!sub2RemoteBusy) {
             exportBtn.textContent = "导出所选";
           }
         }
+        const abortBtn = $("btnAbortSub2RemoteExport");
+        if (abortBtn) {
+          const showAbort =
+            sub2RemoteBusy && (sub2RemotePhase === "export" || sub2RemotePhase === "list");
+          abortBtn.hidden = !showAbort;
+          abortBtn.disabled = !showAbort || sub2RemoteCancelRequested;
+          abortBtn.textContent = sub2RemoteAbortLabel();
+        }
         const topBtn = $("btnSub2RemoteExport");
         if (topBtn) {
           if (sub2RemoteBusy) {
             topBtn.innerHTML =
-              phase === "export"
+              sub2RemotePhase === "export"
                 ? '<span class="busy-spin"></span>正在导出账号'
                 : '<span class="busy-spin"></span>正在拉取列表';
           }
         }
         refreshRemoteActionButtons();
         updateSub2RemoteSelectionMeta();
+      }
+
+      function createRemoteCancelledError(message) {
+        const error = new Error(message || "用户已取消操作");
+        error.name = "RemoteCancelledError";
+        return error;
+      }
+
+      function throwIfCpaRemoteCancelled() {
+        if (cpaRemoteCancelRequested || cpaRemoteAbortController?.signal?.aborted) {
+          throw createRemoteCancelledError(
+            cpaRemotePhase === "list" ? "用户已取消拉取列表" : "用户已取消下载"
+          );
+        }
+      }
+
+      function throwIfSub2RemoteCancelled() {
+        if (sub2RemoteCancelRequested || sub2RemoteAbortController?.signal?.aborted) {
+          throw createRemoteCancelledError(
+            sub2RemotePhase === "list" ? "用户已取消拉取列表" : "用户已取消导出"
+          );
+        }
+      }
+
+      function cancelCpaRemoteTask() {
+        if (!cpaRemoteBusy || cpaRemoteCancelRequested) return;
+        cpaRemoteCancelRequested = true;
+        const abortBtn = $("btnAbortCpaRemoteDownload");
+        if (abortBtn) {
+          abortBtn.disabled = true;
+          abortBtn.textContent = "正在取消…";
+        }
+        const tip =
+          cpaRemotePhase === "list" ? "正在取消拉取列表" : "正在取消，当前请求结束后停止后续批次";
+        setCpaRemoteStatus(tip, "info");
+        showMsg(cpaRemotePhase === "list" ? "正在取消 CPA 列表拉取" : "正在取消 CPA 下载", "info");
+        cpaRemoteAbortController?.abort(new DOMException("cpa remote cancelled", "AbortError"));
+      }
+
+      function cancelSub2RemoteTask() {
+        if (!sub2RemoteBusy || sub2RemoteCancelRequested) return;
+        sub2RemoteCancelRequested = true;
+        const abortBtn = $("btnAbortSub2RemoteExport");
+        if (abortBtn) {
+          abortBtn.disabled = true;
+          abortBtn.textContent = "正在取消…";
+        }
+        const tip =
+          sub2RemotePhase === "list" ? "正在取消拉取列表" : "正在取消，当前请求结束后停止后续批次";
+        setSub2RemoteStatus(tip, "info");
+        showMsg(
+          sub2RemotePhase === "list" ? "正在取消 SUB2API 列表拉取" : "正在取消 SUB2API 导出",
+          "info"
+        );
+        sub2RemoteAbortController?.abort(new DOMException("sub2 remote cancelled", "AbortError"));
       }
 
       function resetCpaRemoteModalView() {
@@ -6766,8 +6872,7 @@
         if (failedOnly) failedOnly.checked = false;
         const list = $("sub2RemoteList");
         if (list) list.innerHTML = `<div class="remote-picker-empty">尚未加载列表</div>`;
-        $("sub2RemoteExportHint").textContent =
-          "勾选服务端账号后导出为可再导入的 sub2api-account 合并包";
+        $("sub2RemoteExportHint").textContent = "勾选服务端账号后导出";
         setSub2RemoteStatus("");
         updateSub2RemoteSelectionMeta();
       }
@@ -6972,6 +7077,8 @@
           setCpaRemoteStatus("请先配置 CPA", "err");
           return;
         }
+        cpaRemoteCancelRequested = false;
+        cpaRemoteAbortController = new AbortController();
         setCpaRemoteBusy(true, "list");
         setCpaRemoteStatus("正在拉取 CPA 认证文件列表", "info");
         showMsg("正在拉取 CPA 认证文件列表", "info");
@@ -6985,9 +7092,11 @@
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(body),
+              signal: cpaRemoteAbortController.signal,
             },
             2 * 60 * 1000
           );
+          throwIfCpaRemoteCancelled();
           cpaRemoteFiles = Array.isArray(data?.files) ? data.files : [];
           cpaRemoteSelected = new Set(cpaRemoteFiles.map((f) => String(f.name)).filter(Boolean));
           cpaRemoteResultByName = new Map();
@@ -7007,16 +7116,23 @@
             showMsg("CPA 服务端没有可下载的认证文件", "info");
           }
         } catch (error) {
-          cpaRemoteFiles = [];
-          cpaRemoteSelected = new Set();
-          cpaRemoteResultByName = new Map();
-          cpaRemoteFailedOnly = false;
-          const failedOnly = $("cpaRemoteFailedOnly");
-          if (failedOnly) failedOnly.checked = false;
-          renderCpaRemoteList();
-          setCpaRemoteStatus(`加载失败：${apiErrorMessage(error)}`, "err");
-          showMsg(`拉取 CPA 认证文件列表失败：${apiErrorMessage(error)}`, "err");
+          if (error?.name === "RemoteCancelledError" || cpaRemoteCancelRequested) {
+            setCpaRemoteStatus("已取消拉取列表", "info");
+            showMsg("已取消拉取 CPA 认证文件列表", "info");
+          } else {
+            cpaRemoteFiles = [];
+            cpaRemoteSelected = new Set();
+            cpaRemoteResultByName = new Map();
+            cpaRemoteFailedOnly = false;
+            const failedOnly = $("cpaRemoteFailedOnly");
+            if (failedOnly) failedOnly.checked = false;
+            renderCpaRemoteList();
+            setCpaRemoteStatus(`加载失败：${apiErrorMessage(error)}`, "err");
+            showMsg(`拉取 CPA 认证文件列表失败：${apiErrorMessage(error)}`, "err");
+          }
         } finally {
+          cpaRemoteAbortController = null;
+          cpaRemoteCancelRequested = false;
           setCpaRemoteBusy(false);
         }
       }
@@ -7042,13 +7158,17 @@
         const chunks = chunkArray(names, chunkSize);
         // 本次下载会覆盖所选文件的成功/失败标记
         for (const name of names) cpaRemoteResultByName.delete(String(name || ""));
+        cpaRemoteCancelRequested = false;
+        cpaRemoteAbortController = new AbortController();
         setCpaRemoteBusy(true, "download");
         setCpaRemoteStatus(`正在下载 ${names.length} 个认证文件，分 ${chunks.length} 批`, "info");
         showMsg(`正在从 CPA 下载 ${names.length} 个认证文件`, "info");
         try {
           const config = uploadConfigPayload(effective);
           const okFiles = [];
+          let cancelled = false;
           for (let i = 0; i < chunks.length; i++) {
+            throwIfCpaRemoteCancelled();
             const chunk = chunks[i];
             setCpaRemoteStatus(
               `正在下载第 ${i + 1}/${chunks.length} 批，本批 ${chunk.length} 个，累计成功 ${okFiles.length} 个`,
@@ -7063,15 +7183,25 @@
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify(body),
+                  signal: cpaRemoteAbortController.signal,
                 },
                 10 * 60 * 1000
               );
+              throwIfCpaRemoteCancelled();
               const files = Array.isArray(data?.files) ? data.files : [];
               applyCpaRemoteChunkResults(chunk, files);
               for (const item of files) {
                 if (item?.ok && item.content != null) okFiles.push(item);
               }
             } catch (chunkError) {
+              if (
+                chunkError?.name === "RemoteCancelledError" ||
+                chunkError?.name === "AbortError" ||
+                cpaRemoteCancelRequested
+              ) {
+                cancelled = true;
+                break;
+              }
               const files = Array.isArray(chunkError?.data?.files) ? chunkError.data.files : [];
               applyCpaRemoteChunkResults(chunk, files);
               for (const item of files) {
@@ -7079,6 +7209,42 @@
               }
             }
             await yieldToBrowser();
+          }
+          if (cancelled || cpaRemoteCancelRequested) {
+            if (okFiles.length) {
+              const enc = new TextEncoder();
+              const used = new Map();
+              const zipFiles = okFiles.map((item, index) => {
+                let name = sanitizeRemoteCpaFilename(item.name, index);
+                if (used.has(name)) {
+                  const n = used.get(name) + 1;
+                  used.set(name, n);
+                  name = name.replace(/\.json$/i, `-${n}.json`);
+                } else {
+                  used.set(name, 1);
+                }
+                const text =
+                  typeof item.content === "string"
+                    ? item.content
+                    : JSON.stringify(item.content, null, 2);
+                return { name, data: enc.encode(text) };
+              });
+              const zipBytes = buildZip(zipFiles);
+              downloadBlob(
+                new Blob([zipBytes], { type: "application/zip" }),
+                `cpa-auth-remote-partial-${tsStamp()}.zip`
+              );
+              renderCpaRemoteList();
+              const msg = `已取消下载，已打包此前成功的 ${okFiles.length} 个文件`;
+              setCpaRemoteStatus(msg, "info");
+              showMsg(msg, "info");
+              showToast(msg, "info", 4200);
+            } else {
+              renderCpaRemoteList();
+              setCpaRemoteStatus("已取消下载", "info");
+              showMsg("已取消从 CPA 下载", "info");
+            }
+            return;
           }
           let failedCount = 0;
           for (const name of names) {
@@ -7127,10 +7293,18 @@
           showMsg(msg, failedCount ? "err" : "ok");
           showToast(msg, failedCount ? "err" : "ok", 4200);
         } catch (error) {
-          setCpaRemoteStatus(`下载失败：${apiErrorMessage(error)}`, "err");
-          showMsg(`从 CPA 下载失败：${apiErrorMessage(error)}`, "err");
-          renderCpaRemoteList();
+          if (error?.name === "RemoteCancelledError" || cpaRemoteCancelRequested) {
+            setCpaRemoteStatus("已取消下载", "info");
+            showMsg("已取消从 CPA 下载", "info");
+            renderCpaRemoteList();
+          } else {
+            setCpaRemoteStatus(`下载失败：${apiErrorMessage(error)}`, "err");
+            showMsg(`从 CPA 下载失败：${apiErrorMessage(error)}`, "err");
+            renderCpaRemoteList();
+          }
         } finally {
+          cpaRemoteAbortController = null;
+          cpaRemoteCancelRequested = false;
           setCpaRemoteBusy(false);
         }
       }
@@ -7155,6 +7329,8 @@
           setSub2RemoteStatus("请先配置 SUB2API", "err");
           return;
         }
+        sub2RemoteCancelRequested = false;
+        sub2RemoteAbortController = new AbortController();
         setSub2RemoteBusy(true, "list");
         setSub2RemoteStatus("正在拉取 SUB2API 账号列表", "info");
         showMsg("正在拉取 SUB2API 账号列表", "info");
@@ -7168,9 +7344,11 @@
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(body),
+              signal: sub2RemoteAbortController.signal,
             },
             10 * 60 * 1000
           );
+          throwIfSub2RemoteCancelled();
           sub2RemoteAccounts = Array.isArray(data?.accounts) ? data.accounts : [];
           sub2RemoteSelected = new Set(
             sub2RemoteAccounts
@@ -7184,8 +7362,7 @@
           renderSub2RemoteList();
           const count = sub2RemoteAccounts.length;
           if (count > 0) {
-            $("sub2RemoteExportHint").textContent =
-              `共 ${count} 个账号，可搜索后全选或勾选子集，导出为 sub2api-account 合并包`;
+            $("sub2RemoteExportHint").textContent = `共 ${count} 个账号，可搜索后全选或勾选子集`;
             setSub2RemoteStatus(`列表加载完成，共 ${count} 个账号，已默认全选`, "ok");
             showMsg(`SUB2API 账号列表已加载，共 ${count} 个`, "ok");
           } else {
@@ -7194,16 +7371,23 @@
             showMsg("SUB2API 服务端没有可导出的账号", "info");
           }
         } catch (error) {
-          sub2RemoteAccounts = [];
-          sub2RemoteSelected = new Set();
-          sub2RemoteResultById = new Map();
-          sub2RemoteFailedOnly = false;
-          const failedOnly = $("sub2RemoteFailedOnly");
-          if (failedOnly) failedOnly.checked = false;
-          renderSub2RemoteList();
-          setSub2RemoteStatus(`加载失败：${apiErrorMessage(error)}`, "err");
-          showMsg(`拉取 SUB2API 账号列表失败：${apiErrorMessage(error)}`, "err");
+          if (error?.name === "RemoteCancelledError" || sub2RemoteCancelRequested) {
+            setSub2RemoteStatus("已取消拉取列表", "info");
+            showMsg("已取消拉取 SUB2API 账号列表", "info");
+          } else {
+            sub2RemoteAccounts = [];
+            sub2RemoteSelected = new Set();
+            sub2RemoteResultById = new Map();
+            sub2RemoteFailedOnly = false;
+            const failedOnly = $("sub2RemoteFailedOnly");
+            if (failedOnly) failedOnly.checked = false;
+            renderSub2RemoteList();
+            setSub2RemoteStatus(`加载失败：${apiErrorMessage(error)}`, "err");
+            showMsg(`拉取 SUB2API 账号列表失败：${apiErrorMessage(error)}`, "err");
+          }
         } finally {
+          sub2RemoteAbortController = null;
+          sub2RemoteCancelRequested = false;
           setSub2RemoteBusy(false);
         }
       }
@@ -7229,6 +7413,8 @@
         const chunkSize = Math.max(1, Math.min(REMOTE_EXPORT_CHUNK_DEFAULT, maxPerRequest));
         const chunks = chunkArray(ids, chunkSize);
         for (const id of ids) sub2RemoteResultById.delete(String(id ?? ""));
+        sub2RemoteCancelRequested = false;
+        sub2RemoteAbortController = new AbortController();
         setSub2RemoteBusy(true, "export");
         setSub2RemoteStatus(`正在导出 ${ids.length} 个账号，分 ${chunks.length} 批`, "info");
         showMsg(`正在从 SUB2API 导出 ${ids.length} 个账号`, "info");
@@ -7237,7 +7423,9 @@
           const accounts = [];
           let exportedAt = "";
           let hardError = null;
+          let cancelled = false;
           for (let i = 0; i < chunks.length; i++) {
+            throwIfSub2RemoteCancelled();
             const chunk = chunks[i];
             setSub2RemoteStatus(
               `正在导出第 ${i + 1}/${chunks.length} 批，本批 ${chunk.length} 个，累计成功 ${accounts.length} 个`,
@@ -7246,15 +7434,22 @@
             const body = { ids: chunk };
             if (config) body.config = config;
             try {
+              // 与官方后台导出一致：Worker 转发 GET /api/v1/admin/accounts/data?ids=&timezone=
+              body.timezone =
+                (typeof Intl !== "undefined" &&
+                  Intl.DateTimeFormat?.().resolvedOptions?.().timeZone) ||
+                "UTC";
               const { data } = await fetchJson(
                 "/api/sub2api/accounts/export",
                 {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify(body),
+                  signal: sub2RemoteAbortController.signal,
                 },
                 10 * 60 * 1000
               );
+              throwIfSub2RemoteCancelled();
               const pack = data?.pack;
               if (pack?.exported_at && !exportedAt) exportedAt = pack.exported_at;
               const packAccounts = Array.isArray(pack?.accounts) ? pack.accounts : [];
@@ -7264,6 +7459,14 @@
                 okCount: packAccounts.length || data?.count || 0,
               });
             } catch (chunkError) {
+              if (
+                chunkError?.name === "RemoteCancelledError" ||
+                chunkError?.name === "AbortError" ||
+                sub2RemoteCancelRequested
+              ) {
+                cancelled = true;
+                break;
+              }
               // 单批全失败时 Worker 返回 502；分批场景下累计失败后继续下一批
               const partialAccounts = Array.isArray(chunkError?.data?.pack?.accounts)
                 ? chunkError.data.pack.accounts
@@ -7284,6 +7487,26 @@
             }
             await yieldToBrowser();
           }
+          if (cancelled || sub2RemoteCancelRequested) {
+            if (accounts.length) {
+              const exportPack = {
+                exported_at: exportedAt || new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+                proxies: [],
+                accounts,
+              };
+              downloadJson(exportPack, `sub2api-account-partial-${tsStamp()}.json`);
+              renderSub2RemoteList();
+              const msg = `已取消导出，已保存此前成功的 ${accounts.length} 个账号`;
+              setSub2RemoteStatus(msg, "info");
+              showMsg(msg, "info");
+              showToast(msg, "info", 4200);
+            } else {
+              renderSub2RemoteList();
+              setSub2RemoteStatus("已取消导出", "info");
+              showMsg("已取消从 SUB2API 导出", "info");
+            }
+            return;
+          }
           let failedCount = 0;
           for (const id of ids) {
             if (sub2RemoteResultById.get(String(id ?? "")) === "err") failedCount += 1;
@@ -7293,7 +7516,7 @@
             const detail = hardError ? apiErrorMessage(hardError) : "";
             setSub2RemoteStatus(
               failedCount
-                ? `导出失败，全部 ${failedCount} 个账号无完整凭证${detail ? `，${detail}` : ""}，已勾选失败项可二次导出`
+                ? `导出失败，全部 ${failedCount} 个账号无完整凭证${detail ? `，${detail}` : ""}，已勾选失败项可再次导出`
                 : detail
                   ? `导出失败：${detail}`
                   : "导出失败，没有可用账号数据",
@@ -7314,15 +7537,23 @@
           const msg =
             failedCount > 0
               ? `导出完成，成功：${accounts.length}，失败：${failedCount}，已勾选失败项可二次导出`
-              : `已导出 sub2api-account 合并包 ${accounts.length} 个账号`;
+              : `已导出 ${accounts.length} 个账号`;
           setSub2RemoteStatus(msg, failedCount ? "err" : "ok");
           showMsg(msg, failedCount ? "err" : "ok");
           showToast(msg, failedCount ? "err" : "ok", 4200);
         } catch (error) {
-          setSub2RemoteStatus(`导出失败：${apiErrorMessage(error)}`, "err");
-          showMsg(`从 SUB2API 导出失败：${apiErrorMessage(error)}`, "err");
-          renderSub2RemoteList();
+          if (error?.name === "RemoteCancelledError" || sub2RemoteCancelRequested) {
+            setSub2RemoteStatus("已取消导出", "info");
+            showMsg("已取消从 SUB2API 导出", "info");
+            renderSub2RemoteList();
+          } else {
+            setSub2RemoteStatus(`导出失败：${apiErrorMessage(error)}`, "err");
+            showMsg(`从 SUB2API 导出失败：${apiErrorMessage(error)}`, "err");
+            renderSub2RemoteList();
+          }
         } finally {
+          sub2RemoteAbortController = null;
+          sub2RemoteCancelRequested = false;
           setSub2RemoteBusy(false);
         }
       }
@@ -8955,10 +9186,12 @@
           setCpaRemoteStatus(`下载失败：${apiErrorMessage(error)}`, "err");
         });
       });
+      $("btnAbortCpaRemoteDownload")?.addEventListener("click", () => cancelCpaRemoteTask());
 
       $("btnSub2RemoteExport")?.addEventListener("click", () => openSub2RemoteExportModal());
       $("btnCloseSub2RemoteExport")?.addEventListener("click", () => closeSub2RemoteExportModal());
       $("btnCancelSub2RemoteExport")?.addEventListener("click", () => closeSub2RemoteExportModal());
+      $("btnAbortSub2RemoteExport")?.addEventListener("click", () => cancelSub2RemoteTask());
       $("sub2RemoteExportModal")?.addEventListener("click", (event) => {
         if (event.target === $("sub2RemoteExportModal")) closeSub2RemoteExportModal();
       });

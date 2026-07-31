@@ -99,6 +99,14 @@ x-api-key: <API_KEY>
 POST /api/v1/admin/accounts/data
 ```
 
+从 SUB2API 导出选中账号时，与官方后台一致，使用：
+
+```http
+GET /api/v1/admin/accounts/data?ids=1,2,3&timezone=Asia/Shanghai
+```
+
+该接口返回含 `access_token` / `refresh_token` / `id_token` 等完整 credentials 的合并包；不要用账号详情接口拼装导出。
+
 前端可在页面配置每批账号数，且不得超过 Worker 的 `MAX_SUB2API_ACCOUNTS` 上限（默认 100，平台天花板 50000）。也可配置前端并行批次数与重试策略（见下方「上传行为说明」）。SUB2API 批量导入为非幂等写操作；Worker 仅对较安全的失败自动重试，超时等模糊失败默认不重试。
 
 ### 3.3 用环境变量配置 CPA（可选回退）

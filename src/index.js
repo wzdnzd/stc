@@ -269,6 +269,7 @@ async function handleApi(request, env, url) {
   }
 
   // 导出选中 SUB2API 账号为可再导入的合并包
+  // 上游官方接口：GET /api/v1/admin/accounts/data?ids=...&timezone=...
   if (url.pathname === "/api/sub2api/accounts/export" && request.method === "POST") {
     const body = await readJsonBody(request, 2 * 1024 * 1024);
     const override = extractConfigOverride(body?.config ?? body);
@@ -280,7 +281,8 @@ async function handleApi(request, env, url) {
     if (ids.length > maxExport) {
       throw new HttpError(400, `单次最多导出 ${maxExport} 个 SUB2API 账号`, "BATCH_TOO_LARGE");
     }
-    const result = await exportSub2apiAccounts(env, ids, override, request.signal);
+    const timezone = body?.timezone ?? body?.time_zone ?? body?.tz;
+    const result = await exportSub2apiAccounts(env, ids, override, request.signal, timezone);
     return jsonResponse({ ok: true, target: "SUB2API", ...result });
   }
 
@@ -1373,7 +1375,6 @@ const DEDUPE_PAGE_SIZE = 200;
 const DEDUPE_SCAN_CONCURRENCY = 4;
 const DEDUPE_DELETE_CONCURRENCY = 4;
 const CPA_DOWNLOAD_CONCURRENCY = 4;
-const SUB2API_EXPORT_DETAIL_CONCURRENCY = 8;
 const DEDUPE_NORMAL_STATUSES = new Set([
   "active",
   "normal",
@@ -2018,13 +2019,22 @@ function accountHasUsableCredentials(account) {
 
 function normalizeExportCredentials(account) {
   if (!account || typeof account !== "object") return {};
-  if (account.credentials && typeof account.credentials === "object") {
+  // 官方 /accounts/data 导出通常已带完整 credentials；优先原样保留，避免漏掉 access/refresh/id token
+  if (
+    account.credentials &&
+    typeof account.credentials === "object" &&
+    !Array.isArray(account.credentials)
+  ) {
     return { ...account.credentials };
   }
-  if (account.credential && typeof account.credential === "object") {
+  if (
+    account.credential &&
+    typeof account.credential === "object" &&
+    !Array.isArray(account.credential)
+  ) {
     return { ...account.credential };
   }
-  if (account.auth && typeof account.auth === "object") {
+  if (account.auth && typeof account.auth === "object" && !Array.isArray(account.auth)) {
     return { ...account.auth };
   }
   const cred = {};
@@ -2036,12 +2046,25 @@ function normalizeExportCredentials(account) {
     ["token", ["token"]],
     ["cookie", ["cookie", "cookies"]],
     ["session_token", ["session_token", "sessionToken"]],
+    ["email", ["email"]],
+    ["expires_at", ["expires_at", "expiresAt"]],
+    ["token_type", ["token_type", "tokenType"]],
+    ["base_url", ["base_url", "baseUrl"]],
+    ["client_id", ["client_id", "clientId"]],
+    ["scope", ["scope"]],
   ];
   for (const [target, sources] of map) {
     for (const source of sources) {
-      const text = nonEmptyText(account[source]);
-      if (text) {
-        cred[target] = text;
+      const value = account[source];
+      if (value == null || value === "") continue;
+      if (typeof value === "string") {
+        const text = value.trim();
+        if (text) {
+          cred[target] = text;
+          break;
+        }
+      } else if (typeof value === "number" && Number.isFinite(value)) {
+        cred[target] = value;
         break;
       }
     }
@@ -2049,7 +2072,7 @@ function normalizeExportCredentials(account) {
   return cred;
 }
 
-/** 导出用：尽量去掉服务端只读字段，保留可再导入的账号正文 */
+/** 导出用：保留官方 data 接口返回的完整凭证，仅去掉明显服务端只读字段 */
 function sanitizeSub2apiExportAccount(account) {
   if (!account || typeof account !== "object") return null;
   const out = { ...account };
@@ -2069,8 +2092,9 @@ function sanitizeSub2apiExportAccount(account) {
   delete out.credential;
   delete out.auth;
   if (!out.type) out.type = "oauth";
+  // 关键：用官方导出包中的 credentials 原样回填，确保 access_token / refresh_token / id_token 不丢失
   out.credentials = normalizeExportCredentials(account);
-  if (!out.extra || typeof out.extra !== "object") out.extra = {};
+  if (!out.extra || typeof out.extra !== "object" || Array.isArray(out.extra)) out.extra = {};
   if (out.concurrency == null) out.concurrency = 1;
   if (out.priority == null) out.priority = 1;
   if (out.rate_multiplier == null) out.rate_multiplier = 1;
@@ -2078,65 +2102,104 @@ function sanitizeSub2apiExportAccount(account) {
   return out;
 }
 
-function unwrapSub2apiAccountDetail(payload) {
+function resolveExportTimezone(preferred) {
+  const raw = String(preferred || "").trim();
+  if (raw) return raw;
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (tz) return tz;
+  } catch {
+    // ignore
+  }
+  return "UTC";
+}
+
+/**
+ * 解析官方导出接口 GET /api/v1/admin/accounts/data 的响应。
+ * 兼容：
+ * - { exported_at, proxies, accounts }
+ * - { data: { exported_at, proxies, accounts } }
+ * - { data: { data: { ... } } }
+ * - { accounts: [...] } / { data: [...] }
+ */
+function unwrapSub2apiExportPack(payload) {
   let root = payload;
-  // 常见：{ data: account } / { data: { account } } / { account }
   for (let depth = 0; depth < 4; depth++) {
     if (!root || typeof root !== "object" || Array.isArray(root)) break;
-    if (root.account && typeof root.account === "object" && !Array.isArray(root.account)) {
-      root = root.account;
-      continue;
+    if (Array.isArray(root.accounts) || Array.isArray(root.proxies) || root.exported_at) {
+      break;
     }
     if (root.data !== undefined) {
       root = root.data;
       continue;
     }
-    if (root.item && typeof root.item === "object") {
-      root = root.item;
+    if (root.result !== undefined) {
+      root = root.result;
       continue;
     }
-    if (root.result && typeof root.result === "object") {
-      root = root.result;
+    if (root.pack !== undefined) {
+      root = root.pack;
       continue;
     }
     break;
   }
-  if (!root || typeof root !== "object" || Array.isArray(root)) return null;
-  if (
-    root.id != null ||
-    root.credentials ||
-    root.credential ||
-    root.auth ||
-    root.platform ||
-    root.type ||
-    root.access_token ||
-    root.accessToken ||
-    root.refresh_token ||
-    root.refreshToken ||
-    root.api_key ||
-    root.apiKey
-  ) {
-    return root;
+  if (Array.isArray(root)) {
+    return {
+      exported_at: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+      proxies: [],
+      accounts: root,
+    };
   }
-  return null;
+  if (!root || typeof root !== "object") return null;
+  const accounts = Array.isArray(root.accounts)
+    ? root.accounts
+    : Array.isArray(root.items)
+      ? root.items
+      : Array.isArray(root.list)
+        ? root.list
+        : null;
+  if (!accounts) return null;
+  return {
+    exported_at:
+      root.exported_at || root.exportedAt || new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+    proxies: Array.isArray(root.proxies) ? root.proxies : [],
+    accounts,
+  };
 }
 
-async function fetchSub2apiAccountDetail(config, accountId, clientSignal) {
-  const encodedId = encodeURIComponent(String(accountId));
+/**
+ * 官方导出：GET /api/v1/admin/accounts/data?ids=1,2,3&timezone=Asia/Shanghai
+ * 该接口返回含 access_token / refresh_token / id_token 的完整 credentials，
+ * 与管理后台「导出」一致；不要再用 /accounts/{id} 详情接口拼装。
+ */
+async function fetchSub2apiAccountsExportData(config, ids, clientSignal, timezone) {
+  const query = new URLSearchParams();
+  query.set("ids", ids.map((id) => String(id)).join(","));
+  query.set("timezone", resolveExportTimezone(timezone));
   const result = await sub2apiRequest(
     config,
-    `/api/v1/admin/accounts/${encodedId}`,
+    `/api/v1/admin/accounts/data?${query.toString()}`,
     { method: "GET" },
-    // 详情请求不宜用 30s 校验超时；大批量时上游偶发变慢
-    Math.max(VERIFY_TIMEOUT_MS, 60 * 1000),
+    UPSTREAM_TIMEOUT_MS,
     2,
     clientSignal
   );
-  const account = unwrapSub2apiAccountDetail(result.data);
-  if (!account) {
-    throw new HttpError(502, `SUB2API 账号 ${accountId} 详情响应无效`, "INVALID_UPSTREAM_RESPONSE");
+  const pack = unwrapSub2apiExportPack(result.data);
+  if (!pack) {
+    throw new HttpError(502, "SUB2API 导出响应无效", "INVALID_UPSTREAM_RESPONSE");
   }
-  return { account, attempts: result.attempts };
+  return { pack, attempts: result.attempts };
+}
+
+function matchExportedAccountId(account, requestedIds) {
+  if (!account || typeof account !== "object") return "";
+  const candidates = [account.id, account.account_id, account.accountId];
+  for (const raw of candidates) {
+    if (raw == null || raw === "") continue;
+    const marker = String(raw);
+    if (requestedIds.has(marker)) return marker;
+  }
+  return "";
 }
 
 async function listSub2apiAccountsMeta(env, override = null, clientSignal = undefined) {
@@ -2153,7 +2216,13 @@ async function listSub2apiAccountsMeta(env, override = null, clientSignal = unde
   };
 }
 
-async function exportSub2apiAccounts(env, ids, override = null, clientSignal = undefined) {
+async function exportSub2apiAccounts(
+  env,
+  ids,
+  override = null,
+  clientSignal = undefined,
+  timezone = undefined
+) {
   const config = resolveTargetConfig(env, "SUB2API", override);
   const normalizedIds = [];
   const seen = new Set();
@@ -2169,59 +2238,61 @@ async function exportSub2apiAccounts(env, ids, override = null, clientSignal = u
     throw new HttpError(400, "没有可导出的账号 ID", "INVALID_PAYLOAD");
   }
 
-  // 直接按 id 拉详情，避免先全量 lite 列表再逐个详情（选中越多越慢，且易超时）
-  let attempts = 0;
-  const detailResults = await mapWithConcurrency(
+  // 官方批量导出接口：一次 ids 拉完整凭证包，不再逐个 /accounts/{id}
+  const { pack: rawPack, attempts } = await fetchSub2apiAccountsExportData(
+    config,
     normalizedIds,
-    SUB2API_EXPORT_DETAIL_CONCURRENCY,
-    async (id) => {
-      try {
-        const detail = await fetchSub2apiAccountDetail(config, id, clientSignal);
-        attempts += detail.attempts || 0;
-        return { id, ok: true, account: detail.account };
-      } catch (error) {
-        return {
-          id,
-          ok: false,
-          error: publicErrorMessage(error),
-          status: error?.status,
-          code: error?.code,
-        };
-      }
-    }
+    clientSignal,
+    timezone
   );
 
+  const requested = new Set(normalizedIds.map((id) => String(id)));
   const failures = [];
   const accounts = [];
   // 清洗后 pack 不再带 id，单独回传成功 id 供前端标记逐项结果
   const successIds = [];
-  for (const item of detailResults) {
-    if (!item.ok) {
-      failures.push(item);
-      continue;
-    }
-    if (!accountHasUsableCredentials(item.account)) {
+  const returnedIds = new Set();
+
+  for (const account of rawPack.accounts) {
+    if (!account || typeof account !== "object") continue;
+    const matchedId = matchExportedAccountId(account, requested);
+    if (matchedId) returnedIds.add(matchedId);
+
+    if (!accountHasUsableCredentials(account)) {
       failures.push({
-        id: item.id,
+        id: matchedId || account.id || "",
         ok: false,
         error: "账号缺少可用凭证字段，无法导出完整认证数据",
         code: "INCOMPLETE_ACCOUNT_DATA",
-        status: item.status,
       });
       continue;
     }
-    const sanitized = sanitizeSub2apiExportAccount(item.account);
-    if (sanitized) {
-      accounts.push(sanitized);
-      successIds.push(item.id);
-    } else {
+    const sanitized = sanitizeSub2apiExportAccount(account);
+    if (!sanitized || !accountHasUsableCredentials(sanitized)) {
       failures.push({
-        id: item.id,
+        id: matchedId || account.id || "",
         ok: false,
-        error: "账号数据清洗后为空",
+        error: "账号数据清洗后缺少可用凭证",
         code: "INCOMPLETE_ACCOUNT_DATA",
       });
+      continue;
     }
+    accounts.push(sanitized);
+    if (matchedId) successIds.push(matchedId);
+  }
+
+  // 请求了但响应里完全没出现的 id，记为失败，便于前端二次勾选
+  for (const id of normalizedIds) {
+    const marker = String(id);
+    if (returnedIds.has(marker)) continue;
+    if (successIds.some((x) => String(x) === marker)) continue;
+    if (failures.some((f) => String(f.id) === marker)) continue;
+    failures.push({
+      id,
+      ok: false,
+      error: "导出响应中未返回该账号",
+      code: "ACCOUNT_NOT_IN_EXPORT",
+    });
   }
 
   if (!accounts.length) {
@@ -2236,8 +2307,8 @@ async function exportSub2apiAccounts(env, ids, override = null, clientSignal = u
   }
 
   const pack = {
-    exported_at: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
-    proxies: [],
+    exported_at: rawPack.exported_at || new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+    proxies: Array.isArray(rawPack.proxies) ? rawPack.proxies : [],
     accounts,
   };
 
