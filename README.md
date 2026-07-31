@@ -287,6 +287,8 @@ npx wrangler deploy
 ## 上传行为说明
 
 - 导入支持「本地」与「远端」：远端选择源服务器后快速载入账号列表进主列表，完整凭证在导出/上传时按需补全并自动转换；远端账号不可回传到同一端，**导出不受同源限制**。
+- **远端互传（场景 4）**：列表账号全部来自对端远端 stub 时，上传走 `POST /api/transfer/batch`。Worker 在服务端完成「拉源 → 转换 → 上传目标」，完整凭证不经浏览器；前端只传 id/文件名、转换与上传参数，并按批轮询式调度并发。本地导入或已补全账号仍走原 `/api/upload/*` 路径。
+- 转换逻辑前后端共用：`src/shared/account-convert.js`（Worker ESM）与 `public/shared/account-convert.js`（浏览器 `window.AccountConvert`）。修改转换规则时需同步两侧。
 - 有可上传账号时，上传按钮始终可点；无有效配置时点击会弹出对应目标的配置窗，验证保存成功后继续上传。
 - 上传前无论本机还是 env，都会先调用 `/api/config/verify`；失败则引导修正配置。
 - 本机配置上传时，请求体会附带 `config: { baseUrl, apiKey, cpaAuthMode? }`；纯 env 时不附带，由 Worker 读环境变量。
