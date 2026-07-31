@@ -1827,11 +1827,30 @@
         flex: 0 0 auto;
         display: inline-flex;
         align-items: center;
+        justify-content: center;
         padding: 2px 8px;
         border-radius: 999px;
+        border: 1px solid transparent;
+        font-family: inherit;
         font-size: 11px;
         font-weight: 650;
-        border: 1px solid transparent;
+        line-height: 1.35;
+        background: transparent;
+        color: inherit;
+      }
+
+      button.dedupe-tag {
+        cursor: pointer;
+        transition: 0.12s ease;
+      }
+
+      button.dedupe-tag:hover:not(:disabled) {
+        filter: brightness(1.08);
+      }
+
+      button.dedupe-tag:disabled {
+        cursor: default;
+        opacity: 0.9;
       }
 
       .dedupe-tag.keep {
@@ -1846,25 +1865,10 @@
         border-color: rgba(239, 68, 68, 0.28);
       }
 
-      .dedupe-result-list {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-        max-height: 180px;
-        overflow: auto;
-        margin-top: 8px;
-      }
-
-      .dedupe-result-item {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-        padding: 8px 10px;
-        border: 1px solid var(--border-soft);
-        border-radius: 8px;
-        background: rgba(255, 255, 255, 0.02);
-        font-size: 12px;
+      .dedupe-tag.failed {
+        color: #fcd34d;
+        background: rgba(245, 158, 11, 0.12);
+        border-color: rgba(245, 158, 11, 0.3);
       }
 
       .remote-picker-toolbar {
@@ -3105,47 +3109,18 @@
         </div>
         <div class="modal-body">
           <p class="hint" style="margin-top: 0" id="sub2DedupeHint">
-            按邮箱优先、其次名称分组检测重复，确认后删除冗余账号
+            按邮箱优先、其次名称分组检测重复，默认可自动判断保留项，也可点选调整，每组仅保留 1 条
           </p>
           <div id="sub2DedupeSummary" class="dedupe-summary-grid" hidden></div>
           <div id="sub2DedupeGroups" class="dedupe-group-list" hidden></div>
-          <div id="sub2DedupeResult" class="dedupe-result-list" hidden></div>
           <div class="config-status" id="sub2DedupeStatus"></div>
         </div>
         <div class="modal-foot">
           <button class="btn-ghost" id="btnCancelSub2Dedupe" type="button">关闭</button>
-          <button class="btn-primary" id="btnScanSub2Dedupe" type="button">开始扫描</button>
+          <button class="btn-primary" id="btnScanSub2Dedupe" type="button" hidden>重新扫描</button>
           <button class="btn-danger" id="btnApplySub2Dedupe" type="button" hidden>
             确认删除重复
           </button>
-        </div>
-      </div>
-    </div>
-
-    <div
-      class="modal-backdrop"
-      id="sub2DedupeConfirmModal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="sub2DedupeConfirmTitle"
-      style="z-index: 1100"
-    >
-      <div class="modal" style="width: min(440px, 100%)">
-        <div class="modal-head">
-          <h3 id="sub2DedupeConfirmTitle">确认删除重复账号</h3>
-          <button class="icon-btn" id="btnCloseSub2DedupeConfirm" type="button" aria-label="关闭">
-            ×
-          </button>
-        </div>
-        <div class="modal-body">
-          <p class="hint" style="margin-top: 0" id="sub2DedupeConfirmSummary"></p>
-          <div class="config-status err" id="sub2DedupeConfirmWarn" style="margin-top: 8px">
-            删除后不可恢复
-          </div>
-        </div>
-        <div class="modal-foot">
-          <button class="btn-ghost" id="btnCancelSub2DedupeConfirm" type="button">取消</button>
-          <button class="btn-danger" id="btnConfirmSub2DedupeDelete" type="button">确认删除</button>
         </div>
       </div>
     </div>
@@ -3343,8 +3318,8 @@
       /** @type {any|null} SUB2API 去重扫描结果 */
       let sub2DedupeScan = null;
       let sub2DedupeBusy = false;
-      /** @type {((ok:boolean)=>void)|null} */
-      let sub2DedupeConfirmResolver = null;
+      /** @type {"review"|"done"|null} */
+      let sub2DedupePhase = null;
 
       /** CPA 远端下载：列表与勾选 */
       let cpaRemoteFiles = [];
@@ -6636,9 +6611,9 @@
 
       function resetSub2DedupeModalView() {
         sub2DedupeScan = null;
+        sub2DedupePhase = null;
         const summary = $("sub2DedupeSummary");
         const groups = $("sub2DedupeGroups");
-        const result = $("sub2DedupeResult");
         if (summary) {
           summary.hidden = true;
           summary.innerHTML = "";
@@ -6647,39 +6622,111 @@
           groups.hidden = true;
           groups.innerHTML = "";
         }
-        if (result) {
-          result.hidden = true;
-          result.innerHTML = "";
-        }
         const applyBtn = $("btnApplySub2Dedupe");
         if (applyBtn) applyBtn.hidden = true;
         const scanBtn = $("btnScanSub2Dedupe");
         if (scanBtn) {
-          scanBtn.hidden = false;
+          // 初次打开会立刻扫描；空态隐藏扫描按钮，结果页再显示「重新扫描」
+          scanBtn.hidden = true;
           scanBtn.disabled = false;
-          scanBtn.textContent = "开始扫描";
+          scanBtn.textContent = "重新扫描";
         }
-        $("sub2DedupeHint").textContent = "按邮箱优先、其次名称分组检测重复，确认后删除冗余账号";
+        $("sub2DedupeHint").textContent =
+          "按邮箱优先、其次名称分组检测重复，默认可自动判断保留项，也可点选调整，每组仅保留 1 条";
         setSub2DedupeStatus("");
       }
 
-      function renderSub2DedupeScan(data) {
-        sub2DedupeScan = data || null;
+      function getSub2DedupeGroupMembers(group) {
+        if (Array.isArray(group?.members) && group.members.length) return group.members;
+        const keep = group?.keep ? [group.keep] : [];
+        const del = Array.isArray(group?.delete) ? group.delete : [];
+        return [...keep, ...del];
+      }
+
+      function normalizeSub2DedupeGroups(data) {
+        const groups = Array.isArray(data?.groups) ? data.groups : [];
+        for (const group of groups) {
+          const members = getSub2DedupeGroupMembers(group);
+          group.members = members;
+          let keepId = group?.selectedKeepId != null ? String(group.selectedKeepId) : "";
+          if (!keepId && group?.keep?.id != null) keepId = String(group.keep.id);
+          if (!keepId && members[0]?.id != null) keepId = String(members[0].id);
+          if (
+            !members.some((item) => String(item?.id ?? "") === keepId) &&
+            members[0]?.id != null
+          ) {
+            keepId = String(members[0].id);
+          }
+          group.selectedKeepId = keepId;
+          group.keep =
+            members.find((item) => String(item?.id ?? "") === keepId) || members[0] || null;
+          group.delete = members.filter((item) => String(item?.id ?? "") !== keepId);
+          group.count = members.length;
+        }
+        data.groups = groups;
+        data.duplicateGroupCount = groups.length;
+        data.accountsInDuplicateGroups = groups.reduce(
+          (sum, group) => sum + (Array.isArray(group.members) ? group.members.length : 0),
+          0
+        );
+        data.plannedDeletionCount = groups.reduce(
+          (sum, group) => sum + (Array.isArray(group.delete) ? group.delete.length : 0),
+          0
+        );
+        return data;
+      }
+
+      function collectSub2DedupeDeleteIds(data = sub2DedupeScan) {
+        const groups = Array.isArray(data?.groups) ? data.groups : [];
+        const ids = [];
+        const seen = new Set();
+        for (const group of groups) {
+          const keepId = String(group?.selectedKeepId ?? group?.keep?.id ?? "");
+          const members = getSub2DedupeGroupMembers(group);
+          for (const account of members) {
+            if (account?.id == null || account?.id === "") continue;
+            const marker = String(account.id);
+            if (marker === keepId || seen.has(marker)) continue;
+            seen.add(marker);
+            ids.push(account.id);
+          }
+        }
+        return ids;
+      }
+
+      function setSub2DedupeKeepSelection(groupIndex, accountId) {
+        if (sub2DedupeBusy || sub2DedupePhase !== "review" || !sub2DedupeScan) return;
+        const groups = Array.isArray(sub2DedupeScan.groups) ? sub2DedupeScan.groups : [];
+        const group = groups[groupIndex];
+        if (!group) return;
+        const members = getSub2DedupeGroupMembers(group);
+        const targetId = String(accountId ?? "");
+        if (!members.some((item) => String(item?.id ?? "") === targetId)) return;
+        group.selectedKeepId = targetId;
+        group.keep = members.find((item) => String(item?.id ?? "") === targetId) || null;
+        group.delete = members.filter((item) => String(item?.id ?? "") !== targetId);
+        group.count = members.length;
+        sub2DedupeScan.plannedDeletionCount = groups.reduce(
+          (sum, row) => sum + Math.max(0, getSub2DedupeGroupMembers(row).length - 1),
+          0
+        );
+        renderSub2DedupeScan(sub2DedupeScan, { preserveStatus: true });
+      }
+
+      function renderSub2DedupeScan(data, options = {}) {
+        const { preserveStatus = false } = options;
+        sub2DedupeScan = normalizeSub2DedupeGroups(data || { groups: [] });
+        sub2DedupePhase = "review";
         const summary = $("sub2DedupeSummary");
         const groupsEl = $("sub2DedupeGroups");
-        const resultEl = $("sub2DedupeResult");
         const applyBtn = $("btnApplySub2Dedupe");
         const scanBtn = $("btnScanSub2Dedupe");
-        if (resultEl) {
-          resultEl.hidden = true;
-          resultEl.innerHTML = "";
-        }
 
-        const accountCount = Number(data?.accountCount) || 0;
-        const groupCount = Number(data?.duplicateGroupCount) || 0;
-        const planned = Number(data?.plannedDeletionCount) || 0;
-        const inGroups = Number(data?.accountsInDuplicateGroups) || 0;
-        const groups = Array.isArray(data?.groups) ? data.groups : [];
+        const accountCount = Number(sub2DedupeScan?.accountCount) || 0;
+        const groupCount = Number(sub2DedupeScan?.duplicateGroupCount) || 0;
+        const planned = Number(sub2DedupeScan?.plannedDeletionCount) || 0;
+        const inGroups = Number(sub2DedupeScan?.accountsInDuplicateGroups) || 0;
+        const groups = Array.isArray(sub2DedupeScan?.groups) ? sub2DedupeScan.groups : [];
 
         if (summary) {
           summary.hidden = false;
@@ -6701,14 +6748,22 @@
             groupsEl.innerHTML =
               preview
                 .map((group, index) => {
-                  const members = Array.isArray(group.members) ? group.members : [];
-                  const keepId = String(group?.keep?.id ?? "");
+                  const members = getSub2DedupeGroupMembers(group);
+                  const keepId = String(group?.selectedKeepId ?? group?.keep?.id ?? "");
                   const rows = members
                     .map((account) => {
-                      const isKeep = String(account?.id ?? "") === keepId;
+                      const accountId = String(account?.id ?? "");
+                      const isKeep = accountId === keepId;
                       return `<div class="dedupe-account-row">
                         <div class="dedupe-account-meta"><strong>${escapeHtml(formatDedupeAccountLine(account))}</strong></div>
-                        <span class="dedupe-tag ${isKeep ? "keep" : "delete"}">${isKeep ? "保留" : "删除"}</span>
+                        <button
+                          type="button"
+                          class="dedupe-tag ${isKeep ? "keep" : "delete"}"
+                          data-dedupe-keep-group="${index}"
+                          data-dedupe-keep-id="${escapeHtml(accountId)}"
+                          ${sub2DedupeBusy ? "disabled" : ""}
+                          title="${isKeep ? "当前保留" : "点选为保留，同组其余将删除"}"
+                        >${isKeep ? "保留" : "删除"}</button>
                       </div>`;
                     })
                     .join("");
@@ -6735,52 +6790,107 @@
         if (scanBtn) {
           scanBtn.hidden = false;
           scanBtn.disabled = sub2DedupeBusy;
-          scanBtn.textContent = planned > 0 ? "重新扫描" : "开始扫描";
+          if (sub2DedupeBusy) {
+            scanBtn.innerHTML = '<span class="busy-spin"></span>扫描中';
+          } else {
+            scanBtn.textContent = "重新扫描";
+          }
         }
 
         if (planned > 0) {
           $("sub2DedupeHint").textContent =
-            `发现 ${groupCount} 组重复，计划删除 ${planned} 个账号，请核对保留/删除列表后确认；优先删非正常状态，其次删更早过期的`;
-          setSub2DedupeStatus(
-            `扫描完成，共 ${accountCount} 个账号，${groupCount} 组重复，计划删除 ${planned} 个`,
-            "ok"
-          );
+            `即将删除 ${planned} 个重复账号，每组仅保留 1 条，删除后不可恢复；点选标签切换保留项，每组只能保留 1 条`;
+          if (!preserveStatus) {
+            setSub2DedupeStatus(
+              `扫描完成，共 ${accountCount} 个账号，${groupCount} 组重复，计划删除 ${planned} 个`,
+              "ok"
+            );
+          }
         } else {
           $("sub2DedupeHint").textContent =
             "当前未发现可去重的重复账号，分组规则为邮箱优先、其次名称";
-          setSub2DedupeStatus(`扫描完成，共 ${accountCount} 个账号，未发现重复`, "ok");
+          if (!preserveStatus) {
+            setSub2DedupeStatus(`扫描完成，共 ${accountCount} 个账号，未发现重复`, "ok");
+          }
         }
       }
 
-      function renderSub2DedupeApplyResult(data) {
-        const resultEl = $("sub2DedupeResult");
+      function renderSub2DedupeApplyResult(data, plannedGroups = []) {
         const applyBtn = $("btnApplySub2Dedupe");
         const scanBtn = $("btnScanSub2Dedupe");
+        const groupsEl = $("sub2DedupeGroups");
+        const summary = $("sub2DedupeSummary");
         const deleted = Number(data?.deletedCount) || 0;
         const absent = Number(data?.alreadyAbsentCount) || 0;
         const failed = Number(data?.failedCount) || 0;
         const requested = Number(data?.requestedCount) || 0;
-        const failures = Array.isArray(data?.failures) ? data.failures : [];
+        const results = Array.isArray(data?.results) ? data.results : [];
+        const resultById = new Map();
+        for (const item of results) {
+          if (item?.id == null || item?.id === "") continue;
+          resultById.set(String(item.id), item);
+        }
+        for (const item of Array.isArray(data?.failures) ? data.failures : []) {
+          if (item?.id == null || item?.id === "") continue;
+          const key = String(item.id);
+          if (!resultById.has(key)) {
+            resultById.set(key, { id: item.id, status: "failed", error: item.error });
+          }
+        }
 
-        if (resultEl) {
-          resultEl.hidden = false;
-          const failureRows = failures
-            .slice(0, 30)
-            .map(
-              (item) => `<div class="dedupe-result-item">
-                <span class="mono">id=${escapeHtml(String(item.id ?? "-"))}</span>
-                <span style="color:#fca5a5">${escapeHtml(item.error || "删除失败")}</span>
-              </div>`
-            )
-            .join("");
-          resultEl.innerHTML = `
-            <div class="dedupe-result-item"><span>请求删除</span><strong class="mono">${escapeHtml(String(requested))}</strong></div>
-            <div class="dedupe-result-item"><span>删除成功</span><strong class="mono" style="color:#86efac">${escapeHtml(String(deleted))}</strong></div>
-            <div class="dedupe-result-item"><span>目标已不存在</span><strong class="mono">${escapeHtml(String(absent))}</strong></div>
-            <div class="dedupe-result-item"><span>失败</span><strong class="mono" style="color:${failed ? "#fca5a5" : "inherit"}">${escapeHtml(String(failed))}</strong></div>
-            ${failureRows}
-            ${failures.length > 30 ? `<div class="hint">仅显示前 30 条失败记录</div>` : ""}
-          `;
+        sub2DedupePhase = "done";
+        if (summary) {
+          summary.hidden = true;
+          summary.innerHTML = "";
+        }
+
+        if (groupsEl) {
+          const groups = Array.isArray(plannedGroups) ? plannedGroups : [];
+          if (!groups.length) {
+            groupsEl.hidden = true;
+            groupsEl.innerHTML = "";
+          } else {
+            groupsEl.hidden = false;
+            groupsEl.innerHTML = groups
+              .map((group, index) => {
+                const members = getSub2DedupeGroupMembers(group);
+                const keepId = String(group?.selectedKeepId ?? group?.keep?.id ?? "");
+                const rows = members
+                  .map((account) => {
+                    const accountId = String(account?.id ?? "");
+                    const isKeep = accountId === keepId;
+                    let tagClass = "keep";
+                    let tagText = "已保留";
+                    if (!isKeep) {
+                      const result = resultById.get(accountId);
+                      const status = String(result?.status || "");
+                      if (status === "failed") {
+                        tagClass = "failed";
+                        tagText = "失败";
+                      } else if (status === "already_absent" || status === "deleted" || !result) {
+                        tagClass = "delete";
+                        tagText = "已删除";
+                      } else {
+                        tagClass = "failed";
+                        tagText = "失败";
+                      }
+                    }
+                    return `<div class="dedupe-account-row">
+                      <div class="dedupe-account-meta"><strong>${escapeHtml(formatDedupeAccountLine(account))}</strong></div>
+                      <span class="dedupe-tag ${tagClass}">${tagText}</span>
+                    </div>`;
+                  })
+                  .join("");
+                return `<div class="dedupe-group">
+                  <div class="dedupe-group-head">
+                    <span class="dedupe-group-key">组 ${index + 1} · ${escapeHtml(formatDedupeKeyLabel(group.key))}</span>
+                    <span class="mono">${escapeHtml(String(group.count || members.length))} 个</span>
+                  </div>
+                  ${rows}
+                </div>`;
+              })
+              .join("");
+          }
         }
 
         if (applyBtn) applyBtn.hidden = true;
@@ -6790,6 +6900,7 @@
           scanBtn.textContent = "再次扫描";
         }
 
+        $("sub2DedupeHint").textContent = "删除结果如下，可再次扫描检查是否仍有重复";
         const ok = failed === 0;
         const msg =
           absent > 0
@@ -6801,7 +6912,12 @@
         sub2DedupeScan = null;
       }
 
-      function openSub2DedupeModal() {
+      function isSub2DedupeModalOpen() {
+        return Boolean($("sub2DedupeModal")?.classList.contains("show"));
+      }
+
+      /** 远端「服务端去重」入口：扫描中不弹窗，只置灰按钮；扫完再弹结果 */
+      function startSub2apiDedupe() {
         if (!hasSub2apiConfigReady()) {
           openConfigDialog({
             target: TARGET_SUB2API,
@@ -6811,40 +6927,24 @@
           showMsg("请先配置 SUB2API 后再去重", "err");
           return;
         }
-        resetSub2DedupeModalView();
-        $("sub2DedupeModal")?.classList.add("show");
-      }
-
-      function closeSub2DedupeModal() {
         if (sub2DedupeBusy) return;
-        // 关闭主弹窗时同步取消挂起的二次确认
-        if ($("sub2DedupeConfirmModal")?.classList.contains("show")) {
-          closeSub2DedupeConfirmModal(false);
+        if (uploadBusy || remoteImportBusy) {
+          showMsg(
+            remoteImportBusy ? "远端导入进行中，请稍后再去重" : "上传进行中，请稍后再去重",
+            "err"
+          );
+          return;
         }
-        $("sub2DedupeModal")?.classList.remove("show");
-        resetSub2DedupeModalView();
-      }
-
-      function openSub2DedupeConfirmModal({ count }) {
-        return new Promise((resolve) => {
-          // 若已有挂起确认，先以取消结束，避免泄漏
-          if (sub2DedupeConfirmResolver) {
-            const prev = sub2DedupeConfirmResolver;
-            sub2DedupeConfirmResolver = null;
-            prev(false);
-          }
-          sub2DedupeConfirmResolver = resolve;
-          $("sub2DedupeConfirmSummary").textContent =
-            `即将删除 ${count} 个重复账号，每组仅保留 1 条`;
-          $("sub2DedupeConfirmModal")?.classList.add("show");
+        scanSub2apiDuplicates({ openModalOnSuccess: true }).catch((error) => {
+          showMsg(`SUB2API 去重扫描失败：${apiErrorMessage(error)}`, "err");
         });
       }
 
-      function closeSub2DedupeConfirmModal(ok = false) {
-        $("sub2DedupeConfirmModal")?.classList.remove("show");
-        const resolver = sub2DedupeConfirmResolver;
-        sub2DedupeConfirmResolver = null;
-        if (resolver) resolver(Boolean(ok));
+      function closeSub2DedupeModal() {
+        // 扫描/删除中禁止关闭，避免中途丢状态
+        if (sub2DedupeBusy) return;
+        $("sub2DedupeModal")?.classList.remove("show");
+        resetSub2DedupeModalView();
       }
 
       function setSub2DedupeBusy(busy, phase = "") {
@@ -6854,9 +6954,11 @@
         const closeBtn = $("btnCloseSub2Dedupe");
         const cancelBtn = $("btnCancelSub2Dedupe");
         const remoteBtn = $("btnRemoteSub2Dedupe");
+        const modalOpen = isSub2DedupeModalOpen();
         if (scanBtn) {
           scanBtn.disabled = sub2DedupeBusy;
-          if (sub2DedupeBusy && phase === "scan" && !scanBtn.hidden) {
+          if (sub2DedupeBusy && phase === "scan" && modalOpen) {
+            scanBtn.hidden = false;
             scanBtn.innerHTML = '<span class="busy-spin"></span>扫描中';
           }
         }
@@ -6873,32 +6975,44 @@
             remoteBtn.disabled = true;
             remoteBtn.innerHTML =
               phase === "apply"
-                ? '<span class="busy-spin"></span>正在删除'
-                : '<span class="busy-spin"></span>正在扫描';
+                ? '<span class="busy-spin"></span>删除中'
+                : '<span class="busy-spin"></span>扫描中';
           } else {
             remoteBtn.innerHTML = "服务端去重";
           }
         }
+        const groupBtns = document.querySelectorAll(
+          "#sub2DedupeGroups button[data-dedupe-keep-id]"
+        );
+        for (const btn of groupBtns) btn.disabled = sub2DedupeBusy || sub2DedupePhase !== "review";
         refreshRemoteActionButtons();
       }
 
-      async function scanSub2apiDuplicates() {
+      async function scanSub2apiDuplicates(options = {}) {
+        const { openModalOnSuccess = false } = options;
         if (sub2DedupeBusy) return;
         if (uploadBusy || remoteImportBusy) {
-          setSub2DedupeStatus(
-            remoteImportBusy ? "远端导入进行中，请稍后再扫描" : "上传进行中，请稍后再扫描",
-            "err"
-          );
+          const msg = remoteImportBusy
+            ? "远端导入进行中，请稍后再扫描"
+            : "上传进行中，请稍后再扫描";
+          if (isSub2DedupeModalOpen()) setSub2DedupeStatus(msg, "err");
+          else showMsg(msg, "err");
           return;
         }
         const effective = getEffectiveClientConfig(TARGET_SUB2API);
         if (!effective) {
-          setSub2DedupeStatus("请先配置 SUB2API", "err");
+          if (isSub2DedupeModalOpen()) setSub2DedupeStatus("请先配置 SUB2API", "err");
+          else showMsg("请先配置 SUB2API", "err");
           return;
         }
 
+        const modalOpen = isSub2DedupeModalOpen();
+        // 结果页内重新扫描：保留当前列表，仅按钮进入「扫描中」；扫完再原地更新
+        if (modalOpen) {
+          setSub2DedupeStatus("正在扫描重复账号", "info");
+        }
+
         setSub2DedupeBusy(true, "scan");
-        setSub2DedupeStatus("正在扫描重复账号", "info");
         showMsg("正在扫描重复账号", "info");
         try {
           const body = {};
@@ -6913,26 +7027,39 @@
             },
             10 * 60 * 1000
           );
-          renderSub2DedupeScan(data);
-          const planned = Number(data?.plannedDeletionCount) || 0;
+          // 首次从外部入口：扫完再弹结果；结果页内：原地刷新，不切换到空扫描态
+          if (openModalOnSuccess || isSub2DedupeModalOpen()) {
+            if (!isSub2DedupeModalOpen()) {
+              resetSub2DedupeModalView();
+              $("sub2DedupeModal")?.classList.add("show");
+            }
+            renderSub2DedupeScan(data);
+          } else {
+            sub2DedupeScan = normalizeSub2DedupeGroups(data || { groups: [] });
+            sub2DedupePhase = "review";
+          }
+          const planned = Number(sub2DedupeScan?.plannedDeletionCount) || 0;
           showMsg(
             planned > 0
-              ? `扫描完成，发现 ${data.duplicateGroupCount} 组重复，计划删除 ${planned} 个`
-              : `扫描完成，共 ${data.accountCount || 0} 个账号，未发现重复`,
+              ? `扫描完成，发现 ${sub2DedupeScan.duplicateGroupCount} 组重复，计划删除 ${planned} 个`
+              : `扫描完成，共 ${sub2DedupeScan?.accountCount || 0} 个账号，未发现重复`,
             planned > 0 ? "info" : "ok"
           );
         } catch (error) {
-          setSub2DedupeStatus(`扫描失败：${apiErrorMessage(error)}`, "err");
+          if (isSub2DedupeModalOpen()) {
+            setSub2DedupeStatus(`扫描失败：${apiErrorMessage(error)}`, "err");
+          }
           showMsg(`SUB2API 去重扫描失败：${apiErrorMessage(error)}`, "err");
         } finally {
           setSub2DedupeBusy(false);
-          // busy 结束后恢复按钮文案（保留扫描结果态）
-          if (sub2DedupeScan) renderSub2DedupeScan(sub2DedupeScan);
-          else {
+          if (sub2DedupeScan && sub2DedupePhase === "review" && isSub2DedupeModalOpen()) {
+            renderSub2DedupeScan(sub2DedupeScan, { preserveStatus: true });
+          } else if (isSub2DedupeModalOpen()) {
             const scanBtn = $("btnScanSub2Dedupe");
             if (scanBtn) {
+              scanBtn.hidden = false;
               scanBtn.disabled = false;
-              scanBtn.textContent = "开始扫描";
+              scanBtn.textContent = "重新扫描";
             }
           }
         }
@@ -6947,26 +7074,23 @@
           );
           return;
         }
-        const groups = Array.isArray(sub2DedupeScan?.groups) ? sub2DedupeScan.groups : [];
-        const ids = [];
-        const seen = new Set();
-        for (const group of groups) {
-          for (const account of group.delete || []) {
-            if (account?.id == null || account?.id === "") continue;
-            const marker = String(account.id);
-            if (seen.has(marker)) continue;
-            seen.add(marker);
-            ids.push(account.id);
-          }
-        }
-        if (!ids.length) {
-          setSub2DedupeStatus("没有可删除的重复账号", "err");
+        if (!sub2DedupeScan || sub2DedupePhase !== "review") {
+          setSub2DedupeStatus("请先扫描重复账号", "err");
           return;
         }
-
-        const confirmed = await openSub2DedupeConfirmModal({ count: ids.length });
-        if (!confirmed) {
-          setSub2DedupeStatus("已取消删除", "info");
+        const plannedGroups = Array.isArray(sub2DedupeScan.groups)
+          ? sub2DedupeScan.groups.map((group) => ({
+              key: group.key,
+              count: group.count,
+              selectedKeepId: group.selectedKeepId,
+              keep: group.keep,
+              delete: Array.isArray(group.delete) ? group.delete.slice() : [],
+              members: getSub2DedupeGroupMembers(group).slice(),
+            }))
+          : [];
+        const ids = collectSub2DedupeDeleteIds(sub2DedupeScan);
+        if (!ids.length) {
+          setSub2DedupeStatus("没有可删除的重复账号", "err");
           return;
         }
 
@@ -7023,15 +7147,16 @@
             if (Array.isArray(data?.failures)) merged.failures.push(...data.failures);
             await yieldToBrowser();
           }
-          renderSub2DedupeApplyResult(merged);
+          renderSub2DedupeApplyResult(merged, plannedGroups);
         } catch (error) {
           setSub2DedupeStatus(`删除失败：${apiErrorMessage(error)}`, "err");
           showMsg(`SUB2API 去重删除失败：${apiErrorMessage(error)}`, "err");
           const applyBtn = $("btnApplySub2Dedupe");
-          if (applyBtn && sub2DedupeScan?.plannedDeletionCount > 0) {
+          const planned = collectSub2DedupeDeleteIds(sub2DedupeScan).length;
+          if (applyBtn && planned > 0) {
             applyBtn.hidden = false;
             applyBtn.disabled = false;
-            applyBtn.textContent = `确认删除 ${sub2DedupeScan.plannedDeletionCount} 个重复`;
+            applyBtn.textContent = `确认删除 ${planned} 个重复`;
           }
         } finally {
           setSub2DedupeBusy(false);
@@ -10733,7 +10858,7 @@
           refreshRemoteImportUi();
         });
       });
-      $("btnRemoteSub2Dedupe")?.addEventListener("click", () => openSub2DedupeModal());
+      $("btnRemoteSub2Dedupe")?.addEventListener("click", () => startSub2apiDedupe());
       $("btnRemoteAbort")?.addEventListener("click", cancelRemoteImport);
       $("btnUnlockDirection")?.addEventListener("click", () => unlockDirection());
       $("btnExportSub2").addEventListener("click", exportSub2);
@@ -10989,17 +11114,13 @@
           setSub2DedupeStatus(apiErrorMessage(error), "err");
         });
       });
-      $("btnCloseSub2DedupeConfirm")?.addEventListener("click", () =>
-        closeSub2DedupeConfirmModal(false)
-      );
-      $("btnCancelSub2DedupeConfirm")?.addEventListener("click", () =>
-        closeSub2DedupeConfirmModal(false)
-      );
-      $("btnConfirmSub2DedupeDelete")?.addEventListener("click", () =>
-        closeSub2DedupeConfirmModal(true)
-      );
-      $("sub2DedupeConfirmModal")?.addEventListener("click", (event) => {
-        if (event.target === $("sub2DedupeConfirmModal")) closeSub2DedupeConfirmModal(false);
+      $("sub2DedupeGroups")?.addEventListener("click", (event) => {
+        const btn = event.target?.closest?.("button[data-dedupe-keep-id]");
+        if (!btn || !$("sub2DedupeGroups").contains(btn)) return;
+        const groupIndex = Number(btn.getAttribute("data-dedupe-keep-group"));
+        const accountId = btn.getAttribute("data-dedupe-keep-id");
+        if (!Number.isFinite(groupIndex) || accountId == null || accountId === "") return;
+        setSub2DedupeKeepSelection(groupIndex, accountId);
       });
 
       // 从 CPA 下载 / 从 SUB2API 导出
@@ -11259,10 +11380,6 @@
 
       document.addEventListener("keydown", (event) => {
         if (event.key !== "Escape") return;
-        if ($("sub2DedupeConfirmModal")?.classList.contains("show")) {
-          closeSub2DedupeConfirmModal(false);
-          return;
-        }
         if ($("resumeUploadModal")?.classList.contains("show")) {
           closeResumeUploadModal({ ok: false, includeUnknown: false });
           return;
