@@ -7040,16 +7040,30 @@
           for (const item of failures) {
             if (item?.id == null || item.id === "") continue;
             const id = String(item.id);
+            // 同一 id 若已在 successIds，以成功为准
+            if (okIds.has(id)) continue;
             failedIds.add(id);
             sub2RemoteResultById.set(id, "err");
           }
+        }
+        const okCount = Number(opts.okCount) || 0;
+        const failedCount = Number(opts.failedCount);
+        const hasFailedCount = Number.isFinite(failedCount);
+        // 本批导出账号数已覆盖 chunk，且无失败计数：整批成功
+        // 兼容官方包去掉/改写 id 导致 successIds 对不上的情况
+        if (chunk.length > 0 && okCount >= chunk.length && (!hasFailedCount || failedCount === 0)) {
+          for (const raw of chunk) {
+            const id = String(raw ?? "");
+            if (id) sub2RemoteResultById.set(id, "ok");
+          }
+          return;
         }
         // 旧接口无 successIds 且本批全部成功时，整批记为成功
         if (
           !okIds.size &&
           !failedIds.size &&
-          Number(opts.failedCount) === 0 &&
-          Number(opts.okCount) > 0
+          (!hasFailedCount || failedCount === 0) &&
+          okCount > 0
         ) {
           for (const raw of chunk) {
             const id = String(raw ?? "");
@@ -7061,6 +7075,11 @@
           const id = String(raw ?? "");
           if (!id) continue;
           if (okIds.has(id) || failedIds.has(id)) continue;
+          // 已有成功账号数覆盖本批、且未声明失败时，剩余也视为成功
+          if (okCount >= chunk.length && (!hasFailedCount || failedCount === 0)) {
+            sub2RemoteResultById.set(id, "ok");
+            continue;
+          }
           // 本批无明细时按失败处理
           sub2RemoteResultById.set(id, "err");
         }
@@ -7454,7 +7473,15 @@
               if (pack?.exported_at && !exportedAt) exportedAt = pack.exported_at;
               const packAccounts = Array.isArray(pack?.accounts) ? pack.accounts : [];
               if (packAccounts.length) accounts.push(...packAccounts);
-              applySub2RemoteChunkResults(chunk, data?.successIds, data?.failures, {
+              // successIds 优先；若官方包 id 对不上，用本批导出数量兜底，避免「成功 N / 失败 N」
+              const chunkSuccessIds = Array.isArray(data?.successIds) ? data.successIds : undefined;
+              const resolvedSuccessIds =
+                Array.isArray(chunkSuccessIds) && chunkSuccessIds.length
+                  ? chunkSuccessIds
+                  : packAccounts.length >= chunk.length && Number(data?.failedCount || 0) === 0
+                    ? chunk
+                    : chunkSuccessIds;
+              applySub2RemoteChunkResults(chunk, resolvedSuccessIds, data?.failures, {
                 failedCount: data?.failedCount,
                 okCount: packAccounts.length || data?.count || 0,
               });
@@ -7465,6 +7492,17 @@
                 sub2RemoteCancelRequested
               ) {
                 cancelled = true;
+                break;
+              }
+              // totp + step_up 同时开启时 Admin API Key 无法导出：整次任务终止，避免把全部账号标成无凭证
+              if (
+                chunkError?.code === "SUB2API_STEP_UP_REQUIRED" ||
+                chunkError?.data?.code === "SUB2API_STEP_UP_REQUIRED" ||
+                chunkError?.code === "SUB2API_TOTP_ENABLED" ||
+                chunkError?.data?.code === "SUB2API_TOTP_ENABLED" ||
+                /totp|step[_ -]?up|two-factor|二次验证/i.test(String(chunkError?.message || ""))
+              ) {
+                hardError = chunkError;
                 break;
               }
               // 单批全失败时 Worker 返回 502；分批场景下累计失败后继续下一批
@@ -7508,12 +7546,51 @@
             return;
           }
           let failedCount = 0;
+          let markedOkCount = 0;
           for (const id of ids) {
-            if (sub2RemoteResultById.get(String(id ?? "")) === "err") failedCount += 1;
+            const status = sub2RemoteResultById.get(String(id ?? ""));
+            if (status === "err") failedCount += 1;
+            else if (status === "ok") markedOkCount += 1;
+          }
+          // 已拿到可导出账号，但结果图因 id 对不上全标失败时，按实际导出数纠正
+          if (accounts.length > 0 && failedCount >= ids.length && markedOkCount === 0) {
+            for (const id of ids) sub2RemoteResultById.set(String(id ?? ""), "ok");
+            failedCount = 0;
+            markedOkCount = ids.length;
+          } else if (
+            accounts.length >= ids.length &&
+            failedCount > 0 &&
+            markedOkCount + failedCount === ids.length &&
+            markedOkCount < accounts.length
+          ) {
+            // 导出数覆盖全选，残留失败多半是 id 匹配问题
+            for (const id of ids) {
+              if (sub2RemoteResultById.get(String(id ?? "")) === "err") {
+                sub2RemoteResultById.set(String(id ?? ""), "ok");
+              }
+            }
+            failedCount = 0;
+            markedOkCount = ids.length;
           }
           if (!accounts.length) {
-            focusSub2RemoteFailedAfterRun();
             const detail = hardError ? apiErrorMessage(hardError) : "";
+            const stepUpBlocked =
+              hardError?.code === "SUB2API_STEP_UP_REQUIRED" ||
+              hardError?.data?.code === "SUB2API_STEP_UP_REQUIRED" ||
+              hardError?.code === "SUB2API_TOTP_ENABLED" ||
+              hardError?.data?.code === "SUB2API_TOTP_ENABLED" ||
+              /totp|step[_ -]?up|two-factor|二次验证/i.test(detail);
+            if (stepUpBlocked) {
+              // 不把全部账号标失败，避免「无完整凭证」误导
+              renderSub2RemoteList();
+              const msg =
+                detail || "目标已同时开启 totp_enabled 与 step_up_enabled，无法用 API Key 导出";
+              setSub2RemoteStatus(`导出失败：${msg}`, "err");
+              showMsg(`从 SUB2API 导出失败：${msg}`, "err");
+              showToast(msg, "err", 5200);
+              return;
+            }
+            focusSub2RemoteFailedAfterRun();
             setSub2RemoteStatus(
               failedCount
                 ? `导出失败，全部 ${failedCount} 个账号无完整凭证${detail ? `，${detail}` : ""}，已勾选失败项可再次导出`

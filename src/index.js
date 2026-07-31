@@ -2168,35 +2168,214 @@ function unwrapSub2apiExportPack(payload) {
 }
 
 /**
+ * 读取 SUB2API 系统设置：GET /api/v1/admin/settings?timezone=...
+ * 用于导出前判断 totp_enabled 与 step_up_enabled。
+ * 两者同时为 true 时，Admin API Key 无法调用 accounts/data。
+ */
+async function fetchSub2apiAdminSettings(config, clientSignal, timezone) {
+  const query = new URLSearchParams();
+  query.set("timezone", resolveExportTimezone(timezone));
+  const result = await sub2apiRequest(
+    config,
+    `/api/v1/admin/settings?${query.toString()}`,
+    { method: "GET" },
+    VERIFY_TIMEOUT_MS,
+    2,
+    clientSignal
+  );
+  return { settings: unwrapSub2apiSettings(result.data), attempts: result.attempts || 0 };
+}
+
+/** 兼容 { data: settings } / 嵌套 data / 顶层字段 */
+function unwrapSub2apiSettings(payload) {
+  let root = payload;
+  for (let depth = 0; depth < 4; depth++) {
+    if (!root || typeof root !== "object" || Array.isArray(root)) break;
+    if (
+      root.totp_enabled !== undefined ||
+      root.totpEnabled !== undefined ||
+      root.step_up_enabled !== undefined ||
+      root.stepUpEnabled !== undefined ||
+      root.settings ||
+      root.security ||
+      root.config
+    ) {
+      // 可能是外壳：{ settings: {...} }
+      if (
+        root.settings &&
+        typeof root.settings === "object" &&
+        !Array.isArray(root.settings) &&
+        root.totp_enabled === undefined &&
+        root.totpEnabled === undefined &&
+        root.step_up_enabled === undefined &&
+        root.stepUpEnabled === undefined
+      ) {
+        root = root.settings;
+        continue;
+      }
+      break;
+    }
+    if (root.data !== undefined) {
+      root = root.data;
+      continue;
+    }
+    if (root.result !== undefined) {
+      root = root.result;
+      continue;
+    }
+    break;
+  }
+  if (!root || typeof root !== "object" || Array.isArray(root)) return {};
+  return root;
+}
+
+function coerceTruthyFlag(value) {
+  if (value === true || value === 1) return true;
+  if (value === false || value === 0 || value == null) return false;
+  if (typeof value === "string") {
+    const text = value.trim().toLowerCase();
+    if (!text) return false;
+    if (["1", "true", "yes", "on", "enabled", "enable"].includes(text)) return true;
+    if (["0", "false", "no", "off", "disabled", "disable"].includes(text)) return false;
+  }
+  return Boolean(value);
+}
+
+function readSub2apiSettingFlag(settings, keys) {
+  if (!settings || typeof settings !== "object") return false;
+  const bags = [
+    settings,
+    settings.security,
+    settings.admin,
+    settings.auth,
+    settings.config,
+    settings.features,
+    settings.two_factor,
+    settings.twoFactor,
+    settings.mfa,
+    settings.step_up,
+    settings.stepUp,
+  ].filter((item) => item && typeof item === "object" && !Array.isArray(item));
+  for (const bag of bags) {
+    for (const key of keys) {
+      if (bag[key] !== undefined) return coerceTruthyFlag(bag[key]);
+    }
+  }
+  return false;
+}
+
+/** 从系统设置中解析 totp_enabled */
+function isSub2apiTotpEnabled(settings) {
+  return readSub2apiSettingFlag(settings, [
+    "totp_enabled",
+    "totpEnabled",
+    "enable_totp",
+    "enableTotp",
+    "admin_totp_enabled",
+    "adminTotpEnabled",
+  ]);
+}
+
+/** 从系统设置中解析 step_up_enabled */
+function isSub2apiStepUpEnabled(settings) {
+  return readSub2apiSettingFlag(settings, [
+    "step_up_enabled",
+    "stepUpEnabled",
+    "enable_step_up",
+    "enableStepUp",
+    "stepup_enabled",
+    "stepupEnabled",
+  ]);
+}
+
+/**
+ * 仅当 totp_enabled 与 step_up_enabled 同时为 true 时，
+ * Admin API Key 无法导出账号数据。
+ */
+function isSub2apiExportBlockedByStepUp(settings) {
+  return isSub2apiTotpEnabled(settings) && isSub2apiStepUpEnabled(settings);
+}
+
+function sub2apiStepUpExportBlockedError() {
+  return new HttpError(
+    403,
+    "目标 SUB2API 已同时开启 totp_enabled 与 step_up_enabled，Admin API Key 无法调用账号导出接口，请在管理后台使用已通过二次验证的会话导出，或关闭敏感操作二次验证后再用本工具导出",
+    "SUB2API_STEP_UP_REQUIRED"
+  );
+}
+
+function isSub2apiExportStepUpSessionError(error) {
+  if (!error) return false;
+  const text = `${error.message || ""} ${error?.data?.error || ""} ${error?.data?.message || ""}`;
+  if (/two-factor|2fa|totp|step[_ -]?up|second factor|二次验证|两步验证/i.test(text)) return true;
+  if (error.status === 403 && /admin api key cannot access this endpoint/i.test(text)) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * 官方导出：GET /api/v1/admin/accounts/data?ids=1,2,3&timezone=Asia/Shanghai
  * 该接口返回含 access_token / refresh_token / id_token 的完整 credentials，
  * 与管理后台「导出」一致；不要再用 /accounts/{id} 详情接口拼装。
+ * 注意：上游若同时开启 totp_enabled 与 step_up_enabled，仅已二次验证的管理会话可访问，Admin API Key 会 403。
  */
 async function fetchSub2apiAccountsExportData(config, ids, clientSignal, timezone) {
   const query = new URLSearchParams();
   query.set("ids", ids.map((id) => String(id)).join(","));
   query.set("timezone", resolveExportTimezone(timezone));
-  const result = await sub2apiRequest(
-    config,
-    `/api/v1/admin/accounts/data?${query.toString()}`,
-    { method: "GET" },
-    UPSTREAM_TIMEOUT_MS,
-    2,
-    clientSignal
-  );
-  const pack = unwrapSub2apiExportPack(result.data);
-  if (!pack) {
-    throw new HttpError(502, "SUB2API 导出响应无效", "INVALID_UPSTREAM_RESPONSE");
+  try {
+    const result = await sub2apiRequest(
+      config,
+      `/api/v1/admin/accounts/data?${query.toString()}`,
+      { method: "GET" },
+      UPSTREAM_TIMEOUT_MS,
+      2,
+      clientSignal
+    );
+    const pack = unwrapSub2apiExportPack(result.data);
+    if (!pack) {
+      throw new HttpError(502, "SUB2API 导出响应无效", "INVALID_UPSTREAM_RESPONSE");
+    }
+    return { pack, attempts: result.attempts };
+  } catch (error) {
+    if (isSub2apiExportStepUpSessionError(error)) {
+      throw sub2apiStepUpExportBlockedError();
+    }
+    throw error;
   }
-  return { pack, attempts: result.attempts };
+}
+
+function collectAccountIdCandidates(account) {
+  if (!account || typeof account !== "object") return [];
+  const out = [];
+  const push = (raw) => {
+    if (raw == null || raw === "") return;
+    if (typeof raw === "object") return;
+    const marker = String(raw).trim();
+    if (marker) out.push(marker);
+  };
+  push(account.id);
+  push(account.account_id);
+  push(account.accountId);
+  push(account.ID);
+  push(account.Id);
+  // 官方导出偶发把 id 放在 extra / meta
+  if (account.extra && typeof account.extra === "object") {
+    push(account.extra.id);
+    push(account.extra.account_id);
+    push(account.extra.accountId);
+  }
+  if (account.meta && typeof account.meta === "object") {
+    push(account.meta.id);
+    push(account.meta.account_id);
+    push(account.meta.accountId);
+  }
+  return out;
 }
 
 function matchExportedAccountId(account, requestedIds) {
-  if (!account || typeof account !== "object") return "";
-  const candidates = [account.id, account.account_id, account.accountId];
-  for (const raw of candidates) {
-    if (raw == null || raw === "") continue;
-    const marker = String(raw);
+  for (const marker of collectAccountIdCandidates(account)) {
     if (requestedIds.has(marker)) return marker;
   }
   return "";
@@ -2238,13 +2417,37 @@ async function exportSub2apiAccounts(
     throw new HttpError(400, "没有可导出的账号 ID", "INVALID_PAYLOAD");
   }
 
+  const tz = resolveExportTimezone(timezone);
+  // 导出前检查：仅当 totp_enabled 与 step_up_enabled 同时为 true 时拦截
+  let attempts = 0;
+  try {
+    const settingsResult = await fetchSub2apiAdminSettings(config, clientSignal, tz);
+    attempts += settingsResult.attempts || 0;
+    if (isSub2apiExportBlockedByStepUp(settingsResult.settings)) {
+      throw sub2apiStepUpExportBlockedError();
+    }
+  } catch (error) {
+    if (error?.code === "SUB2API_STEP_UP_REQUIRED") throw error;
+    // settings 读取失败时不直接放行导出；若是 403/二次验证类错误，同样按 step-up 拦截
+    if (isSub2apiExportStepUpSessionError(error)) {
+      throw sub2apiStepUpExportBlockedError();
+    }
+    throw new HttpError(
+      error?.status && error.status >= 400 && error.status < 600 ? error.status : 502,
+      `无法读取 SUB2API 系统设置以确认 totp_enabled / step_up_enabled：${publicErrorMessage(error)}`,
+      error?.code || "SUB2API_SETTINGS_UNAVAILABLE",
+      error?.data
+    );
+  }
+
   // 官方批量导出接口：一次 ids 拉完整凭证包，不再逐个 /accounts/{id}
-  const { pack: rawPack, attempts } = await fetchSub2apiAccountsExportData(
+  const { pack: rawPack, attempts: exportAttempts } = await fetchSub2apiAccountsExportData(
     config,
     normalizedIds,
     clientSignal,
-    timezone
+    tz
   );
+  attempts += exportAttempts || 0;
 
   const requested = new Set(normalizedIds.map((id) => String(id)));
   const failures = [];
@@ -2252,6 +2455,8 @@ async function exportSub2apiAccounts(
   // 清洗后 pack 不再带 id，单独回传成功 id 供前端标记逐项结果
   const successIds = [];
   const returnedIds = new Set();
+  // 官方 data 包有时不含/改写 id；保留可导出账号，后面按数量回填 successIds
+  let usableWithoutId = 0;
 
   for (const account of rawPack.accounts) {
     if (!account || typeof account !== "object") continue;
@@ -2260,7 +2465,7 @@ async function exportSub2apiAccounts(
 
     if (!accountHasUsableCredentials(account)) {
       failures.push({
-        id: matchedId || account.id || "",
+        id: matchedId || collectAccountIdCandidates(account)[0] || "",
         ok: false,
         error: "账号缺少可用凭证字段，无法导出完整认证数据",
         code: "INCOMPLETE_ACCOUNT_DATA",
@@ -2270,7 +2475,7 @@ async function exportSub2apiAccounts(
     const sanitized = sanitizeSub2apiExportAccount(account);
     if (!sanitized || !accountHasUsableCredentials(sanitized)) {
       failures.push({
-        id: matchedId || account.id || "",
+        id: matchedId || collectAccountIdCandidates(account)[0] || "",
         ok: false,
         error: "账号数据清洗后缺少可用凭证",
         code: "INCOMPLETE_ACCOUNT_DATA",
@@ -2279,9 +2484,46 @@ async function exportSub2apiAccounts(
     }
     accounts.push(sanitized);
     if (matchedId) successIds.push(matchedId);
+    else usableWithoutId += 1;
   }
 
-  // 请求了但响应里完全没出现的 id，记为失败，便于前端二次勾选
+  // 真实业务失败（缺凭证等），不含「响应未带 id」的推断失败
+  const realFailures = failures.filter((f) => f.code !== "ACCOUNT_NOT_IN_EXPORT");
+
+  /**
+   * 官方导出包常返回完整 accounts，但 id 字段与请求列表不一致或缺失。
+   * 若可用账号数已覆盖请求数，且没有真实凭证失败，则整批记成功，避免前端全部标红。
+   */
+  if (
+    accounts.length >= normalizedIds.length &&
+    realFailures.length === 0 &&
+    successIds.length < normalizedIds.length
+  ) {
+    successIds.length = 0;
+    for (const id of normalizedIds) successIds.push(id);
+    returnedIds.clear();
+    for (const id of normalizedIds) returnedIds.add(String(id));
+  } else if (
+    // 部分匹配：把尚未记入 success 的请求 id，按剩余可用无 id 账号数补上
+    usableWithoutId > 0 &&
+    successIds.length < normalizedIds.length
+  ) {
+    const successSet = new Set(successIds.map((id) => String(id)));
+    let remain = usableWithoutId;
+    for (const id of normalizedIds) {
+      if (remain <= 0) break;
+      const marker = String(id);
+      if (successSet.has(marker)) continue;
+      // 已在 realFailures 里的不要标成功
+      if (realFailures.some((f) => String(f.id) === marker)) continue;
+      successIds.push(id);
+      successSet.add(marker);
+      returnedIds.add(marker);
+      remain -= 1;
+    }
+  }
+
+  // 请求了但既未匹配成功、也无真实失败记录的 id，记为未返回
   for (const id of normalizedIds) {
     const marker = String(id);
     if (returnedIds.has(marker)) continue;
@@ -2295,14 +2537,22 @@ async function exportSub2apiAccounts(
     });
   }
 
+  // 最终失败列表：去掉已被回填为成功的项
+  const successSetFinal = new Set(successIds.map((id) => String(id)));
+  const finalFailures = failures.filter((f) => {
+    const fid = f?.id == null || f.id === "" ? "" : String(f.id);
+    if (fid && successSetFinal.has(fid)) return false;
+    return true;
+  });
+
   if (!accounts.length) {
     throw new HttpError(
       502,
-      failures.length
-        ? `未能导出任何完整账号：${failures[0].error || "未知错误"}`
+      finalFailures.length
+        ? `未能导出任何完整账号：${finalFailures[0].error || "未知错误"}`
         : "未能导出任何完整账号",
-      failures[0]?.code || "INCOMPLETE_ACCOUNT_DATA",
-      { failures: failures.slice(0, 20), failedCount: failures.length, successIds: [] }
+      finalFailures[0]?.code || "INCOMPLETE_ACCOUNT_DATA",
+      { failures: finalFailures.slice(0, 20), failedCount: finalFailures.length, successIds: [] }
     );
   }
 
@@ -2318,9 +2568,9 @@ async function exportSub2apiAccounts(
     attempts,
     requestedCount: normalizedIds.length,
     count: accounts.length,
-    failedCount: failures.length,
+    failedCount: finalFailures.length,
     // 限制失败明细体积，避免大批量时响应膨胀
-    failures: failures.slice(0, 50),
+    failures: finalFailures.slice(0, 50),
     successIds,
     pack,
   };
