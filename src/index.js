@@ -6,8 +6,20 @@ const DEFAULT_MAX_SUB2API_ACCOUNTS = 100;
 const DEFAULT_MAX_CPA_FILES = 20;
 const DEFAULT_ABSOLUTE_MAX_SUB2API_ACCOUNTS = 5000;
 const DEFAULT_ABSOLUTE_MAX_CPA_FILES = 500;
-const HARD_MAX_BATCH_SUB2API = 20000;
-const HARD_MAX_BATCH_CPA = 2000;
+// 导入单批平台天花板（最高上限）
+const HARD_MAX_BATCH_SUB2API = 50000;
+const HARD_MAX_BATCH_CPA = 50000;
+
+// 远端导出 / 下载 / 去重删除：代码默认 / 绝对上限默认（均可被环境变量覆盖）
+const DEFAULT_MAX_CPA_AUTH_DOWNLOAD_FILES = 500;
+const DEFAULT_ABSOLUTE_MAX_CPA_AUTH_DOWNLOAD_FILES = 2000;
+const HARD_MAX_CPA_AUTH_DOWNLOAD_FILES = 50000;
+const DEFAULT_MAX_SUB2API_EXPORT_ACCOUNTS = 500;
+const DEFAULT_ABSOLUTE_MAX_SUB2API_EXPORT_ACCOUNTS = 2000;
+const HARD_MAX_SUB2API_EXPORT_ACCOUNTS = 50000;
+const DEFAULT_MAX_SUB2API_DEDUPE_IDS = 5000;
+const DEFAULT_ABSOLUTE_MAX_SUB2API_DEDUPE_IDS = 10000;
+const HARD_MAX_SUB2API_DEDUPE_IDS = 50000;
 
 // 上传并发
 const DEFAULT_MAX_UPLOAD_CONCURRENCY_SUB2API = 3;
@@ -86,7 +98,7 @@ async function handleRequest(request, env) {
   if (!authenticated) {
     if (url.pathname.startsWith("/api/")) {
       return jsonResponse(
-        { ok: false, code: "AUTH_REQUIRED", error: "登录状态已失效，请重新登录。" },
+        { ok: false, code: "AUTH_REQUIRED", error: "登录状态已失效，请重新登录" },
         401
       );
     }
@@ -132,10 +144,10 @@ async function handleApi(request, env, url) {
     const accounts = body?.accounts;
     const maxAccounts = maxSub2apiAccounts(env);
     if (!Array.isArray(accounts) || accounts.length === 0) {
-      throw new HttpError(400, "accounts 必须是非空数组。", "INVALID_PAYLOAD");
+      throw new HttpError(400, "accounts 必须是非空数组", "INVALID_PAYLOAD");
     }
     if (accounts.length > maxAccounts) {
-      throw new HttpError(400, `单批最多上传 ${maxAccounts} 个 SUB2API 账号。`, "BATCH_TOO_LARGE");
+      throw new HttpError(400, `单批最多上传 ${maxAccounts} 个 SUB2API 账号`, "BATCH_TOO_LARGE");
     }
     // 仅从 body.config 读取覆盖配置，避免把 accounts/files 误当配置源
     const override = extractConfigOverride(body?.config);
@@ -182,10 +194,11 @@ async function handleApi(request, env, url) {
     const override = extractConfigOverride(body?.config ?? body);
     const ids = body?.ids ?? body?.accountIds ?? body?.account_ids;
     if (!Array.isArray(ids) || ids.length === 0) {
-      throw new HttpError(400, "ids 必须是非空数组。", "INVALID_PAYLOAD");
+      throw new HttpError(400, "ids 必须是非空数组", "INVALID_PAYLOAD");
     }
-    if (ids.length > 5000) {
-      throw new HttpError(400, "单次最多删除 5000 个账号。", "BATCH_TOO_LARGE");
+    const maxDedupeIds = maxSub2apiDedupeIds(env);
+    if (ids.length > maxDedupeIds) {
+      throw new HttpError(400, `单次最多删除 ${maxDedupeIds} 个账号`, "BATCH_TOO_LARGE");
     }
     const result = await applySub2apiDedupe(env, ids, override, request.signal);
     return jsonResponse({
@@ -200,10 +213,10 @@ async function handleApi(request, env, url) {
     const files = body?.files;
     const maxFiles = maxCpaFiles(env);
     if (!Array.isArray(files) || files.length === 0) {
-      throw new HttpError(400, "files 必须是非空数组。", "INVALID_PAYLOAD");
+      throw new HttpError(400, "files 必须是非空数组", "INVALID_PAYLOAD");
     }
     if (files.length > maxFiles) {
-      throw new HttpError(400, `单批最多上传 ${maxFiles} 个 CPA 账号。`, "BATCH_TOO_LARGE");
+      throw new HttpError(400, `单批最多上传 ${maxFiles} 个 CPA 账号`, "BATCH_TOO_LARGE");
     }
     const override = extractConfigOverride(body?.config);
     const maxAttempts = resolveRequestedAttempts(
@@ -233,14 +246,11 @@ async function handleApi(request, env, url) {
     const override = extractConfigOverride(body?.config ?? body);
     const names = body?.names ?? body?.files ?? body?.fileNames;
     if (!Array.isArray(names) || names.length === 0) {
-      throw new HttpError(400, "names 必须是非空数组。", "INVALID_PAYLOAD");
+      throw new HttpError(400, "names 必须是非空数组", "INVALID_PAYLOAD");
     }
-    if (names.length > MAX_CPA_DOWNLOAD_FILES) {
-      throw new HttpError(
-        400,
-        `单次最多下载 ${MAX_CPA_DOWNLOAD_FILES} 个 CPA 认证文件。`,
-        "BATCH_TOO_LARGE"
-      );
+    const maxDownload = maxCpaAuthDownloadFiles(env);
+    if (names.length > maxDownload) {
+      throw new HttpError(400, `单次最多下载 ${maxDownload} 个 CPA 认证文件`, "BATCH_TOO_LARGE");
     }
     const result = await downloadCpaAuthFiles(env, names, override, request.signal);
     return jsonResponse({
@@ -264,20 +274,17 @@ async function handleApi(request, env, url) {
     const override = extractConfigOverride(body?.config ?? body);
     const ids = body?.ids ?? body?.accountIds ?? body?.account_ids;
     if (!Array.isArray(ids) || ids.length === 0) {
-      throw new HttpError(400, "ids 必须是非空数组。", "INVALID_PAYLOAD");
+      throw new HttpError(400, "ids 必须是非空数组", "INVALID_PAYLOAD");
     }
-    if (ids.length > MAX_SUB2API_EXPORT_ACCOUNTS) {
-      throw new HttpError(
-        400,
-        `单次最多导出 ${MAX_SUB2API_EXPORT_ACCOUNTS} 个 SUB2API 账号。`,
-        "BATCH_TOO_LARGE"
-      );
+    const maxExport = maxSub2apiExportAccounts(env);
+    if (ids.length > maxExport) {
+      throw new HttpError(400, `单次最多导出 ${maxExport} 个 SUB2API 账号`, "BATCH_TOO_LARGE");
     }
     const result = await exportSub2apiAccounts(env, ids, override, request.signal);
     return jsonResponse({ ok: true, target: "SUB2API", ...result });
   }
 
-  throw new HttpError(404, "API 路径不存在。", "NOT_FOUND");
+  throw new HttpError(404, "API 路径不存在", "NOT_FOUND");
 }
 
 function getAccessSetupProblem(env) {
@@ -285,7 +292,7 @@ function getAccessSetupProblem(env) {
   if (!String(env.APP_PASSWORD || "").trim()) missing.push("APP_PASSWORD");
   if (!String(env.SESSION_SECRET || "").trim()) missing.push("SESSION_SECRET");
   if (missing.length) {
-    return `Worker 尚未配置访问控制密钥：${missing.join(", ")}。请在 Cloudflare Worker 的 Settings → Variables and Secrets 中以 Secret 类型添加。`;
+    return `Worker 尚未配置访问控制密钥：${missing.join(", ")}，请在 Cloudflare Worker 的 Settings → Variables and Secrets 中以 Secret 类型添加`;
   }
   // 批次/并发/重试相关环境变量：值必须有效，且默认上限 ≤ 绝对上限
   return getLimitsEnvProblem(env);
@@ -360,7 +367,7 @@ function parsePositiveIntText(raw, { min = 1, max = Number.MAX_SAFE_INTEGER } = 
 function parseAbsoluteLimitEnv(absFound, maxFound, defaultAbsolute, defaultMax, hardMax, label) {
   if (defaultAbsolute < defaultMax) {
     return {
-      error: `内置配置错误：${label} 默认绝对上限 ${defaultAbsolute} 小于默认上限 ${defaultMax}。`,
+      error: `内置配置错误：${label} 默认绝对上限 ${defaultAbsolute} 小于默认上限 ${defaultMax}`,
     };
   }
 
@@ -368,14 +375,12 @@ function parseAbsoluteLimitEnv(absFound, maxFound, defaultAbsolute, defaultMax, 
     const parsed = parsePositiveIntText(absFound.raw, { min: 1, max: hardMax });
     if (parsed == null) {
       return {
-        error: `${absFound.key} 必须是正整数（1–${hardMax}），当前值无效：${absFound.raw}`,
+        error: `${absFound.key} 必须是 1 至 ${hardMax} 的正整数，当前值无效：${absFound.raw}`,
       };
     }
     if (parsed < defaultMax) {
       return {
-        error:
-          `${absFound.key}=${parsed} 无效：绝对上限必须 ≥ 默认上限 ${defaultMax}` +
-          `（未设置 MAX_* 时的回退值）。`,
+        error: `${absFound.key}=${parsed} 无效，绝对上限必须 ≥ 默认上限 ${defaultMax}，该值为未设置 MAX_* 时的回退值`,
       };
     }
     return { value: parsed, source: "env" };
@@ -394,10 +399,7 @@ function validateOptionalMaxEnv(found, absolute, label) {
     return `${found.key} 必须是 ≥ 1 的正整数，当前值无效：${found.raw}`;
   }
   if (parsed > absolute) {
-    return (
-      `${found.key}=${parsed} 超过绝对上限 ${absolute}（${label}）。` +
-      `请调低该值，或提高对应的 ABSOLUTE_MAX_*。`
-    );
+    return `${found.key}=${parsed} 超过 ${label} 绝对上限 ${absolute}，请调低该值或提高对应的 ABSOLUTE_MAX_*`;
   }
   return "";
 }
@@ -473,6 +475,30 @@ function limitSpecs() {
       maxKeys: ["MAX_CPA_UPLOAD_ATTEMPTS"],
       absoluteKeys: ["ABSOLUTE_MAX_CPA_UPLOAD_ATTEMPTS", "ABSOLUTE_MAX_UPLOAD_ATTEMPTS"],
     },
+    {
+      label: "CPA 远端认证文件单次下载数",
+      defaultMax: DEFAULT_MAX_CPA_AUTH_DOWNLOAD_FILES,
+      defaultAbsolute: DEFAULT_ABSOLUTE_MAX_CPA_AUTH_DOWNLOAD_FILES,
+      hardMax: HARD_MAX_CPA_AUTH_DOWNLOAD_FILES,
+      maxKeys: ["MAX_CPA_AUTH_DOWNLOAD_FILES", "MAX_CPA_DOWNLOAD_FILES"],
+      absoluteKeys: ["ABSOLUTE_MAX_CPA_AUTH_DOWNLOAD_FILES", "ABSOLUTE_MAX_CPA_DOWNLOAD_FILES"],
+    },
+    {
+      label: "SUB2API 远端单次导出账号数",
+      defaultMax: DEFAULT_MAX_SUB2API_EXPORT_ACCOUNTS,
+      defaultAbsolute: DEFAULT_ABSOLUTE_MAX_SUB2API_EXPORT_ACCOUNTS,
+      hardMax: HARD_MAX_SUB2API_EXPORT_ACCOUNTS,
+      maxKeys: ["MAX_SUB2API_EXPORT_ACCOUNTS"],
+      absoluteKeys: ["ABSOLUTE_MAX_SUB2API_EXPORT_ACCOUNTS"],
+    },
+    {
+      label: "SUB2API 单次去重删除数",
+      defaultMax: DEFAULT_MAX_SUB2API_DEDUPE_IDS,
+      defaultAbsolute: DEFAULT_ABSOLUTE_MAX_SUB2API_DEDUPE_IDS,
+      hardMax: HARD_MAX_SUB2API_DEDUPE_IDS,
+      maxKeys: ["MAX_SUB2API_DEDUPE_IDS", "MAX_SUB2API_DEDUPE_ACCOUNTS"],
+      absoluteKeys: ["ABSOLUTE_MAX_SUB2API_DEDUPE_IDS", "ABSOLUTE_MAX_SUB2API_DEDUPE_ACCOUNTS"],
+    },
   ];
 }
 
@@ -517,6 +543,9 @@ function buildPublicLimits(env) {
     maxUploadConcurrencyCpa: resolved[3].value,
     maxSub2apiUploadAttempts: resolved[4].value,
     maxCpaUploadAttempts: resolved[5].value,
+    maxCpaAuthDownloadFiles: resolved[6].value,
+    maxSub2apiExportAccounts: resolved[7].value,
+    maxSub2apiDedupeIds: resolved[8].value,
     proxyMapCacheTtlSeconds: proxyCacheTtl,
     proxyCacheKvBound: Boolean(getProxyCacheKv(env)),
     // 诊断：确认 Worker 实际读到了哪些 MAX_*/ABSOLUTE_MAX_*（不含密钥）
@@ -527,6 +556,9 @@ function buildPublicLimits(env) {
       maxUploadConcurrencyCpa: resolved[3].fromEnv ? resolved[3].maxKey : "default",
       maxSub2apiUploadAttempts: resolved[4].fromEnv ? resolved[4].maxKey : "default",
       maxCpaUploadAttempts: resolved[5].fromEnv ? resolved[5].maxKey : "default",
+      maxCpaAuthDownloadFiles: resolved[6].fromEnv ? resolved[6].maxKey : "default",
+      maxSub2apiExportAccounts: resolved[7].fromEnv ? resolved[7].maxKey : "default",
+      maxSub2apiDedupeIds: resolved[8].fromEnv ? resolved[8].maxKey : "default",
       proxyMapCacheTtlSeconds: firstEnv(env, "PROXY_MAP_CACHE_TTL_SECONDS")
         ? "PROXY_MAP_CACHE_TTL_SECONDS"
         : "default",
@@ -538,6 +570,9 @@ function buildPublicLimits(env) {
       MAX_UPLOAD_CONCURRENCY_CPA: resolved[3].maxRaw,
       MAX_SUB2API_UPLOAD_ATTEMPTS: resolved[4].maxRaw,
       MAX_CPA_UPLOAD_ATTEMPTS: resolved[5].maxRaw,
+      MAX_CPA_AUTH_DOWNLOAD_FILES: resolved[6].maxRaw,
+      MAX_SUB2API_EXPORT_ACCOUNTS: resolved[7].maxRaw,
+      MAX_SUB2API_DEDUPE_IDS: resolved[8].maxRaw,
       ABSOLUTE_MAX_SUB2API_ACCOUNTS: resolved[0].absoluteRaw,
       ABSOLUTE_MAX_CPA_FILES: resolved[1].absoluteRaw,
       ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API: resolved[2].absoluteRaw,
@@ -547,6 +582,9 @@ function buildPublicLimits(env) {
       ABSOLUTE_MAX_CPA_UPLOAD_ATTEMPTS:
         firstEnv(env, "ABSOLUTE_MAX_CPA_UPLOAD_ATTEMPTS")?.raw || null,
       ABSOLUTE_MAX_UPLOAD_ATTEMPTS: firstEnv(env, "ABSOLUTE_MAX_UPLOAD_ATTEMPTS")?.raw || null,
+      ABSOLUTE_MAX_CPA_AUTH_DOWNLOAD_FILES: resolved[6].absoluteRaw,
+      ABSOLUTE_MAX_SUB2API_EXPORT_ACCOUNTS: resolved[7].absoluteRaw,
+      ABSOLUTE_MAX_SUB2API_DEDUPE_IDS: resolved[8].absoluteRaw,
       PROXY_MAP_CACHE_TTL_SECONDS: firstEnv(env, "PROXY_MAP_CACHE_TTL_SECONDS")?.raw || null,
     },
   };
@@ -558,6 +596,18 @@ function maxSub2apiAccounts(env) {
 
 function maxCpaFiles(env) {
   return resolveLimit(env, limitSpecs()[1]);
+}
+
+function maxCpaAuthDownloadFiles(env) {
+  return resolveLimit(env, limitSpecs()[6]);
+}
+
+function maxSub2apiExportAccounts(env) {
+  return resolveLimit(env, limitSpecs()[7]);
+}
+
+function maxSub2apiDedupeIds(env) {
+  return resolveLimit(env, limitSpecs()[8]);
 }
 
 function maxSub2apiUploadAttempts(env) {
@@ -596,7 +646,7 @@ async function handleLogin(request, env) {
 
   if (!constantTimeEqual(password, String(env.APP_PASSWORD))) {
     await sleep(650);
-    return htmlResponse(renderLoginPage("访问密码不正确。"), 401);
+    return htmlResponse(renderLoginPage("访问密码不正确"), 401);
   }
 
   const token = await createSessionToken(env);
@@ -712,7 +762,7 @@ function assertTrustedMutation(request) {
   // 这比直接比较 Origin 与 request.url 更适合 Workers 的预览 URL、自定义域名
   // 以及可能存在的边缘代理，同时仍可阻止普通跨站表单/Fetch 携带会话执行写操作。
   if (fetchSite === "cross-site") {
-    throw new HttpError(403, "拒绝跨站请求。", "CROSS_SITE_REQUEST");
+    throw new HttpError(403, "拒绝跨站请求", "CROSS_SITE_REQUEST");
   }
 
   // 某些非浏览器客户端不发送 Sec-Fetch-Site。此时若提供了正常 Origin，
@@ -724,10 +774,10 @@ function assertTrustedMutation(request) {
       try {
         parsedOrigin = new URL(origin).origin;
       } catch {
-        throw new HttpError(403, "拒绝跨站请求。", "CROSS_SITE_REQUEST");
+        throw new HttpError(403, "拒绝跨站请求", "CROSS_SITE_REQUEST");
       }
       if (parsedOrigin !== new URL(request.url).origin) {
-        throw new HttpError(403, "拒绝跨站请求。", "CROSS_SITE_REQUEST");
+        throw new HttpError(403, "拒绝跨站请求", "CROSS_SITE_REQUEST");
       }
     }
   }
@@ -736,7 +786,7 @@ function assertTrustedMutation(request) {
 function normalizeTarget(value) {
   const target = String(value || "").toUpperCase();
   if (target !== "SUB2API" && target !== "CPA") {
-    throw new HttpError(400, "target 必须是 SUB2API 或 CPA。", "INVALID_TARGET");
+    throw new HttpError(400, "target 必须是 SUB2API 或 CPA", "INVALID_TARGET");
   }
   return target;
 }
@@ -765,15 +815,15 @@ function extractConfigOverride(source) {
   if (!baseUrl || !apiKey) {
     throw new HttpError(
       400,
-      "自定义配置必须同时提供 baseUrl 和 apiKey；否则请省略以使用 Worker 环境变量。",
+      "自定义配置必须同时提供 baseUrl 和 apiKey，否则请省略以使用 Worker 环境变量",
       "INVALID_CONFIG_OVERRIDE"
     );
   }
   if (baseUrl.length > MAX_OVERRIDE_BASE_URL_LENGTH) {
-    throw new HttpError(400, "baseUrl 过长。", "INVALID_CONFIG_OVERRIDE");
+    throw new HttpError(400, "baseUrl 过长", "INVALID_CONFIG_OVERRIDE");
   }
   if (apiKey.length > MAX_OVERRIDE_API_KEY_LENGTH) {
-    throw new HttpError(400, "apiKey 过长。", "INVALID_CONFIG_OVERRIDE");
+    throw new HttpError(400, "apiKey 过长", "INVALID_CONFIG_OVERRIDE");
   }
   return { baseUrl, apiKey, cpaAuthMode };
 }
@@ -789,7 +839,7 @@ function getTargetConfig(env, target) {
   if (missing.length) {
     throw new HttpError(
       503,
-      `${target} 尚未配置。请在页面填写服务器地址和密钥，或在 Worker 环境变量中设置：${missing.join(", ")}。`,
+      `${target} 尚未配置，请在页面填写服务器地址和密钥，或在 Worker 环境变量中设置：${missing.join(", ")}`,
       "TARGET_NOT_CONFIGURED",
       { target, missing }
     );
@@ -859,11 +909,11 @@ function normalizeBaseUrl(raw, target, env) {
   try {
     url = new URL(value);
   } catch {
-    throw new HttpError(503, `${target} 服务器地址无效。`, "INVALID_BASE_URL");
+    throw new HttpError(503, `${target} 服务器地址无效`, "INVALID_BASE_URL");
   }
 
   if (!["http:", "https:"].includes(url.protocol)) {
-    throw new HttpError(503, `${target} 服务器地址仅支持 HTTP/HTTPS。`, "INVALID_BASE_URL");
+    throw new HttpError(503, `${target} 服务器地址仅支持 HTTP/HTTPS`, "INVALID_BASE_URL");
   }
   if (
     url.protocol !== "https:" &&
@@ -871,7 +921,7 @@ function normalizeBaseUrl(raw, target, env) {
   ) {
     throw new HttpError(
       503,
-      `${target} 服务器地址必须使用 HTTPS；确需 HTTP 时设置 ALLOW_INSECURE_UPSTREAM=true。`,
+      `${target} 服务器地址必须使用 HTTPS，确需 HTTP 时设置 ALLOW_INSECURE_UPSTREAM=true`,
       "INSECURE_UPSTREAM"
     );
   }
@@ -908,7 +958,7 @@ async function verifyTarget(env, target, override = null) {
     return {
       baseUrl: config.baseUrl,
       source: config.source,
-      message: "SUB2API 管理接口验证成功。",
+      message: "SUB2API 管理接口验证成功",
       attempts: result.attempts,
     };
   }
@@ -921,12 +971,12 @@ async function verifyTarget(env, target, override = null) {
     1
   );
   if (!result.data || !Array.isArray(result.data.files)) {
-    throw new HttpError(502, "CPA 返回了非预期的管理接口响应。", "INVALID_UPSTREAM_RESPONSE");
+    throw new HttpError(502, "CPA 返回了非预期的管理接口响应", "INVALID_UPSTREAM_RESPONSE");
   }
   return {
     baseUrl: config.baseUrl,
     source: config.source,
-    message: "CPA 管理接口验证成功。",
+    message: "CPA 管理接口验证成功",
     authMode: result.authMode,
     attempts: result.attempts,
   };
@@ -1322,12 +1372,8 @@ async function listSub2apiProxies(
 const DEDUPE_PAGE_SIZE = 200;
 const DEDUPE_SCAN_CONCURRENCY = 4;
 const DEDUPE_DELETE_CONCURRENCY = 4;
-/** 远端 CPA 认证文件单次下载数量上限 */
-const MAX_CPA_DOWNLOAD_FILES = 500;
 const CPA_DOWNLOAD_CONCURRENCY = 4;
-/** 远端 SUB2API 单次导出账号上限 */
-const MAX_SUB2API_EXPORT_ACCOUNTS = 5000;
-const SUB2API_EXPORT_DETAIL_CONCURRENCY = 4;
+const SUB2API_EXPORT_DETAIL_CONCURRENCY = 8;
 const DEDUPE_NORMAL_STATUSES = new Set([
   "active",
   "normal",
@@ -1345,11 +1391,11 @@ function extractAccountsPageItems(payload) {
   const root = payload?.data !== undefined ? payload.data : payload;
   if (Array.isArray(root)) return { items: root, total: root.length, pages: 1 };
   if (!root || typeof root !== "object") {
-    throw new HttpError(502, "SUB2API 账号列表响应无效。", "INVALID_UPSTREAM_RESPONSE");
+    throw new HttpError(502, "SUB2API 账号列表响应无效", "INVALID_UPSTREAM_RESPONSE");
   }
   const items = root.items ?? root.accounts ?? root.list ?? root.records;
   if (!Array.isArray(items)) {
-    throw new HttpError(502, "SUB2API 账号列表缺少 items 数组。", "INVALID_UPSTREAM_RESPONSE");
+    throw new HttpError(502, "SUB2API 账号列表缺少 items 数组", "INVALID_UPSTREAM_RESPONSE");
   }
   const totalRaw = root.total ?? root.count ?? root.total_count;
   const pagesRaw = root.pages ?? root.page_count ?? root.total_pages;
@@ -1383,7 +1429,7 @@ async function fetchSub2apiAccountsPage(config, page, pageSize, clientSignal) {
     if (!item || typeof item !== "object" || item.id == null) {
       throw new HttpError(
         502,
-        `SUB2API 账号列表第 ${page} 页存在缺少 id 的记录。`,
+        `SUB2API 账号列表第 ${page} 页存在缺少 id 的记录`,
         "INVALID_UPSTREAM_RESPONSE"
       );
     }
@@ -1399,7 +1445,7 @@ async function listAllSub2apiAccounts(config, clientSignal) {
     expectedPages = Math.max(1, Math.ceil(expectedTotal / DEDUPE_PAGE_SIZE) || 1);
   }
   if (expectedPages > 1_000_000) {
-    throw new HttpError(502, "SUB2API 账号分页数量异常，已停止扫描。", "INVALID_UPSTREAM_RESPONSE");
+    throw new HttpError(502, "SUB2API 账号分页数量异常，已停止扫描", "INVALID_UPSTREAM_RESPONSE");
   }
 
   const pages = new Map([[1, first]]);
@@ -1424,7 +1470,7 @@ async function listAllSub2apiAccounts(config, clientSignal) {
     if (!data) {
       throw new HttpError(
         502,
-        `SUB2API 账号第 ${page} 页缺失，扫描不完整。`,
+        `SUB2API 账号第 ${page} 页缺失，扫描不完整`,
         "INVALID_UPSTREAM_RESPONSE"
       );
     }
@@ -1433,7 +1479,7 @@ async function listAllSub2apiAccounts(config, clientSignal) {
       if (data.total !== expectedTotal) {
         throw new HttpError(
           409,
-          `扫描期间账号数据发生变化：第 1 页 total=${expectedTotal}，第 ${page} 页 total=${data.total}。请重试。`,
+          `扫描期间账号数据发生变化：第 1 页 total=${expectedTotal}，第 ${page} 页 total=${data.total}，请重试`,
           "SCAN_RACE"
         );
       }
@@ -1441,11 +1487,7 @@ async function listAllSub2apiAccounts(config, clientSignal) {
     for (const item of data.items) {
       const marker = String(item.id);
       if (seenIds.has(marker)) {
-        throw new HttpError(
-          502,
-          `分页结果重复出现账号 ID=${marker}。`,
-          "INVALID_UPSTREAM_RESPONSE"
-        );
+        throw new HttpError(502, `分页结果重复出现账号 ID=${marker}`, "INVALID_UPSTREAM_RESPONSE");
       }
       seenIds.add(marker);
       allAccounts.push(item);
@@ -1670,7 +1712,7 @@ async function applySub2apiDedupe(env, ids, override = null, clientSignal = unde
     normalizedIds.push(id);
   }
   if (!normalizedIds.length) {
-    throw new HttpError(400, "没有可删除的账号 ID。", "INVALID_PAYLOAD");
+    throw new HttpError(400, "没有可删除的账号 ID", "INVALID_PAYLOAD");
   }
 
   const results = await mapWithConcurrency(normalizedIds, DEDUPE_DELETE_CONCURRENCY, async (id) =>
@@ -1791,7 +1833,7 @@ function parseCpaAuthFilesListPayload(data) {
       items = maybe;
     }
   } else {
-    throw new HttpError(502, "CPA 返回了非预期的认证文件列表。", "INVALID_UPSTREAM_RESPONSE");
+    throw new HttpError(502, "CPA 返回了非预期的认证文件列表", "INVALID_UPSTREAM_RESPONSE");
   }
 
   const files = [];
@@ -1885,7 +1927,7 @@ async function downloadCpaAuthFiles(env, names, override = null, clientSignal = 
     normalized.push(name);
   }
   if (!normalized.length) {
-    throw new HttpError(400, "没有可下载的认证文件名。", "INVALID_PAYLOAD");
+    throw new HttpError(400, "没有可下载的认证文件名", "INVALID_PAYLOAD");
   }
 
   const files = await mapWithConcurrency(normalized, CPA_DOWNLOAD_CONCURRENCY, (name) =>
@@ -1907,14 +1949,104 @@ async function downloadCpaAuthFiles(env, names, override = null, clientSignal = 
 // SUB2API 远端账号 list / export
 // ---------------------------------------------------------------------------
 
+function nonEmptyText(value) {
+  if (value == null) return "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return "";
+}
+
+function credentialsObjectLooksUsable(cred) {
+  if (!cred || typeof cred !== "object" || Array.isArray(cred)) return false;
+  const keys = [
+    "access_token",
+    "accessToken",
+    "refresh_token",
+    "refreshToken",
+    "id_token",
+    "idToken",
+    "session_token",
+    "sessionToken",
+    "session_key",
+    "sessionKey",
+    "api_key",
+    "apiKey",
+    "token",
+    "cookie",
+    "cookies",
+    "password",
+    "secret",
+  ];
+  for (const key of keys) {
+    if (nonEmptyText(cred[key])) return true;
+  }
+  // 任意非空字符串字段也视为可用（兼容自定义 type）
+  for (const value of Object.values(cred)) {
+    if (typeof value === "string" && value.trim()) return true;
+  }
+  return false;
+}
+
 function accountHasUsableCredentials(account) {
   if (!account || typeof account !== "object") return false;
-  const cred = account.credentials;
-  if (cred && typeof cred === "object") {
-    if (cred.access_token || cred.refresh_token || cred.id_token) return true;
+  if (credentialsObjectLooksUsable(account.credentials)) return true;
+  if (credentialsObjectLooksUsable(account.credential)) return true;
+  if (credentialsObjectLooksUsable(account.auth)) return true;
+  if (credentialsObjectLooksUsable(account.token)) return true;
+  // 顶层扁平字段
+  const flatKeys = [
+    "access_token",
+    "accessToken",
+    "refresh_token",
+    "refreshToken",
+    "id_token",
+    "idToken",
+    "session_token",
+    "sessionToken",
+    "api_key",
+    "apiKey",
+    "token",
+    "cookie",
+  ];
+  for (const key of flatKeys) {
+    if (nonEmptyText(account[key])) return true;
   }
-  if (account.access_token || account.refresh_token) return true;
+  // extra 内偶发存放 token
+  if (credentialsObjectLooksUsable(account.extra)) return true;
   return false;
+}
+
+function normalizeExportCredentials(account) {
+  if (!account || typeof account !== "object") return {};
+  if (account.credentials && typeof account.credentials === "object") {
+    return { ...account.credentials };
+  }
+  if (account.credential && typeof account.credential === "object") {
+    return { ...account.credential };
+  }
+  if (account.auth && typeof account.auth === "object") {
+    return { ...account.auth };
+  }
+  const cred = {};
+  const map = [
+    ["access_token", ["access_token", "accessToken"]],
+    ["refresh_token", ["refresh_token", "refreshToken"]],
+    ["id_token", ["id_token", "idToken"]],
+    ["api_key", ["api_key", "apiKey"]],
+    ["token", ["token"]],
+    ["cookie", ["cookie", "cookies"]],
+    ["session_token", ["session_token", "sessionToken"]],
+  ];
+  for (const [target, sources] of map) {
+    for (const source of sources) {
+      const text = nonEmptyText(account[source]);
+      if (text) {
+        cred[target] = text;
+        break;
+      }
+    }
+  }
+  return cred;
 }
 
 /** 导出用：尽量去掉服务端只读字段，保留可再导入的账号正文 */
@@ -1934,9 +2066,10 @@ function sanitizeSub2apiExportAccount(account) {
   // proxy_key 仅 Worker 内部使用；若有 proxy_id 留给前端/再导入
   delete out.proxy_key;
   delete out.proxyKey;
-  if (!out.platform && (out.type === "oauth" || out.credentials)) out.platform = "grok";
+  delete out.credential;
+  delete out.auth;
   if (!out.type) out.type = "oauth";
-  if (!out.credentials || typeof out.credentials !== "object") out.credentials = {};
+  out.credentials = normalizeExportCredentials(account);
   if (!out.extra || typeof out.extra !== "object") out.extra = {};
   if (out.concurrency == null) out.concurrency = 1;
   if (out.priority == null) out.priority = 1;
@@ -1945,27 +2078,65 @@ function sanitizeSub2apiExportAccount(account) {
   return out;
 }
 
+function unwrapSub2apiAccountDetail(payload) {
+  let root = payload;
+  // 常见：{ data: account } / { data: { account } } / { account }
+  for (let depth = 0; depth < 4; depth++) {
+    if (!root || typeof root !== "object" || Array.isArray(root)) break;
+    if (root.account && typeof root.account === "object" && !Array.isArray(root.account)) {
+      root = root.account;
+      continue;
+    }
+    if (root.data !== undefined) {
+      root = root.data;
+      continue;
+    }
+    if (root.item && typeof root.item === "object") {
+      root = root.item;
+      continue;
+    }
+    if (root.result && typeof root.result === "object") {
+      root = root.result;
+      continue;
+    }
+    break;
+  }
+  if (!root || typeof root !== "object" || Array.isArray(root)) return null;
+  if (
+    root.id != null ||
+    root.credentials ||
+    root.credential ||
+    root.auth ||
+    root.platform ||
+    root.type ||
+    root.access_token ||
+    root.accessToken ||
+    root.refresh_token ||
+    root.refreshToken ||
+    root.api_key ||
+    root.apiKey
+  ) {
+    return root;
+  }
+  return null;
+}
+
 async function fetchSub2apiAccountDetail(config, accountId, clientSignal) {
   const encodedId = encodeURIComponent(String(accountId));
   const result = await sub2apiRequest(
     config,
     `/api/v1/admin/accounts/${encodedId}`,
     { method: "GET" },
-    VERIFY_TIMEOUT_MS,
-    3,
+    // 详情请求不宜用 30s 校验超时；大批量时上游偶发变慢
+    Math.max(VERIFY_TIMEOUT_MS, 60 * 1000),
+    2,
     clientSignal
   );
-  const root = result.data?.data !== undefined ? result.data.data : result.data;
-  // 常见形态：{ account: {...} } / 直接账号对象
-  if (root && typeof root === "object") {
-    if (root.account && typeof root.account === "object") {
-      return { account: root.account, attempts: result.attempts };
-    }
-    if (root.id != null || root.credentials || root.platform) {
-      return { account: root, attempts: result.attempts };
-    }
+  const account = unwrapSub2apiAccountDetail(result.data);
+  if (!account) {
+    throw new HttpError(502, `SUB2API 账号 ${accountId} 详情响应无效`, "INVALID_UPSTREAM_RESPONSE");
   }
-  throw new HttpError(502, `SUB2API 账号 ${accountId} 详情响应无效。`, "INVALID_UPSTREAM_RESPONSE");
+  return { account, attempts: result.attempts };
 }
 
 async function listSub2apiAccountsMeta(env, override = null, clientSignal = undefined) {
@@ -1995,27 +2166,13 @@ async function exportSub2apiAccounts(env, ids, override = null, clientSignal = u
     normalizedIds.push(id);
   }
   if (!normalizedIds.length) {
-    throw new HttpError(400, "没有可导出的账号 ID。", "INVALID_PAYLOAD");
+    throw new HttpError(400, "没有可导出的账号 ID", "INVALID_PAYLOAD");
   }
 
-  // 先拉 lite 全量，命中选中 id 且已有凭证则直接用；否则逐个拉详情
-  const listed = await listAllSub2apiAccounts(config, clientSignal);
-  const byId = new Map(listed.accounts.map((item) => [String(item.id), item]));
-  let attempts = listed.attempts || 0;
-
-  const needDetail = [];
-  const ready = [];
-  for (const id of normalizedIds) {
-    const hit = byId.get(String(id));
-    if (hit && accountHasUsableCredentials(hit)) {
-      ready.push(hit);
-    } else {
-      needDetail.push(id);
-    }
-  }
-
+  // 直接按 id 拉详情，避免先全量 lite 列表再逐个详情（选中越多越慢，且易超时）
+  let attempts = 0;
   const detailResults = await mapWithConcurrency(
-    needDetail,
+    normalizedIds,
     SUB2API_EXPORT_DETAIL_CONCURRENCY,
     async (id) => {
       try {
@@ -2023,11 +2180,6 @@ async function exportSub2apiAccounts(env, ids, override = null, clientSignal = u
         attempts += detail.attempts || 0;
         return { id, ok: true, account: detail.account };
       } catch (error) {
-        // 详情失败时，若 lite 列表仍有该账号，降级带上（可能无凭证）
-        const fallback = byId.get(String(id));
-        if (fallback) {
-          return { id, ok: true, account: fallback, partial: true };
-        }
         return {
           id,
           ok: false,
@@ -2041,10 +2193,8 @@ async function exportSub2apiAccounts(env, ids, override = null, clientSignal = u
 
   const failures = [];
   const accounts = [];
-  for (const item of ready) {
-    const sanitized = sanitizeSub2apiExportAccount(item);
-    if (sanitized) accounts.push(sanitized);
-  }
+  // 清洗后 pack 不再带 id，单独回传成功 id 供前端标记逐项结果
+  const successIds = [];
   for (const item of detailResults) {
     if (!item.ok) {
       failures.push(item);
@@ -2056,11 +2206,22 @@ async function exportSub2apiAccounts(env, ids, override = null, clientSignal = u
         ok: false,
         error: "账号缺少可用凭证字段，无法导出完整认证数据",
         code: "INCOMPLETE_ACCOUNT_DATA",
+        status: item.status,
       });
       continue;
     }
     const sanitized = sanitizeSub2apiExportAccount(item.account);
-    if (sanitized) accounts.push(sanitized);
+    if (sanitized) {
+      accounts.push(sanitized);
+      successIds.push(item.id);
+    } else {
+      failures.push({
+        id: item.id,
+        ok: false,
+        error: "账号数据清洗后为空",
+        code: "INCOMPLETE_ACCOUNT_DATA",
+      });
+    }
   }
 
   if (!accounts.length) {
@@ -2070,7 +2231,7 @@ async function exportSub2apiAccounts(env, ids, override = null, clientSignal = u
         ? `未能导出任何完整账号：${failures[0].error || "未知错误"}`
         : "未能导出任何完整账号",
       failures[0]?.code || "INCOMPLETE_ACCOUNT_DATA",
-      { failures }
+      { failures: failures.slice(0, 20), failedCount: failures.length, successIds: [] }
     );
   }
 
@@ -2087,7 +2248,9 @@ async function exportSub2apiAccounts(env, ids, override = null, clientSignal = u
     requestedCount: normalizedIds.length,
     count: accounts.length,
     failedCount: failures.length,
-    failures,
+    // 限制失败明细体积，避免大批量时响应膨胀
+    failures: failures.slice(0, 50),
+    successIds,
     pack,
   };
 }
@@ -2169,7 +2332,7 @@ async function uploadCpaFiles(
       !entry.account ||
       typeof entry.account !== "object"
     ) {
-      throw new HttpError(400, `files[${index}] 缺少 account 对象。`, "INVALID_PAYLOAD");
+      throw new HttpError(400, `files[${index}] 缺少 account 对象`, "INVALID_PAYLOAD");
     }
     return {
       name: sanitizeJsonFilename(entry.name || `xai-account-${index + 1}.json`),
@@ -2277,7 +2440,7 @@ async function cpaRequest(config, path, init, timeoutMs, maxAttempts, clientSign
       if (![401, 403].includes(error?.status)) throw error;
     }
   }
-  throw lastError || new HttpError(401, "CPA 管理密钥验证失败。", "UPSTREAM_AUTH_FAILED");
+  throw lastError || new HttpError(401, "CPA 管理密钥验证失败", "UPSTREAM_AUTH_FAILED");
 }
 
 /**
@@ -2310,7 +2473,7 @@ async function cpaRequestRaw(config, path, init, timeoutMs, maxAttempts, clientS
       if (![401, 403].includes(error?.status)) throw error;
     }
   }
-  throw lastError || new HttpError(401, "CPA 管理密钥验证失败。", "UPSTREAM_AUTH_FAILED");
+  throw lastError || new HttpError(401, "CPA 管理密钥验证失败", "UPSTREAM_AUTH_FAILED");
 }
 
 function cpaAuthModes(preferred) {
@@ -2327,7 +2490,7 @@ async function requestJsonWithRetry(url, init, options = {}) {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       if (options.clientSignal?.aborted) {
-        throw new HttpError(499, "客户端已取消上传。", "CLIENT_ABORTED");
+        throw new HttpError(499, "客户端已取消上传", "CLIENT_ABORTED");
       }
       const response = await fetchWithTimeout(url, init, timeoutMs, options.clientSignal);
       const text = await response.text();
@@ -2376,12 +2539,12 @@ async function fetchWithTimeout(url, init, timeoutMs, clientSignal) {
     return await fetch(url, { ...init, signal: controller.signal, redirect: "follow" });
   } catch (error) {
     if (clientSignal?.aborted) {
-      throw new HttpError(499, "客户端已取消上传。", "CLIENT_ABORTED");
+      throw new HttpError(499, "客户端已取消上传", "CLIENT_ABORTED");
     }
     if (controller.signal.aborted) {
       throw new HttpError(
         504,
-        "上游请求超时；服务器可能已经接收并处理本批数据，请先核对后再重试。",
+        "上游请求超时，服务器可能已经接收并处理本批数据，请先核对后再重试",
         "UPSTREAM_TIMEOUT"
       );
     }
@@ -2454,16 +2617,16 @@ async function mapWithConcurrency(items, concurrency, mapper) {
 async function readJsonBody(request, maxBytes) {
   const contentLength = Number(request.headers.get("content-length") || 0);
   if (contentLength && contentLength > maxBytes) {
-    throw new HttpError(413, "请求体过大。", "PAYLOAD_TOO_LARGE");
+    throw new HttpError(413, "请求体过大", "PAYLOAD_TOO_LARGE");
   }
   const buffer = await request.arrayBuffer();
   if (buffer.byteLength > maxBytes) {
-    throw new HttpError(413, "请求体过大。", "PAYLOAD_TOO_LARGE");
+    throw new HttpError(413, "请求体过大", "PAYLOAD_TOO_LARGE");
   }
   try {
     return JSON.parse(new TextDecoder().decode(buffer));
   } catch {
-    throw new HttpError(400, "请求体不是有效 JSON。", "INVALID_JSON");
+    throw new HttpError(400, "请求体不是有效 JSON", "INVALID_JSON");
   }
 }
 
@@ -2474,16 +2637,26 @@ function publicErrorMessage(error) {
 
 function errorResponse(error) {
   const status = error?.status || 500;
-  return jsonResponse(
-    {
-      ok: false,
-      code: error?.code || "INTERNAL_ERROR",
-      error: status >= 500 && !error?.message ? "服务器内部错误。" : publicErrorMessage(error),
-      details: error?.code === "TARGET_NOT_CONFIGURED" ? error?.details : undefined,
-      attempts: error?.attempts,
-    },
-    status
-  );
+  const details = error?.details;
+  const body = {
+    ok: false,
+    code: error?.code || "INTERNAL_ERROR",
+    error: status >= 500 && !error?.message ? "服务器内部错误" : publicErrorMessage(error),
+    attempts: error?.attempts,
+  };
+  // TARGET_NOT_CONFIGURED 等诊断信息
+  if (error?.code === "TARGET_NOT_CONFIGURED" && details !== undefined) {
+    body.details = details;
+  }
+  // 远端导出/下载等：把失败明细与部分成功包透出给前端分批合并
+  if (details && typeof details === "object" && !Array.isArray(details)) {
+    if (Array.isArray(details.failures)) body.failures = details.failures;
+    if (details.failedCount != null) body.failedCount = details.failedCount;
+    if (Array.isArray(details.successIds)) body.successIds = details.successIds;
+    if (details.pack && typeof details.pack === "object") body.pack = details.pack;
+    if (Array.isArray(details.files)) body.files = details.files;
+  }
+  return jsonResponse(body, status);
 }
 
 function jsonResponse(data, status = 200) {
@@ -2555,7 +2728,7 @@ function renderSetupPage(message) {
 <p>在 Worker 的 Variables and Secrets 中添加：</p>
 <pre>APP_PASSWORD
 SESSION_SECRET</pre>
-<div class="hint">保存并重新部署后刷新本页。</div>
+<div class="hint">保存并重新部署后刷新本页</div>
 </main></body></html>`;
 }
 

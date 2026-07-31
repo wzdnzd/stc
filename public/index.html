@@ -1715,10 +1715,40 @@
         border-color: var(--border-soft);
       }
 
-      .remote-tag.disabled {
+      .remote-tag.disabled,
+      .remote-tag.err {
         color: #fca5a5;
         background: rgba(239, 68, 68, 0.12);
         border-color: rgba(239, 68, 68, 0.28);
+      }
+
+      .remote-tag.ok {
+        color: #86efac;
+        background: rgba(34, 197, 94, 0.12);
+        border-color: rgba(34, 197, 94, 0.28);
+      }
+
+      .remote-picker-row.is-err {
+        background: rgba(239, 68, 68, 0.05);
+      }
+
+      .remote-picker-row.is-ok {
+        background: rgba(34, 197, 94, 0.04);
+      }
+
+      .remote-filter-check {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 12px;
+        white-space: nowrap;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .remote-filter-check input {
+        margin: 0;
       }
 
       .proxy-actions-row {
@@ -2833,6 +2863,13 @@
             <button class="btn-ghost btn-sm" id="btnCpaRemoteSelectNone" type="button">
               全不选
             </button>
+            <button class="btn-ghost btn-sm" id="btnCpaRemoteSelectFailed" type="button" disabled>
+              勾选失败
+            </button>
+            <label class="remote-filter-check" for="cpaRemoteFailedOnly">
+              <input type="checkbox" id="cpaRemoteFailedOnly" />
+              仅看失败
+            </label>
             <span class="remote-picker-meta" id="cpaRemoteSelectionMeta">已选 0 / 共 0</span>
           </div>
           <div class="remote-picker-list" id="cpaRemoteList">
@@ -2882,6 +2919,13 @@
             <button class="btn-ghost btn-sm" id="btnSub2RemoteSelectNone" type="button">
               全不选
             </button>
+            <button class="btn-ghost btn-sm" id="btnSub2RemoteSelectFailed" type="button" disabled>
+              勾选失败
+            </button>
+            <label class="remote-filter-check" for="sub2RemoteFailedOnly">
+              <input type="checkbox" id="sub2RemoteFailedOnly" />
+              仅看失败
+            </label>
             <span class="remote-picker-meta" id="sub2RemoteSelectionMeta">已选 0 / 共 0</span>
           </div>
           <div class="remote-picker-list" id="sub2RemoteList">
@@ -2983,14 +3027,20 @@
       let cpaRemoteFiles = [];
       /** @type {Set<string>} */
       let cpaRemoteSelected = new Set();
+      /** @type {Map<string, "ok"|"err">} 最近一次下载逐项结果 */
+      let cpaRemoteResultByName = new Map();
       let cpaRemoteSearch = "";
+      let cpaRemoteFailedOnly = false;
       let cpaRemoteBusy = false;
 
       /** SUB2API 远端导出：列表与勾选 */
       let sub2RemoteAccounts = [];
       /** @type {Set<string>} */
       let sub2RemoteSelected = new Set();
+      /** @type {Map<string, "ok"|"err">} 最近一次导出逐项结果 */
+      let sub2RemoteResultById = new Map();
       let sub2RemoteSearch = "";
+      let sub2RemoteFailedOnly = false;
       let sub2RemoteBusy = false;
 
       const DEFAULT_BATCH_SUB2API = 100;
@@ -3004,6 +3054,14 @@
       const FALLBACK_MAX_UPLOAD_CONCURRENCY_SUB2 = 3;
       const FALLBACK_MAX_UPLOAD_CONCURRENCY_CPA = 8;
       const FALLBACK_MAX_UPLOAD_ATTEMPTS = 3;
+      const FALLBACK_MAX_CPA_AUTH_DOWNLOAD = 500;
+      const FALLBACK_MAX_SUB2API_EXPORT = 500;
+      const FALLBACK_MAX_SUB2API_DEDUPE = 5000;
+      /** 远端勾选列表最多同时渲染的行数，避免成千上万 DOM 卡死 */
+      const REMOTE_PICKER_RENDER_LIMIT = 300;
+      /** 前端分批调用 Worker 的默认块大小，实际会再钳到 serverLimits */
+      const REMOTE_EXPORT_CHUNK_DEFAULT = 80;
+      const REMOTE_CPA_DOWNLOAD_CHUNK_DEFAULT = 40;
       const LOCAL_CONFIG_STORAGE_KEY = "cpa2sub.targetConfig.v1";
       const LOCAL_UI_SETTINGS_KEY = "cpa2sub.uiSettings.v1";
       const WORKSPACE_DB_NAME = "cpa2sub.workspace";
@@ -3018,6 +3076,9 @@
         maxUploadConcurrencyCpa: FALLBACK_MAX_UPLOAD_CONCURRENCY_CPA,
         maxSub2apiUploadAttempts: FALLBACK_MAX_UPLOAD_ATTEMPTS,
         maxCpaUploadAttempts: FALLBACK_MAX_UPLOAD_ATTEMPTS,
+        maxCpaAuthDownloadFiles: FALLBACK_MAX_CPA_AUTH_DOWNLOAD,
+        maxSub2apiExportAccounts: FALLBACK_MAX_SUB2API_EXPORT,
+        maxSub2apiDedupeIds: FALLBACK_MAX_SUB2API_DEDUPE,
       };
       let uiSettingsSaveTimer = null;
       let adaptiveUploadConcurrency = 1;
@@ -3850,6 +3911,9 @@
         const maxConcCpa = Number(limits.maxUploadConcurrencyCpa);
         const maxAttemptsSub2 = Number(limits.maxSub2apiUploadAttempts);
         const maxAttemptsCpa = Number(limits.maxCpaUploadAttempts);
+        const maxCpaDownload = Number(limits.maxCpaAuthDownloadFiles);
+        const maxSub2Export = Number(limits.maxSub2apiExportAccounts);
+        const maxSub2Dedupe = Number(limits.maxSub2apiDedupeIds);
         serverLimits = {
           maxSub2apiAccounts:
             Number.isFinite(maxSub2) && maxSub2 >= 1 ? Math.floor(maxSub2) : FALLBACK_MAX_SUB2API,
@@ -3871,9 +3935,50 @@
             Number.isFinite(maxAttemptsCpa) && maxAttemptsCpa >= 1
               ? Math.floor(maxAttemptsCpa)
               : FALLBACK_MAX_UPLOAD_ATTEMPTS,
+          maxCpaAuthDownloadFiles:
+            Number.isFinite(maxCpaDownload) && maxCpaDownload >= 1
+              ? Math.floor(maxCpaDownload)
+              : FALLBACK_MAX_CPA_AUTH_DOWNLOAD,
+          maxSub2apiExportAccounts:
+            Number.isFinite(maxSub2Export) && maxSub2Export >= 1
+              ? Math.floor(maxSub2Export)
+              : FALLBACK_MAX_SUB2API_EXPORT,
+          maxSub2apiDedupeIds:
+            Number.isFinite(maxSub2Dedupe) && maxSub2Dedupe >= 1
+              ? Math.floor(maxSub2Dedupe)
+              : FALLBACK_MAX_SUB2API_DEDUPE,
         };
         updateUploadLimitHints();
         saveUiSettingsSoon();
+      }
+
+      function currentMaxCpaAuthDownload() {
+        return Math.max(
+          1,
+          Number(serverLimits.maxCpaAuthDownloadFiles) || FALLBACK_MAX_CPA_AUTH_DOWNLOAD
+        );
+      }
+
+      function currentMaxSub2apiExport() {
+        return Math.max(
+          1,
+          Number(serverLimits.maxSub2apiExportAccounts) || FALLBACK_MAX_SUB2API_EXPORT
+        );
+      }
+
+      function currentMaxSub2apiDedupe() {
+        return Math.max(1, Number(serverLimits.maxSub2apiDedupeIds) || FALLBACK_MAX_SUB2API_DEDUPE);
+      }
+
+      function chunkArray(list, size) {
+        const out = [];
+        const step = Math.max(1, size | 0);
+        for (let i = 0; i < list.length; i += step) out.push(list.slice(i, i + step));
+        return out;
+      }
+
+      function yieldToBrowser() {
+        return new Promise((resolve) => setTimeout(resolve, 0));
       }
 
       function refreshActionButtons() {
@@ -6262,23 +6367,54 @@
           return;
         }
 
+        const maxPerRequest = currentMaxSub2apiDedupe();
+        const chunks = chunkArray(ids, Math.max(1, maxPerRequest));
         setSub2DedupeBusy(true, "apply");
-        setSub2DedupeStatus(`正在并发删除 ${ids.length} 个重复账号`, "info");
+        setSub2DedupeStatus(
+          chunks.length > 1
+            ? `正在删除 ${ids.length} 个重复账号，分 ${chunks.length} 批`
+            : `正在并发删除 ${ids.length} 个重复账号`,
+          "info"
+        );
         showMsg(`正在删除 ${ids.length} 个 SUB2API 重复账号`, "info");
         try {
-          const body = { ids };
           const config = uploadConfigPayload(effective);
-          if (config) body.config = config;
-          const { data } = await fetchJson(
-            "/api/sub2api/dedupe/apply",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(body),
-            },
-            10 * 60 * 1000
-          );
-          renderSub2DedupeApplyResult(data);
+          const merged = {
+            requestedCount: 0,
+            deletedCount: 0,
+            alreadyAbsentCount: 0,
+            failedCount: 0,
+            results: [],
+            failures: [],
+          };
+          for (let i = 0; i < chunks.length; i++) {
+            const chunk = chunks[i];
+            if (chunks.length > 1) {
+              setSub2DedupeStatus(
+                `正在删除第 ${i + 1}/${chunks.length} 批，本批 ${chunk.length} 个，累计已删 ${merged.deletedCount} 个`,
+                "info"
+              );
+            }
+            const body = { ids: chunk };
+            if (config) body.config = config;
+            const { data } = await fetchJson(
+              "/api/sub2api/dedupe/apply",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+              },
+              10 * 60 * 1000
+            );
+            merged.requestedCount += Number(data?.requestedCount) || chunk.length;
+            merged.deletedCount += Number(data?.deletedCount) || 0;
+            merged.alreadyAbsentCount += Number(data?.alreadyAbsentCount) || 0;
+            merged.failedCount += Number(data?.failedCount) || 0;
+            if (Array.isArray(data?.results)) merged.results.push(...data.results);
+            if (Array.isArray(data?.failures)) merged.failures.push(...data.failures);
+            await yieldToBrowser();
+          }
+          renderSub2DedupeApplyResult(merged);
         } catch (error) {
           setSub2DedupeStatus(`删除失败：${apiErrorMessage(error)}`, "err");
           showMsg(`SUB2API 去重删除失败：${apiErrorMessage(error)}`, "err");
@@ -6331,12 +6467,18 @@
         return parts.join(" · ") || "无附加信息";
       }
 
-      function getCpaRemoteVisibleFiles() {
+      function getCpaRemoteFilteredFiles() {
         const q = String(cpaRemoteSearch || "")
           .trim()
           .toLowerCase();
-        if (!q) return cpaRemoteFiles.slice();
-        return cpaRemoteFiles.filter((file) => {
+        let list = cpaRemoteFiles;
+        if (cpaRemoteFailedOnly) {
+          list = list.filter(
+            (file) => cpaRemoteResultByName.get(String(file.name || "")) === "err"
+          );
+        }
+        if (!q) return list.slice();
+        return list.filter((file) => {
           const hay = [file.name, file.provider, file.account, file.accountId, file.authIndex]
             .map((v) => String(v || "").toLowerCase())
             .join(" ");
@@ -6344,12 +6486,18 @@
         });
       }
 
-      function getSub2RemoteVisibleAccounts() {
+      function getSub2RemoteFilteredAccounts() {
         const q = String(sub2RemoteSearch || "")
           .trim()
           .toLowerCase();
-        if (!q) return sub2RemoteAccounts.slice();
-        return sub2RemoteAccounts.filter((account) => {
+        let list = sub2RemoteAccounts;
+        if (sub2RemoteFailedOnly) {
+          list = list.filter(
+            (account) => sub2RemoteResultById.get(String(account.id ?? "")) === "err"
+          );
+        }
+        if (!q) return list.slice();
+        return list.filter((account) => {
           const hay = [
             account.id,
             account.name,
@@ -6364,92 +6512,152 @@
         });
       }
 
+      function countCpaRemoteFailed() {
+        let n = 0;
+        for (const status of cpaRemoteResultByName.values()) if (status === "err") n += 1;
+        return n;
+      }
+
+      function countSub2RemoteFailed() {
+        let n = 0;
+        for (const status of sub2RemoteResultById.values()) if (status === "err") n += 1;
+        return n;
+      }
+
       function updateCpaRemoteSelectionMeta() {
         const meta = $("cpaRemoteSelectionMeta");
         const btn = $("btnDownloadCpaRemoteSelected");
+        const selectFailedBtn = $("btnCpaRemoteSelectFailed");
         const total = cpaRemoteFiles.length;
         const selected = cpaRemoteSelected.size;
-        if (meta) meta.textContent = `已选 ${selected} / 共 ${total}`;
+        const filtered = getCpaRemoteFilteredFiles().length;
+        const failed = countCpaRemoteFailed();
+        if (meta) {
+          const parts = [`已选 ${selected}`, `共 ${total}`];
+          if (filtered < total) parts.push(`当前筛选 ${filtered}`);
+          if (failed > 0) parts.push(`失败 ${failed}`);
+          meta.textContent = parts.join("，");
+        }
         if (btn) btn.disabled = selected === 0 || cpaRemoteBusy;
+        if (selectFailedBtn) selectFailedBtn.disabled = failed === 0 || cpaRemoteBusy;
       }
 
       function updateSub2RemoteSelectionMeta() {
         const meta = $("sub2RemoteSelectionMeta");
         const btn = $("btnExportSub2RemoteSelected");
+        const selectFailedBtn = $("btnSub2RemoteSelectFailed");
         const total = sub2RemoteAccounts.length;
         const selected = sub2RemoteSelected.size;
-        if (meta) meta.textContent = `已选 ${selected} / 共 ${total}`;
+        const filtered = getSub2RemoteFilteredAccounts().length;
+        const failed = countSub2RemoteFailed();
+        if (meta) {
+          const parts = [`已选 ${selected}`, `共 ${total}`];
+          if (filtered < total) parts.push(`当前筛选 ${filtered}`);
+          if (failed > 0) parts.push(`失败 ${failed}`);
+          meta.textContent = parts.join("，");
+        }
         if (btn) btn.disabled = selected === 0 || sub2RemoteBusy;
+        if (selectFailedBtn) selectFailedBtn.disabled = failed === 0 || sub2RemoteBusy;
+      }
+
+      function cpaRemoteResultTag(name, file) {
+        const result = cpaRemoteResultByName.get(name);
+        if (result === "ok") return `<span class="remote-tag ok">已成功</span>`;
+        if (result === "err") return `<span class="remote-tag err">失败</span>`;
+        if (file?.disabled) return `<span class="remote-tag disabled">已禁用</span>`;
+        return `<span class="remote-tag">${escapeHtml(file?.provider || "file")}</span>`;
+      }
+
+      function sub2RemoteResultTag(id, account) {
+        const result = sub2RemoteResultById.get(id);
+        if (result === "ok") return `<span class="remote-tag ok">已成功</span>`;
+        if (result === "err") return `<span class="remote-tag err">失败</span>`;
+        if (account?.normal) return `<span class="remote-tag">正常</span>`;
+        return `<span class="remote-tag disabled">${escapeHtml(String(account?.status || "异常"))}</span>`;
       }
 
       function renderCpaRemoteList() {
         const host = $("cpaRemoteList");
         if (!host) return;
-        const visible = getCpaRemoteVisibleFiles();
+        const filtered = getCpaRemoteFilteredFiles();
         if (!cpaRemoteFiles.length) {
           host.innerHTML = `<div class="remote-picker-empty">服务端没有可下载的认证文件</div>`;
           updateCpaRemoteSelectionMeta();
           return;
         }
-        if (!visible.length) {
-          host.innerHTML = `<div class="remote-picker-empty">没有匹配当前搜索的文件</div>`;
+        if (!filtered.length) {
+          host.innerHTML = `<div class="remote-picker-empty">${
+            cpaRemoteFailedOnly ? "没有标记为失败的文件" : "没有匹配当前搜索的文件"
+          }</div>`;
           updateCpaRemoteSelectionMeta();
           return;
         }
-        host.innerHTML = visible
+        const visible = filtered.slice(0, REMOTE_PICKER_RENDER_LIMIT);
+        const rows = visible
           .map((file) => {
             const name = String(file.name || "");
             const checked = cpaRemoteSelected.has(name) ? "checked" : "";
-            const tag = file.disabled
-              ? `<span class="remote-tag disabled">已禁用</span>`
-              : `<span class="remote-tag">${escapeHtml(file.provider || "file")}</span>`;
-            return `<label class="remote-picker-row">
+            const result = cpaRemoteResultByName.get(name);
+            const rowClass = result === "err" ? " is-err" : result === "ok" ? " is-ok" : "";
+            return `<label class="remote-picker-row${rowClass}">
               <input type="checkbox" data-cpa-remote-name="${escapeHtml(name)}" ${checked} />
               <div class="remote-picker-main">
                 <strong>${escapeHtml(name)}</strong>
                 <div class="remote-picker-sub">${escapeHtml(formatCpaRemoteRowMeta(file))}</div>
               </div>
-              ${tag}
+              ${cpaRemoteResultTag(name, file)}
             </label>`;
           })
           .join("");
+        const moreNote =
+          filtered.length > visible.length
+            ? `<div class="remote-picker-empty">列表仅展示前 ${visible.length} 条，全选仍作用于当前筛选全部 ${filtered.length} 条，可用搜索缩小范围</div>`
+            : "";
+        host.innerHTML = rows + moreNote;
         updateCpaRemoteSelectionMeta();
       }
 
       function renderSub2RemoteList() {
         const host = $("sub2RemoteList");
         if (!host) return;
-        const visible = getSub2RemoteVisibleAccounts();
+        const filtered = getSub2RemoteFilteredAccounts();
         if (!sub2RemoteAccounts.length) {
           host.innerHTML = `<div class="remote-picker-empty">服务端没有可导出的账号</div>`;
           updateSub2RemoteSelectionMeta();
           return;
         }
-        if (!visible.length) {
-          host.innerHTML = `<div class="remote-picker-empty">没有匹配当前搜索的账号</div>`;
+        if (!filtered.length) {
+          host.innerHTML = `<div class="remote-picker-empty">${
+            sub2RemoteFailedOnly ? "没有标记为失败的账号" : "没有匹配当前搜索的账号"
+          }</div>`;
           updateSub2RemoteSelectionMeta();
           return;
         }
-        host.innerHTML = visible
+        const visible = filtered.slice(0, REMOTE_PICKER_RENDER_LIMIT);
+        const rows = visible
           .map((account) => {
             const id = String(account.id ?? "");
             const checked = sub2RemoteSelected.has(id) ? "checked" : "";
             const title = account.email || account.name || `id=${id}`;
-            const tag = account.normal
-              ? `<span class="remote-tag">正常</span>`
-              : `<span class="remote-tag disabled">${escapeHtml(String(account.status || "异常"))}</span>`;
-            return `<label class="remote-picker-row">
+            const result = sub2RemoteResultById.get(id);
+            const rowClass = result === "err" ? " is-err" : result === "ok" ? " is-ok" : "";
+            return `<label class="remote-picker-row${rowClass}">
               <input type="checkbox" data-sub2-remote-id="${escapeHtml(id)}" ${checked} />
               <div class="remote-picker-main">
                 <strong>${escapeHtml(String(title))}</strong>
-                <div class="remote-picker-sub">id=${escapeHtml(id)} · ${escapeHtml(
+                <div class="remote-picker-sub">id=${escapeHtml(id)}，${escapeHtml(
                   formatSub2RemoteRowMeta(account)
                 )}</div>
               </div>
-              ${tag}
+              ${sub2RemoteResultTag(id, account)}
             </label>`;
           })
           .join("");
+        const moreNote =
+          filtered.length > visible.length
+            ? `<div class="remote-picker-empty">列表仅展示前 ${visible.length} 条，全选仍作用于当前筛选全部 ${filtered.length} 条，可用搜索缩小范围</div>`
+            : "";
+        host.innerHTML = rows + moreNote;
         updateSub2RemoteSelectionMeta();
       }
 
@@ -6459,7 +6667,9 @@
           "btnRefreshCpaRemoteList",
           "btnCpaRemoteSelectAll",
           "btnCpaRemoteSelectNone",
+          "btnCpaRemoteSelectFailed",
           "cpaRemoteSearch",
+          "cpaRemoteFailedOnly",
           "btnCloseCpaRemoteDownload",
           "btnCancelCpaRemoteDownload",
         ];
@@ -6495,7 +6705,9 @@
           "btnRefreshSub2RemoteList",
           "btnSub2RemoteSelectAll",
           "btnSub2RemoteSelectNone",
+          "btnSub2RemoteSelectFailed",
           "sub2RemoteSearch",
+          "sub2RemoteFailedOnly",
           "btnCloseSub2RemoteExport",
           "btnCancelSub2RemoteExport",
         ];
@@ -6528,9 +6740,13 @@
       function resetCpaRemoteModalView() {
         cpaRemoteFiles = [];
         cpaRemoteSelected = new Set();
+        cpaRemoteResultByName = new Map();
         cpaRemoteSearch = "";
+        cpaRemoteFailedOnly = false;
         const search = $("cpaRemoteSearch");
         if (search) search.value = "";
+        const failedOnly = $("cpaRemoteFailedOnly");
+        if (failedOnly) failedOnly.checked = false;
         const list = $("cpaRemoteList");
         if (list) list.innerHTML = `<div class="remote-picker-empty">尚未加载列表</div>`;
         $("cpaRemoteDownloadHint").textContent = "先拉取服务端认证文件列表，勾选后打包为 ZIP 下载";
@@ -6541,9 +6757,13 @@
       function resetSub2RemoteModalView() {
         sub2RemoteAccounts = [];
         sub2RemoteSelected = new Set();
+        sub2RemoteResultById = new Map();
         sub2RemoteSearch = "";
+        sub2RemoteFailedOnly = false;
         const search = $("sub2RemoteSearch");
         if (search) search.value = "";
+        const failedOnly = $("sub2RemoteFailedOnly");
+        if (failedOnly) failedOnly.checked = false;
         const list = $("sub2RemoteList");
         if (list) list.innerHTML = `<div class="remote-picker-empty">尚未加载列表</div>`;
         $("sub2RemoteExportHint").textContent =
@@ -6599,7 +6819,8 @@
       }
 
       function selectAllCpaRemoteVisible() {
-        for (const file of getCpaRemoteVisibleFiles()) {
+        // 全选作用于当前筛选全部，不限于列表渲染上限
+        for (const file of getCpaRemoteFilteredFiles()) {
           if (file?.name) cpaRemoteSelected.add(String(file.name));
         }
         renderCpaRemoteList();
@@ -6610,8 +6831,22 @@
         renderCpaRemoteList();
       }
 
+      function selectCpaRemoteFailed() {
+        cpaRemoteSelected = new Set();
+        for (const [name, status] of cpaRemoteResultByName.entries()) {
+          if (status === "err" && name) cpaRemoteSelected.add(name);
+        }
+        renderCpaRemoteList();
+        const failed = cpaRemoteSelected.size;
+        if (failed > 0) {
+          setCpaRemoteStatus(`已勾选 ${failed} 个失败文件，可再次下载补全`, "info");
+        } else {
+          setCpaRemoteStatus("当前没有标记为失败的文件", "info");
+        }
+      }
+
       function selectAllSub2RemoteVisible() {
-        for (const account of getSub2RemoteVisibleAccounts()) {
+        for (const account of getSub2RemoteFilteredAccounts()) {
           if (account?.id != null && account.id !== "") {
             sub2RemoteSelected.add(String(account.id));
           }
@@ -6622,6 +6857,108 @@
       function clearSub2RemoteSelection() {
         sub2RemoteSelected = new Set();
         renderSub2RemoteList();
+      }
+
+      function selectSub2RemoteFailed() {
+        sub2RemoteSelected = new Set();
+        for (const [id, status] of sub2RemoteResultById.entries()) {
+          if (status === "err" && id) sub2RemoteSelected.add(id);
+        }
+        renderSub2RemoteList();
+        const failed = sub2RemoteSelected.size;
+        if (failed > 0) {
+          setSub2RemoteStatus(`已勾选 ${failed} 个失败账号，可再次导出补全`, "info");
+        } else {
+          setSub2RemoteStatus("当前没有标记为失败的账号", "info");
+        }
+      }
+
+      function focusCpaRemoteFailedAfterRun() {
+        const failedNames = [];
+        for (const [name, status] of cpaRemoteResultByName.entries()) {
+          if (status === "err" && name) failedNames.push(name);
+        }
+        if (!failedNames.length) return;
+        cpaRemoteSelected = new Set(failedNames);
+        cpaRemoteFailedOnly = true;
+        const failedOnly = $("cpaRemoteFailedOnly");
+        if (failedOnly) failedOnly.checked = true;
+        renderCpaRemoteList();
+      }
+
+      function focusSub2RemoteFailedAfterRun() {
+        const failedIds = [];
+        for (const [id, status] of sub2RemoteResultById.entries()) {
+          if (status === "err" && id) failedIds.push(id);
+        }
+        if (!failedIds.length) return;
+        sub2RemoteSelected = new Set(failedIds);
+        sub2RemoteFailedOnly = true;
+        const failedOnly = $("sub2RemoteFailedOnly");
+        if (failedOnly) failedOnly.checked = true;
+        renderSub2RemoteList();
+      }
+
+      function applyCpaRemoteChunkResults(chunk, files) {
+        const seen = new Set();
+        if (Array.isArray(files) && files.length) {
+          for (const item of files) {
+            const name = String(item?.name || "");
+            if (!name) continue;
+            seen.add(name);
+            if (item?.ok && item.content != null) {
+              cpaRemoteResultByName.set(name, "ok");
+            } else {
+              cpaRemoteResultByName.set(name, "err");
+            }
+          }
+        }
+        for (const name of chunk) {
+          const key = String(name || "");
+          if (!key || seen.has(key)) continue;
+          cpaRemoteResultByName.set(key, "err");
+        }
+      }
+
+      function applySub2RemoteChunkResults(chunk, successIds, failures, opts = {}) {
+        const okIds = new Set();
+        if (Array.isArray(successIds)) {
+          for (const raw of successIds) {
+            if (raw == null || raw === "") continue;
+            const id = String(raw);
+            okIds.add(id);
+            sub2RemoteResultById.set(id, "ok");
+          }
+        }
+        const failedIds = new Set();
+        if (Array.isArray(failures)) {
+          for (const item of failures) {
+            if (item?.id == null || item.id === "") continue;
+            const id = String(item.id);
+            failedIds.add(id);
+            sub2RemoteResultById.set(id, "err");
+          }
+        }
+        // 旧接口无 successIds 且本批全部成功时，整批记为成功
+        if (
+          !okIds.size &&
+          !failedIds.size &&
+          Number(opts.failedCount) === 0 &&
+          Number(opts.okCount) > 0
+        ) {
+          for (const raw of chunk) {
+            const id = String(raw ?? "");
+            if (id) sub2RemoteResultById.set(id, "ok");
+          }
+          return;
+        }
+        for (const raw of chunk) {
+          const id = String(raw ?? "");
+          if (!id) continue;
+          if (okIds.has(id) || failedIds.has(id)) continue;
+          // 本批无明细时按失败处理
+          sub2RemoteResultById.set(id, "err");
+        }
       }
 
       async function loadCpaRemoteAuthList() {
@@ -6653,6 +6990,10 @@
           );
           cpaRemoteFiles = Array.isArray(data?.files) ? data.files : [];
           cpaRemoteSelected = new Set(cpaRemoteFiles.map((f) => String(f.name)).filter(Boolean));
+          cpaRemoteResultByName = new Map();
+          cpaRemoteFailedOnly = false;
+          const failedOnly = $("cpaRemoteFailedOnly");
+          if (failedOnly) failedOnly.checked = false;
           renderCpaRemoteList();
           const count = cpaRemoteFiles.length;
           if (count > 0) {
@@ -6668,6 +7009,10 @@
         } catch (error) {
           cpaRemoteFiles = [];
           cpaRemoteSelected = new Set();
+          cpaRemoteResultByName = new Map();
+          cpaRemoteFailedOnly = false;
+          const failedOnly = $("cpaRemoteFailedOnly");
+          if (failedOnly) failedOnly.checked = false;
           renderCpaRemoteList();
           setCpaRemoteStatus(`加载失败：${apiErrorMessage(error)}`, "err");
           showMsg(`拉取 CPA 认证文件列表失败：${apiErrorMessage(error)}`, "err");
@@ -6692,28 +7037,59 @@
           setCpaRemoteStatus("请先配置 CPA", "err");
           return;
         }
+        const maxPerRequest = currentMaxCpaAuthDownload();
+        const chunkSize = Math.max(1, Math.min(REMOTE_CPA_DOWNLOAD_CHUNK_DEFAULT, maxPerRequest));
+        const chunks = chunkArray(names, chunkSize);
+        // 本次下载会覆盖所选文件的成功/失败标记
+        for (const name of names) cpaRemoteResultByName.delete(String(name || ""));
         setCpaRemoteBusy(true, "download");
-        setCpaRemoteStatus(`正在下载 ${names.length} 个认证文件`, "info");
+        setCpaRemoteStatus(`正在下载 ${names.length} 个认证文件，分 ${chunks.length} 批`, "info");
         showMsg(`正在从 CPA 下载 ${names.length} 个认证文件`, "info");
         try {
-          const body = { names };
           const config = uploadConfigPayload(effective);
-          if (config) body.config = config;
-          const { data } = await fetchJson(
-            "/api/cpa/auth-files/download",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(body),
-            },
-            10 * 60 * 1000
-          );
-          const files = Array.isArray(data?.files) ? data.files : [];
-          const okFiles = files.filter((item) => item?.ok && item.content != null);
-          const failedCount = Number(data?.failedCount) || files.length - okFiles.length;
-          if (!okFiles.length) {
+          const okFiles = [];
+          for (let i = 0; i < chunks.length; i++) {
+            const chunk = chunks[i];
             setCpaRemoteStatus(
-              failedCount ? `下载失败，全部 ${failedCount} 个文件未成功` : "下载失败，没有可用文件",
+              `正在下载第 ${i + 1}/${chunks.length} 批，本批 ${chunk.length} 个，累计成功 ${okFiles.length} 个`,
+              "info"
+            );
+            const body = { names: chunk };
+            if (config) body.config = config;
+            try {
+              const { data } = await fetchJson(
+                "/api/cpa/auth-files/download",
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(body),
+                },
+                10 * 60 * 1000
+              );
+              const files = Array.isArray(data?.files) ? data.files : [];
+              applyCpaRemoteChunkResults(chunk, files);
+              for (const item of files) {
+                if (item?.ok && item.content != null) okFiles.push(item);
+              }
+            } catch (chunkError) {
+              const files = Array.isArray(chunkError?.data?.files) ? chunkError.data.files : [];
+              applyCpaRemoteChunkResults(chunk, files);
+              for (const item of files) {
+                if (item?.ok && item.content != null) okFiles.push(item);
+              }
+            }
+            await yieldToBrowser();
+          }
+          let failedCount = 0;
+          for (const name of names) {
+            if (cpaRemoteResultByName.get(String(name || "")) === "err") failedCount += 1;
+          }
+          if (!okFiles.length) {
+            focusCpaRemoteFailedAfterRun();
+            setCpaRemoteStatus(
+              failedCount
+                ? `下载失败，全部 ${failedCount} 个文件未成功，已勾选失败项可二次下载`
+                : "下载失败，没有可用文件",
               "err"
             );
             showMsg("从 CPA 下载认证文件失败", "err");
@@ -6741,9 +7117,11 @@
             new Blob([zipBytes], { type: "application/zip" }),
             `cpa-auth-remote-${tsStamp()}.zip`
           );
+          if (failedCount > 0) focusCpaRemoteFailedAfterRun();
+          else renderCpaRemoteList();
           const msg =
             failedCount > 0
-              ? `下载完成，成功：${okFiles.length}，失败：${failedCount}`
+              ? `下载完成，成功：${okFiles.length}，失败：${failedCount}，已勾选失败项可二次下载`
               : `已打包下载 ${okFiles.length} 个认证文件`;
           setCpaRemoteStatus(msg, failedCount ? "err" : "ok");
           showMsg(msg, failedCount ? "err" : "ok");
@@ -6751,6 +7129,7 @@
         } catch (error) {
           setCpaRemoteStatus(`下载失败：${apiErrorMessage(error)}`, "err");
           showMsg(`从 CPA 下载失败：${apiErrorMessage(error)}`, "err");
+          renderCpaRemoteList();
         } finally {
           setCpaRemoteBusy(false);
         }
@@ -6798,6 +7177,10 @@
               .map((account) => (account?.id == null ? "" : String(account.id)))
               .filter(Boolean)
           );
+          sub2RemoteResultById = new Map();
+          sub2RemoteFailedOnly = false;
+          const failedOnly = $("sub2RemoteFailedOnly");
+          if (failedOnly) failedOnly.checked = false;
           renderSub2RemoteList();
           const count = sub2RemoteAccounts.length;
           if (count > 0) {
@@ -6813,6 +7196,10 @@
         } catch (error) {
           sub2RemoteAccounts = [];
           sub2RemoteSelected = new Set();
+          sub2RemoteResultById = new Map();
+          sub2RemoteFailedOnly = false;
+          const failedOnly = $("sub2RemoteFailedOnly");
+          if (failedOnly) failedOnly.checked = false;
           renderSub2RemoteList();
           setSub2RemoteStatus(`加载失败：${apiErrorMessage(error)}`, "err");
           showMsg(`拉取 SUB2API 账号列表失败：${apiErrorMessage(error)}`, "err");
@@ -6837,47 +7224,104 @@
           setSub2RemoteStatus("请先配置 SUB2API", "err");
           return;
         }
+        // 前端分批请求，避免单次拉全量详情导致 Worker 超时 / 浏览器卡死
+        const maxPerRequest = currentMaxSub2apiExport();
+        const chunkSize = Math.max(1, Math.min(REMOTE_EXPORT_CHUNK_DEFAULT, maxPerRequest));
+        const chunks = chunkArray(ids, chunkSize);
+        for (const id of ids) sub2RemoteResultById.delete(String(id ?? ""));
         setSub2RemoteBusy(true, "export");
-        setSub2RemoteStatus(`正在导出 ${ids.length} 个账号`, "info");
+        setSub2RemoteStatus(`正在导出 ${ids.length} 个账号，分 ${chunks.length} 批`, "info");
         showMsg(`正在从 SUB2API 导出 ${ids.length} 个账号`, "info");
         try {
-          const body = { ids };
           const config = uploadConfigPayload(effective);
-          if (config) body.config = config;
-          const { data } = await fetchJson(
-            "/api/sub2api/accounts/export",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(body),
-            },
-            10 * 60 * 1000
-          );
-          const pack = data?.pack;
-          const count = Number(data?.count) || pack?.accounts?.length || 0;
-          const failedCount = Number(data?.failedCount) || 0;
-          if (!pack || !Array.isArray(pack.accounts) || !pack.accounts.length) {
-            setSub2RemoteStatus("导出失败，没有可用账号数据", "err");
+          const accounts = [];
+          let exportedAt = "";
+          let hardError = null;
+          for (let i = 0; i < chunks.length; i++) {
+            const chunk = chunks[i];
+            setSub2RemoteStatus(
+              `正在导出第 ${i + 1}/${chunks.length} 批，本批 ${chunk.length} 个，累计成功 ${accounts.length} 个`,
+              "info"
+            );
+            const body = { ids: chunk };
+            if (config) body.config = config;
+            try {
+              const { data } = await fetchJson(
+                "/api/sub2api/accounts/export",
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(body),
+                },
+                10 * 60 * 1000
+              );
+              const pack = data?.pack;
+              if (pack?.exported_at && !exportedAt) exportedAt = pack.exported_at;
+              const packAccounts = Array.isArray(pack?.accounts) ? pack.accounts : [];
+              if (packAccounts.length) accounts.push(...packAccounts);
+              applySub2RemoteChunkResults(chunk, data?.successIds, data?.failures, {
+                failedCount: data?.failedCount,
+                okCount: packAccounts.length || data?.count || 0,
+              });
+            } catch (chunkError) {
+              // 单批全失败时 Worker 返回 502；分批场景下累计失败后继续下一批
+              const partialAccounts = Array.isArray(chunkError?.data?.pack?.accounts)
+                ? chunkError.data.pack.accounts
+                : [];
+              if (partialAccounts.length) accounts.push(...partialAccounts);
+              applySub2RemoteChunkResults(
+                chunk,
+                chunkError?.data?.successIds,
+                chunkError?.data?.failures,
+                {
+                  failedCount: chunkError?.data?.failedCount ?? chunk.length,
+                  okCount: partialAccounts.length,
+                }
+              );
+              const softIncomplete =
+                chunkError?.data?.code === "INCOMPLETE_ACCOUNT_DATA" || chunkError?.status === 502;
+              if (!hardError && !softIncomplete) hardError = chunkError;
+            }
+            await yieldToBrowser();
+          }
+          let failedCount = 0;
+          for (const id of ids) {
+            if (sub2RemoteResultById.get(String(id ?? "")) === "err") failedCount += 1;
+          }
+          if (!accounts.length) {
+            focusSub2RemoteFailedAfterRun();
+            const detail = hardError ? apiErrorMessage(hardError) : "";
+            setSub2RemoteStatus(
+              failedCount
+                ? `导出失败，全部 ${failedCount} 个账号无完整凭证${detail ? `，${detail}` : ""}，已勾选失败项可二次导出`
+                : detail
+                  ? `导出失败：${detail}`
+                  : "导出失败，没有可用账号数据",
+              "err"
+            );
             showMsg("从 SUB2API 导出失败，没有可用账号数据", "err");
             return;
           }
           // 与样例 sub2api-account.json 对齐：exported_at + proxies + accounts
           const exportPack = {
-            exported_at: pack.exported_at || new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
-            proxies: Array.isArray(pack.proxies) ? pack.proxies : [],
-            accounts: pack.accounts,
+            exported_at: exportedAt || new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+            proxies: [],
+            accounts,
           };
           downloadJson(exportPack, `sub2api-account-${tsStamp()}.json`);
+          if (failedCount > 0) focusSub2RemoteFailedAfterRun();
+          else renderSub2RemoteList();
           const msg =
             failedCount > 0
-              ? `导出完成，成功：${count}，失败：${failedCount}`
-              : `已导出 sub2api-account 合并包 ${count} 个账号`;
+              ? `导出完成，成功：${accounts.length}，失败：${failedCount}，已勾选失败项可二次导出`
+              : `已导出 sub2api-account 合并包 ${accounts.length} 个账号`;
           setSub2RemoteStatus(msg, failedCount ? "err" : "ok");
           showMsg(msg, failedCount ? "err" : "ok");
           showToast(msg, failedCount ? "err" : "ok", 4200);
         } catch (error) {
           setSub2RemoteStatus(`导出失败：${apiErrorMessage(error)}`, "err");
           showMsg(`从 SUB2API 导出失败：${apiErrorMessage(error)}`, "err");
+          renderSub2RemoteList();
         } finally {
           setSub2RemoteBusy(false);
         }
@@ -8488,6 +8932,11 @@
       });
       $("btnCpaRemoteSelectAll")?.addEventListener("click", () => selectAllCpaRemoteVisible());
       $("btnCpaRemoteSelectNone")?.addEventListener("click", () => clearCpaRemoteSelection());
+      $("btnCpaRemoteSelectFailed")?.addEventListener("click", () => selectCpaRemoteFailed());
+      $("cpaRemoteFailedOnly")?.addEventListener("change", (event) => {
+        cpaRemoteFailedOnly = Boolean(event.target?.checked);
+        renderCpaRemoteList();
+      });
       $("cpaRemoteSearch")?.addEventListener("input", (event) => {
         cpaRemoteSearch = event.target.value || "";
         renderCpaRemoteList();
@@ -8520,6 +8969,11 @@
       });
       $("btnSub2RemoteSelectAll")?.addEventListener("click", () => selectAllSub2RemoteVisible());
       $("btnSub2RemoteSelectNone")?.addEventListener("click", () => clearSub2RemoteSelection());
+      $("btnSub2RemoteSelectFailed")?.addEventListener("click", () => selectSub2RemoteFailed());
+      $("sub2RemoteFailedOnly")?.addEventListener("change", (event) => {
+        sub2RemoteFailedOnly = Boolean(event.target?.checked);
+        renderSub2RemoteList();
+      });
       $("sub2RemoteSearch")?.addEventListener("input", (event) => {
         sub2RemoteSearch = event.target.value || "";
         renderSub2RemoteList();

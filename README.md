@@ -99,7 +99,7 @@ x-api-key: <API_KEY>
 POST /api/v1/admin/accounts/data
 ```
 
-前端可在页面配置每批账号数，且不得超过 Worker 的 `MAX_SUB2API_ACCOUNTS` 上限（默认 100，硬上限 5000）。也可配置前端并行批次数与重试策略（见下方「上传行为说明」）。SUB2API 批量导入为非幂等写操作；Worker 仅对较安全的失败自动重试，超时等模糊失败默认不重试。
+前端可在页面配置每批账号数，且不得超过 Worker 的 `MAX_SUB2API_ACCOUNTS` 上限（默认 100，平台天花板 50000）。也可配置前端并行批次数与重试策略（见下方「上传行为说明」）。SUB2API 批量导入为非幂等写操作；Worker 仅对较安全的失败自动重试，超时等模糊失败默认不重试。
 
 ### 3.3 用环境变量配置 CPA（可选回退）
 
@@ -203,8 +203,14 @@ npm run dev
 | `ALLOW_INSECURE_UPSTREAM`                 |   否 | 普通变量                                                                                                               |
 | `MAX_SUB2API_ACCOUNTS`                    |   否 | 普通变量，默认 `100`，不得超过 `ABSOLUTE_MAX_SUB2API_ACCOUNTS`                                                         |
 | `MAX_CPA_FILES`                           |   否 | 普通变量，默认 `20`，不得超过 `ABSOLUTE_MAX_CPA_FILES`                                                                 |
-| `ABSOLUTE_MAX_SUB2API_ACCOUNTS`           |   否 | 普通变量，默认 `5000`，平台天花板 20000                                                                                |
-| `ABSOLUTE_MAX_CPA_FILES`                  |   否 | 普通变量，默认 `500`，平台天花板 2000                                                                                  |
+| `MAX_CPA_AUTH_DOWNLOAD_FILES`             |   否 | 普通变量，默认 `500`，单次从 CPA 下载认证文件上限；别名 `MAX_CPA_DOWNLOAD_FILES`                                       |
+| `MAX_SUB2API_EXPORT_ACCOUNTS`             |   否 | 普通变量，默认 `500`，单次从 SUB2API 导出账号上限                                                                      |
+| `MAX_SUB2API_DEDUPE_IDS`                  |   否 | 普通变量，默认 `5000`，单次去重删除账号 ID 上限；别名 `MAX_SUB2API_DEDUPE_ACCOUNTS`                                    |
+| `ABSOLUTE_MAX_SUB2API_ACCOUNTS`           |   否 | 普通变量，默认 `5000`，平台天花板 50000                                                                                |
+| `ABSOLUTE_MAX_CPA_FILES`                  |   否 | 普通变量，默认 `500`，平台天花板 50000                                                                                 |
+| `ABSOLUTE_MAX_CPA_AUTH_DOWNLOAD_FILES`    |   否 | 普通变量，默认 `2000`，平台天花板 50000；约束 `MAX_CPA_AUTH_DOWNLOAD_FILES`                                            |
+| `ABSOLUTE_MAX_SUB2API_EXPORT_ACCOUNTS`    |   否 | 普通变量，默认 `2000`，平台天花板 50000；约束 `MAX_SUB2API_EXPORT_ACCOUNTS`                                            |
+| `ABSOLUTE_MAX_SUB2API_DEDUPE_IDS`         |   否 | 普通变量，默认 `10000`，平台天花板 50000；约束 `MAX_SUB2API_DEDUPE_IDS`；别名 `ABSOLUTE_MAX_SUB2API_DEDUPE_ACCOUNTS`   |
 | `MAX_UPLOAD_CONCURRENCY_SUB2API`          |   否 | 普通变量，默认 `3`，不得超过对应绝对上限                                                                               |
 | `MAX_UPLOAD_CONCURRENCY_CPA`              |   否 | 普通变量，默认 `8`，不得超过对应绝对上限                                                                               |
 | `ABSOLUTE_MAX_UPLOAD_CONCURRENCY_SUB2API` |   否 | 普通变量，默认 `50`，范围 1–1000，且 ≥ 默认并发 `3`                                                                    |
@@ -241,12 +247,15 @@ npx wrangler deploy
 
 `/api/config/status` 的 `limits` 会带上 `proxyMapCacheTtlSeconds`、`proxyCacheKvBound`，便于确认是否读到配置。
 
-上传上限说明：
+上传与远端拉取上限说明：
 
 - `MAX_SUB2API_ACCOUNTS` / `MAX_CPA_FILES` 控制 Worker 接口允许的单批最大数量，也是前端「上限：xxx」的来源。
+- `MAX_CPA_AUTH_DOWNLOAD_FILES` 控制「从 CPA 下载」单次请求可带的文件名数量；前端会按更小的分片多次请求后合并 ZIP。
+- `MAX_SUB2API_EXPORT_ACCOUNTS` 控制「从 SUB2API 导出」单次请求可带的账号 ID 数量；前端同样分片请求后合并为 `sub2api-account-*.json`。
+- `MAX_SUB2API_DEDUPE_IDS` 控制「SUB2API 去重」单次删除可提交的账号 ID 数量；超出时前端自动分批删除。
 - `MAX_UPLOAD_CONCURRENCY_*` 控制前端可配置的并行批次数上限。
 - `MAX_*_UPLOAD_ATTEMPTS` 控制 SUB2API / CPA 的最大尝试次数上限（含首次）。
-- `ABSOLUTE_MAX_*` 是可选的绝对天花板。**只配 `MAX_*` 即可**；此时绝对上限回退到平台 hardMax（例如并发 1000、SUB2API 单批 20000），不再被偏低的内置 defaultAbsolute 卡住。
+- `ABSOLUTE_MAX_*` 是可选的绝对天花板。**只配 `MAX_*` 即可**；此时绝对上限回退到平台 hardMax（例如并发 1000、导入/导出/去重 50000），不再被偏低的内置 defaultAbsolute 卡住。
 - 若同时设置了 `ABSOLUTE_MAX_*`，则 `MAX_*` 必须 ≤ 该绝对上限；绝对上限本身须 ≥ 代码默认 `MAX_*` 回退值。
 - 启动时校验：值必须是有效正整数；配置无效时页面会显示配置错误提示（503）。
 - 未设置时：`MAX_*` 回退代码默认值并钳制到绝对上限；`ABSOLUTE_MAX_*` 回退内置默认绝对上限。
