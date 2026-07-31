@@ -435,10 +435,15 @@
       }
 
       .direction-lock-note {
-        margin-top: 6px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-left: 8px;
         font-size: 12px;
+        font-weight: 500;
         color: var(--muted);
-        line-height: 1.4;
+        line-height: 1.2;
+        vertical-align: middle;
       }
 
       .direction-lock-note[hidden] {
@@ -446,13 +451,16 @@
       }
 
       .direction-lock-note button {
-        margin-left: 6px;
         border: 0;
         background: transparent;
         color: var(--accent);
         font-size: 12px;
         cursor: pointer;
         padding: 0;
+      }
+
+      .field-mini-label .direction-lock-note {
+        font-weight: 500;
       }
 
       .drop {
@@ -1109,10 +1117,13 @@
         width: 10%;
       }
       col.col-convert {
+        width: 6%;
+      }
+      col.col-export {
         width: 7%;
       }
       col.col-upload {
-        width: 11%;
+        width: 10%;
       }
 
       td.cell-expiry {
@@ -1384,6 +1395,26 @@
 
       tr.selected-row td {
         background: rgba(59, 130, 246, 0.08);
+      }
+
+      .tag-export-none {
+        background: rgba(139, 155, 180, 0.13);
+        color: #b9c4d6;
+      }
+
+      .tag-exporting {
+        background: rgba(59, 130, 246, 0.15);
+        color: #93c5fd;
+      }
+
+      .tag-export-ok {
+        background: rgba(34, 197, 94, 0.15);
+        color: #86efac;
+      }
+
+      .tag-export-fail {
+        background: rgba(239, 68, 68, 0.15);
+        color: #fca5a5;
       }
 
       .tag-upload-none {
@@ -2292,7 +2323,7 @@
               <span
                 class="field-tip"
                 tabindex="0"
-                data-tip="列表阶段只请求源端账号元数据，速度更快。完整 token 会在转换、导出或上传时按需分批获取。远端账号不可回传到同一端"
+                data-tip="列表阶段只请求源端账号元数据，速度更快。完整 token 会在导出或上传时按需分批获取并自动转换。远端账号不可回传到同一端，导出不受此限"
                 >i</span
               >
             </div>
@@ -2304,16 +2335,18 @@
           <div class="field">
             <div class="batch-grid">
               <div>
-                <label for="direction" class="field-mini-label">转换方向</label>
+                <label for="direction" class="field-mini-label">
+                  转换方向
+                  <span class="direction-lock-note" id="directionLockNote" hidden>
+                    已按远端来源锁定
+                    <button type="button" id="btnUnlockDirection">解除锁定</button>
+                  </span>
+                </label>
                 <select id="direction">
                   <option value="auto">自动 · 按源格式反向</option>
                   <option value="to-SUB2API">全部 → SUB2API</option>
                   <option value="to-cpa">全部 → CPA</option>
                 </select>
-                <div class="direction-lock-note" id="directionLockNote" hidden>
-                  已按远端来源锁定
-                  <button type="button" id="btnUnlockDirection">解除锁定</button>
-                </div>
               </div>
               <div>
                 <label for="nameStrategy" class="field-mini-label">SUB2API 账号名</label>
@@ -2666,6 +2699,7 @@
               <col class="col-expiry" />
               <col class="col-proxy" />
               <col class="col-convert" />
+              <col class="col-export" />
               <col class="col-upload" />
             </colgroup>
             <thead>
@@ -2717,6 +2751,9 @@
                 <th class="th-sortable" data-sort="convert" tabindex="0" aria-sort="none">
                   转换<span class="sort-ind" aria-hidden="true"></span>
                 </th>
+                <th class="th-sortable" data-sort="export" tabindex="0" aria-sort="none">
+                  导出状态<span class="sort-ind" aria-hidden="true"></span>
+                </th>
                 <th class="th-sortable" data-sort="upload" tabindex="0" aria-sort="none">
                   上传状态<span class="sort-ind" aria-hidden="true"></span>
                 </th>
@@ -2724,7 +2761,7 @@
             </thead>
             <tbody id="tbody">
               <tr>
-                <td colspan="10" class="mono">尚未导入文件</td>
+                <td colspan="11" class="mono">尚未导入文件</td>
               </tr>
             </tbody>
           </table>
@@ -2732,13 +2769,11 @@
 
         <div class="actions">
           <div class="actions-group">
-            <button class="btn-primary" id="btnConvert" disabled>转换全部</button>
             <button class="btn-ghost" id="btnClear" disabled>清空</button>
           </div>
           <div class="actions-group">
             <button class="btn-ok" id="btnExportSub2" disabled>导出 SUB2API</button>
-            <button class="btn-ok" id="btnExportCpaZip" disabled>导出 CPA ZIP</button>
-            <button class="btn-ghost" id="btnExportCpaEach" disabled>逐个下载 CPA</button>
+            <button class="btn-ok" id="btnExportCpaZip" disabled>导出 CPA</button>
           </div>
           <div class="actions-group">
             <button
@@ -3351,6 +3386,12 @@
         UNKNOWN: "unknown",
         CANCELLED: "cancelled",
       });
+      const EXPORT_STATUS = Object.freeze({
+        NONE: "not-exported",
+        PREPARING: "preparing",
+        SUCCESS: "exported",
+        FAILED: "failed",
+      });
       const ACCOUNT_STATUS = Object.freeze({
         VALID: "valid",
         EXPIRED: "expired",
@@ -3375,6 +3416,9 @@
       let directionLockedByRemote = false;
       /** 当前主列表中是否含待补全凭证的远端账号 */
       let hasPendingRemoteHydration = false;
+      /** @type {Set<string>|null} 当前导出操作涉及的 item id */
+      let activeExportItemIds = null;
+      let exportBusy = false;
 
       const $ = (id) => document.getElementById(id);
       const dropzone = $("dropzone");
@@ -3489,6 +3533,9 @@
           uploadTarget: "",
           uploadMessage: "",
           uploadAttempts: 0,
+          exportStatus: EXPORT_STATUS.NONE,
+          exportTarget: "",
+          exportMessage: "",
           accountStatus: ACCOUNT_STATUS.UNKNOWN,
           expiresAt: null,
           proxyId: null,
@@ -3671,6 +3718,21 @@
         return 1;
       }
 
+      function exportSortRank(item) {
+        switch (item.exportStatus) {
+          case EXPORT_STATUS.NONE:
+            return 0;
+          case EXPORT_STATUS.PREPARING:
+            return 1;
+          case EXPORT_STATUS.SUCCESS:
+            return 2;
+          case EXPORT_STATUS.FAILED:
+            return 3;
+          default:
+            return 8;
+        }
+      }
+
       function accountStatusSortRank(item) {
         if (item.error || !item.account) return 9;
         if (item.accountStatus === ACCOUNT_STATUS.VALID) return 1;
@@ -3737,6 +3799,8 @@
             return getItemProxyId(item);
           case "convert":
             return convertSortRank(item);
+          case "export":
+            return exportSortRank(item);
           case "upload":
             return uploadSortRank(item);
           default:
@@ -3748,7 +3812,7 @@
         if (key === "expiresAt" || key === "proxyId" || key === "index") {
           return compareNullableNumber(a, b);
         }
-        if (key === "accountStatus" || key === "convert" || key === "upload") {
+        if (key === "accountStatus" || key === "convert" || key === "export" || key === "upload") {
           return Number(a) - Number(b);
         }
         return compareText(a, b);
@@ -4276,14 +4340,23 @@
         return new Promise((resolve) => setTimeout(resolve, 0));
       }
 
+      function canTargetFormat(item, target) {
+        // 远端 stub 仅有元数据时也可作为导出/上传候选，点击后再补全与转换
+        if (!item || item.error) return false;
+        if (!item.account && !itemNeedsHydration(item)) return false;
+        const key = resolveItemTargetKey(item);
+        if (target === TARGET_SUB2API) return key === "sub2api" || key === TARGET_SUB2API;
+        if (target === TARGET_CPA || target === "cpa") return key === "cpa";
+        return false;
+      }
+
       function refreshActionButtons() {
         const operationItems = getOperationItems();
         const hasItems = operationItems.length > 0;
-        const anyBusy = uploadBusy || remoteImportBusy || sub2DedupeBusy;
+        const anyBusy = uploadBusy || exportBusy || remoteImportBusy || sub2DedupeBusy;
         const idleUsable = hasItems && !anyBusy;
         const blockUploadSub2 = sameSideUploadBlocked(TARGET_SUB2API);
         const blockUploadCpa = sameSideUploadBlocked(TARGET_CPA);
-        $("btnConvert").disabled = !idleUsable;
         // 无配置时也可点击，点击后弹窗引导配置；远端同源禁止回传
         $("btnUploadSub2").disabled = !idleUsable || blockUploadSub2;
         $("btnUploadCpa").disabled = !idleUsable || blockUploadCpa;
@@ -4294,17 +4367,11 @@
           ? "列表含从 CPA 远端载入的账号，不可回传到 CPA"
           : targetConfigTooltip(TARGET_CPA);
         $("btnClear").disabled = !items.length || anyBusy;
-        const hasSub2 = operationItems.some(
-          (item) => item.converted && item.targetFormat === TARGET_SUB2API
-        );
-        const hasCpa = operationItems.some(
-          (item) => item.converted && item.targetFormat === TARGET_CPA
-        );
-        // 本地导出不受同源限制
-        $("btnExportSub2").disabled = !hasSub2 || anyBusy;
-        $("btnExportCpaZip").disabled = !hasCpa || anyBusy;
-        $("btnExportCpaEach").disabled = !hasCpa || anyBusy;
-        $("btnConvert").textContent = selectionMode ? "转换所选" : "转换全部";
+        // 导出不受同源限制；按转换方向与源格式判断目标，导出/上传时再自动转换
+        const canExportSub2 = operationItems.some((item) => canTargetFormat(item, TARGET_SUB2API));
+        const canExportCpa = operationItems.some((item) => canTargetFormat(item, TARGET_CPA));
+        $("btnExportSub2").disabled = !canExportSub2 || anyBusy;
+        $("btnExportCpaZip").disabled = !canExportCpa || anyBusy;
         $("btnCancelUpload").hidden = !uploadBusy;
         $("btnCancelUpload").disabled = !uploadBusy || uploadCancelRequested;
         refreshRemoteActionButtons();
@@ -4945,6 +5012,9 @@
           uploadTarget: item.uploadTarget || "",
           uploadMessage: item.uploadMessage || "",
           uploadAttempts: item.uploadAttempts || 0,
+          exportStatus: item.exportStatus || EXPORT_STATUS.NONE,
+          exportTarget: item.exportTarget || "",
+          exportMessage: item.exportMessage || "",
           needsHydration: Boolean(item.needsHydration),
           remoteOrigin: item.remoteOrigin || null,
           remoteRef: item.remoteRef || null,
@@ -4966,17 +5036,23 @@
           uploadTarget: raw.uploadTarget || "",
           uploadMessage: raw.uploadMessage || "",
           uploadAttempts: Number(raw.uploadAttempts) || 0,
+          exportStatus: raw.exportStatus || EXPORT_STATUS.NONE,
+          exportTarget: raw.exportTarget || "",
+          exportMessage: raw.exportMessage || "",
           proxyId: raw.proxyId ?? null,
           proxyValid: raw.proxyValid ?? null,
           needsHydration: Boolean(raw.needsHydration),
           remoteOrigin: raw.remoteOrigin || null,
           remoteRef: raw.remoteRef || null,
         });
-        // prepareItem 会重算过期；保留快照里的上传字段
+        // prepareItem 会重算过期；保留快照里的上传/导出字段
         if (raw.uploadStatus) item.uploadStatus = raw.uploadStatus;
         if (raw.uploadTarget) item.uploadTarget = raw.uploadTarget;
         if (raw.uploadMessage) item.uploadMessage = raw.uploadMessage;
         if (raw.uploadAttempts != null) item.uploadAttempts = Number(raw.uploadAttempts) || 0;
+        if (raw.exportStatus) item.exportStatus = raw.exportStatus;
+        if (raw.exportTarget) item.exportTarget = raw.exportTarget;
+        if (raw.exportMessage) item.exportMessage = raw.exportMessage;
         if (raw.converted) {
           item.converted = raw.converted;
           item.targetFormat = raw.targetFormat || null;
@@ -5419,6 +5495,30 @@
         $("statErr").textContent = String(items.filter((i) => i.error).length);
       }
 
+      function setItemExportState(item, status, target = "", message = "") {
+        if (!item) return;
+        item.exportStatus = status || EXPORT_STATUS.NONE;
+        item.exportTarget = target || "";
+        item.exportMessage = message || "";
+        scheduleWorkspaceSave();
+      }
+
+      function exportStatusHtml(item) {
+        const detail = item.exportMessage
+          ? `<span class="upload-detail" title="${escapeHtml(item.exportMessage)}">${escapeHtml(item.exportMessage)}</span>`
+          : "";
+        if (item.exportStatus === EXPORT_STATUS.PREPARING) {
+          return `<span class="tag tag-exporting">${escapeHtml(item.exportTarget || "")} 准备中</span>${detail}`;
+        }
+        if (item.exportStatus === EXPORT_STATUS.SUCCESS) {
+          return `<span class="tag tag-export-ok">${escapeHtml(item.exportTarget || "")} 已导出</span>${detail}`;
+        }
+        if (item.exportStatus === EXPORT_STATUS.FAILED) {
+          return `<span class="tag tag-export-fail">${escapeHtml(item.exportTarget || "")} 导出失败</span>${detail}`;
+        }
+        return `<span class="tag tag-export-none">未导出</span>`;
+      }
+
       function uploadStatusHtml(item) {
         const detail = item.uploadMessage
           ? `<span class="upload-detail" title="${escapeHtml(item.uploadMessage)}">${escapeHtml(item.uploadMessage)}</span>`
@@ -5489,13 +5589,13 @@
         syncSortHeaders();
         const visibleItems = getVisibleItems();
         if (!items.length) {
-          tbody.innerHTML = `<tr><td colspan="10" class="mono">尚未导入文件</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="11" class="mono">尚未导入文件</td></tr>`;
           updateStats();
           refreshActionButtons();
           return;
         }
         if (!visibleItems.length) {
-          tbody.innerHTML = `<tr><td colspan="10" class="mono">没有匹配的账号</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="11" class="mono">没有匹配的账号</td></tr>`;
           updateStats();
           refreshActionButtons();
           return;
@@ -5520,9 +5620,11 @@
             }
             const status = item.error
               ? `<span class="tag tag-err">${escapeHtml(item.error)}</span>`
-              : item.converted
-                ? `<span class="tag tag-ok">已转换</span>`
-                : `<span class="tag tag-ok">待转换</span>`;
+              : itemNeedsHydration(item)
+                ? `<span class="tag tag-exporting">待补全</span>`
+                : item.converted
+                  ? `<span class="tag tag-ok">已转换</span>`
+                  : `<span class="tag tag-ok">待转换</span>`;
             const rowNo = tableSort.key ? rowIndex + 1 : index + 1;
             const firstCell = selectionMode
               ? `<label class="row-select-cell"><input type="checkbox" class="row-check" data-item-id="${escapeHtml(item.id)}" ${item.selected ? "checked" : ""} /><span>${rowNo}</span></label>`
@@ -5537,6 +5639,7 @@
             <td class="cell-expiry">${accountExpiryHtml(item)}</td>
             <td class="cell-tag">${proxyCellHtml(item)}</td>
             <td class="cell-tag">${status}</td>
+            <td class="cell-tag">${exportStatusHtml(item)}</td>
             <td class="cell-tag">${uploadStatusHtml(item)}</td>
           </tr>`;
           })
@@ -5653,67 +5756,203 @@
         throw new Error("无法判定目标格式");
       }
 
-      async function convertAll() {
-        clearMsg();
-        if (remoteImportBusy) {
-          showMsg("远端导入进行中，请稍后再转换", "err");
-          return;
+      function normalizeExportTarget(target) {
+        if (target === TARGET_SUB2API || target === "sub2api") return TARGET_SUB2API;
+        return TARGET_CPA;
+      }
+
+      function setExportBusy(busy) {
+        exportBusy = Boolean(busy);
+        if (!exportBusy) activeExportItemIds = null;
+        refreshActionButtons();
+      }
+
+      function exportProgressMessage(target, total, phaseText = "") {
+        const scope = activeExportItemIds
+          ? items.filter((item) => activeExportItemIds.has(item.id))
+          : getOperationItems().filter((item) => canTargetFormat(item, target));
+        const success = scope.filter((item) => item.exportStatus === EXPORT_STATUS.SUCCESS).length;
+        const failed = scope.filter((item) => item.exportStatus === EXPORT_STATUS.FAILED).length;
+        const preparing = scope.filter(
+          (item) => item.exportStatus === EXPORT_STATUS.PREPARING
+        ).length;
+        const settled = success + failed;
+        const pct = total > 0 ? Math.min(100, Math.round((settled / total) * 100)) : 0;
+        const label = target === TARGET_SUB2API ? "SUB2API" : "CPA";
+        setUploadProgressVisible(true);
+        $("uploadProgressTitle").textContent = phaseText || `${label} 导出进度`;
+        $("uploadProgressPct").textContent = `${pct}% ${settled}/${total}`;
+        $("uploadProgressMeta").innerHTML =
+          `<span>已导出：<b>${success}</b></span>` +
+          `<span>失败：<b>${failed}</b></span>` +
+          `<span>准备中：<b>${preparing}</b></span>` +
+          `<span>共：<b>${total}</b></span>`;
+        const fill = $("uploadProgressFill");
+        fill.style.width = `${pct}%`;
+        fill.classList.remove("is-ok", "is-warn", "is-danger");
+        if (failed) fill.classList.add("is-danger");
+        else if (settled >= total && total > 0 && !preparing) fill.classList.add("is-ok");
+        else if (preparing) fill.classList.add("is-warn");
+      }
+
+      /**
+       * 导出/上传前：按目标补全凭证并自动转换
+       * @returns {Promise<{items:any[], skipped:any[], cancelled:boolean}|null>}
+       */
+      async function prepareItemsForTarget(target, options = {}) {
+        const { progressLabel = "操作", trackExport = false, announceEmpty = true } = options;
+        const exportTarget = normalizeExportTarget(target);
+        if (remoteImportBusy && !exportBusy) {
+          showMsg(`远端导入进行中，请稍后再${progressLabel}`, "err");
+          return null;
         }
-        const targets = getOperationItems();
-        if (!targets.length) {
-          showMsg(selectionMode ? "请先选择账号" : "没有可转换的账号", "err");
-          return;
+        if (uploadBusy) {
+          showMsg(`上传进行中，请稍后再${progressLabel}`, "err");
+          return null;
         }
-        try {
-          const hydrate = await ensureItemsHydrated(targets, {
-            progressLabel: "转换",
-            allowPartial: true,
-          });
-          if (hydrate.cancelled) {
-            showMsg("已取消补全凭证", "info");
-            return;
+        const operationItems = getOperationItems().filter((item) =>
+          canTargetFormat(item, exportTarget)
+        );
+        if (!operationItems.length) {
+          if (announceEmpty) {
+            showMsg(
+              selectionMode
+                ? `请先选择可${progressLabel}到 ${exportTarget === TARGET_SUB2API ? "SUB2API" : "CPA"} 的账号`
+                : `没有可${progressLabel}的 ${exportTarget === TARGET_SUB2API ? "SUB2API" : "CPA"} 账号`,
+              "err"
+            );
           }
-          if (hydrate.failedCount && !hydrate.okCount) {
-            showMsg(`补全凭证失败 ${hydrate.failedCount} 个，无法转换`, "err");
-            return;
-          }
-        } catch (error) {
-          showMsg(`补全凭证失败：${apiErrorMessage(error)}`, "err");
-          return;
+          return null;
         }
 
-        let ok = 0;
-        let skip = 0;
-        let failed = 0;
-        for (const item of targets) {
-          item.converted = null;
-          item.targetFormat = null;
-          if (item.error || !item.account || itemNeedsHydration(item)) {
-            skip++;
+        if (trackExport) {
+          activeExportItemIds = new Set(operationItems.map((item) => item.id));
+          for (const item of operationItems) {
+            setItemExportState(item, EXPORT_STATUS.PREPARING, exportTarget, "补全凭证与转换中");
+          }
+          exportProgressMessage(exportTarget, operationItems.length, `${progressLabel}准备中`);
+          renderTable();
+        }
+
+        try {
+          const hydrate = await ensureItemsHydrated(operationItems, {
+            progressLabel,
+            allowPartial: true,
+            allowDuringExport: trackExport || exportBusy,
+          });
+          if (hydrate.cancelled) {
+            if (trackExport) {
+              for (const item of operationItems) {
+                if (item.exportStatus === EXPORT_STATUS.PREPARING) {
+                  setItemExportState(item, EXPORT_STATUS.NONE, "", "已取消");
+                }
+              }
+              renderTable();
+            }
+            showMsg("已取消补全凭证", "info");
+            return { items: [], skipped: [], cancelled: true };
+          }
+        } catch (error) {
+          if (trackExport) {
+            for (const item of operationItems) {
+              setItemExportState(
+                item,
+                EXPORT_STATUS.FAILED,
+                exportTarget,
+                `补全凭证失败：${apiErrorMessage(error)}`
+              );
+            }
+            exportProgressMessage(exportTarget, operationItems.length, `${progressLabel}失败`);
+            renderTable();
+          }
+          showMsg(`补全凭证失败：${apiErrorMessage(error)}`, "err");
+          return null;
+        }
+
+        let convertFailed = 0;
+        for (const item of operationItems) {
+          if (itemNeedsHydration(item) || item.error || !item.account) {
+            if (trackExport) {
+              setItemExportState(
+                item,
+                EXPORT_STATUS.FAILED,
+                exportTarget,
+                item.error || "凭证未补全"
+              );
+            }
+            convertFailed += 1;
             continue;
           }
-          const target = resolveTarget(item.sourceFormat);
-          if (!target) {
-            item.error = "无法判定目标格式";
-            failed++;
-            continue;
-          }
+          const already =
+            item.converted &&
+            (exportTarget === TARGET_SUB2API
+              ? item.targetFormat === TARGET_SUB2API
+              : item.targetFormat === "cpa" || item.targetFormat === TARGET_CPA);
+          if (already) continue;
           try {
-            item.converted = convertItemTo(item, target);
-            item.targetFormat = target;
-            ok++;
+            item.converted = convertItemTo(item, exportTarget);
+            item.targetFormat = exportTarget === TARGET_SUB2API ? TARGET_SUB2API : "cpa";
           } catch (e) {
             item.error = "转换失败: " + e.message;
-            failed++;
+            convertFailed += 1;
+            if (trackExport) {
+              setItemExportState(item, EXPORT_STATUS.FAILED, exportTarget, item.error);
+            }
           }
         }
         converted = items.some((item) => item.converted);
-        renderTable();
-        scheduleWorkspaceSave({ immediate: true });
-        showMsg(
-          `转换完成，成功：${ok}, 跳过：${skip}, 失败：${failed}`,
-          failed || (!ok && skip) ? "err" : "ok"
-        );
+
+        const ready = operationItems.filter((item) => {
+          if (item.error || !item.account || itemNeedsHydration(item) || !item.converted) {
+            return false;
+          }
+          if (exportTarget === TARGET_SUB2API) return item.targetFormat === TARGET_SUB2API;
+          return item.targetFormat === "cpa" || item.targetFormat === TARGET_CPA;
+        });
+        const { items: list, skipped } = filterExportOrUploadItems(ready, {
+          announce: false,
+          actionLabel: progressLabel,
+        });
+        if (trackExport) {
+          for (const item of skipped) {
+            setItemExportState(item, EXPORT_STATUS.FAILED, exportTarget, "已跳过失效账号");
+          }
+          for (const item of operationItems) {
+            if (
+              item.exportStatus === EXPORT_STATUS.PREPARING &&
+              !list.includes(item) &&
+              !skipped.includes(item)
+            ) {
+              setItemExportState(
+                item,
+                EXPORT_STATUS.FAILED,
+                exportTarget,
+                item.error || "无法导出"
+              );
+            }
+          }
+          exportProgressMessage(exportTarget, operationItems.length, `${progressLabel}准备中`);
+          renderTable();
+          scheduleWorkspaceSave({ immediate: true });
+        } else {
+          renderTable();
+          scheduleWorkspaceSave({ immediate: true });
+        }
+
+        if (!list.length) {
+          if (announceEmpty) {
+            showMsg(
+              skipped.length
+                ? `没有可${progressLabel}的账号，跳过 ${skipped.length} 个失效账号`
+                : convertFailed
+                  ? `没有可${progressLabel}的账号，转换/补全失败 ${convertFailed} 个`
+                  : `没有可${progressLabel}的账号`,
+              "err"
+            );
+          }
+          return { items: [], skipped, cancelled: false };
+        }
+        return { items: list, skipped, cancelled: false };
       }
 
       function downloadBlob(blob, filename) {
@@ -5746,70 +5985,41 @@
       }
 
       async function exportSub2() {
-        if (remoteImportBusy) {
-          showMsg("远端导入进行中，请稍后再导出", "err");
+        if (exportBusy || uploadBusy || remoteImportBusy || sub2DedupeBusy) {
+          showMsg("其他任务进行中，请稍后再导出", "err");
           return;
         }
-        const preCandidates = getOperationItems().filter(
-          (i) => i.converted && i.targetFormat === TARGET_SUB2API
-        );
-        if (!preCandidates.length) {
-          showMsg("没有可导出的 SUB2API 账号", "err");
-          return;
-        }
+        clearMsg();
+        setExportBusy(true);
         try {
-          const hydrate = await ensureItemsHydrated(preCandidates, {
+          const prepared = await prepareItemsForTarget(TARGET_SUB2API, {
             progressLabel: "导出 SUB2API",
-            allowPartial: true,
+            trackExport: true,
           });
-          if (hydrate.cancelled) {
-            showMsg("已取消补全凭证", "info");
-            return;
+          if (!prepared || prepared.cancelled) return;
+          const { items: list, skipped } = prepared;
+          if (!list.length) return;
+          const accounts = list.map((i) => i.converted);
+          const pack = {
+            exported_at: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+            proxies: [],
+            accounts,
+          };
+          downloadJson(pack, `SUB2API-account-${tsStamp()}.json`);
+          for (const item of list) {
+            setItemExportState(item, EXPORT_STATUS.SUCCESS, TARGET_SUB2API, "已写入本机文件");
           }
-        } catch (error) {
-          showMsg(`补全凭证失败：${apiErrorMessage(error)}`, "err");
-          return;
-        }
-        // 补全后可能需要重新转换
-        for (const item of preCandidates) {
-          if (itemNeedsHydration(item) || item.error || !item.account) continue;
-          if (!item.converted || item.targetFormat !== TARGET_SUB2API) {
-            try {
-              item.converted = convertItemTo(item, TARGET_SUB2API);
-              item.targetFormat = TARGET_SUB2API;
-            } catch (e) {
-              item.error = "转换失败: " + e.message;
-            }
-          }
-        }
-        const candidates = preCandidates.filter(
-          (i) => i.converted && i.targetFormat === TARGET_SUB2API && !itemNeedsHydration(i)
-        );
-        const { items: list, skipped } = filterExportOrUploadItems(candidates, {
-          announce: false,
-          actionLabel: "导出",
-        });
-        const accounts = list.map((i) => i.converted);
-        if (!accounts.length) {
+          exportProgressMessage(TARGET_SUB2API, activeExportItemIds?.size || list.length);
+          renderTable();
+          scheduleWorkspaceSave({ immediate: true });
           showMsg(
-            skipped.length
-              ? `没有可导出的 SUB2API 账号，跳过 ${skipped.length} 个失效账号`
-              : "没有可导出的 SUB2API 账号",
-            "err"
+            `已导出 ${accounts.length} 个账号` +
+              (skipped.length ? `，跳过 ${skipped.length} 个失效账号` : ""),
+            "ok"
           );
-          return;
+        } finally {
+          setExportBusy(false);
         }
-        const pack = {
-          exported_at: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
-          proxies: [],
-          accounts,
-        };
-        downloadJson(pack, `SUB2API-account-${tsStamp()}.json`);
-        showMsg(
-          `已导出 ${accounts.length} 个账号` +
-            (skipped.length ? `，跳过 ${skipped.length} 个失效账号` : ""),
-          "ok"
-        );
       }
 
       // ---- minimal ZIP (STORE) ----
@@ -5902,123 +6112,54 @@
         return concat([...locals, centralDir, end]);
       }
 
-      async function prepareCpaExportCandidates() {
-        if (remoteImportBusy) {
-          showMsg("远端导入进行中，请稍后再导出", "err");
-          return null;
-        }
-        const preCandidates = getOperationItems().filter(
-          (i) => i.converted && i.targetFormat === "cpa"
-        );
-        if (!preCandidates.length) {
-          showMsg("没有可导出的 CPA 记录", "err");
-          return null;
-        }
-        try {
-          const hydrate = await ensureItemsHydrated(preCandidates, {
-            progressLabel: "导出 CPA",
-            allowPartial: true,
-          });
-          if (hydrate.cancelled) {
-            showMsg("已取消补全凭证", "info");
-            return null;
-          }
-        } catch (error) {
-          showMsg(`补全凭证失败：${apiErrorMessage(error)}`, "err");
-          return null;
-        }
-        for (const item of preCandidates) {
-          if (itemNeedsHydration(item) || item.error || !item.account) continue;
-          if (!item.converted || item.targetFormat !== "cpa") {
-            try {
-              item.converted = convertItemTo(item, TARGET_CPA);
-              item.targetFormat = "cpa";
-            } catch (e) {
-              item.error = "转换失败: " + e.message;
-            }
-          }
-        }
-        return preCandidates.filter(
-          (i) => i.converted && i.targetFormat === "cpa" && !itemNeedsHydration(i)
-        );
-      }
-
       async function exportCpaZip() {
-        const candidates = await prepareCpaExportCandidates();
-        if (!candidates) return;
-        const { items: list, skipped } = filterExportOrUploadItems(candidates, {
-          announce: false,
-          actionLabel: "导出",
-        });
-        if (!list.length) {
-          showMsg(
-            skipped.length
-              ? `没有可导出的 CPA 记录，跳过 ${skipped.length} 个失效账号`
-              : "没有可导出的 CPA 记录",
-            "err"
-          );
+        if (exportBusy || uploadBusy || remoteImportBusy || sub2DedupeBusy) {
+          showMsg("其他任务进行中，请稍后再导出", "err");
           return;
         }
-        const enc = new TextEncoder();
-        const used = new Map();
-        const files = list.map((item) => {
-          let name = cpaFilename(item.converted);
-          if (used.has(name)) {
-            const n = used.get(name) + 1;
-            used.set(name, n);
-            name = name.replace(/\.json$/i, `-${n}.json`);
-          } else {
-            used.set(name, 1);
-          }
-          const text = JSON.stringify(item.converted, null, 2);
-          return { name, data: enc.encode(text) };
-        });
-        const zipBytes = buildZip(files);
-        downloadBlob(
-          new Blob([zipBytes], { type: "application/zip" }),
-          `cpa-auth-${tsStamp()}.zip`
-        );
-        showMsg(
-          `已导出 CPA ZIP ${files.length} 个文件` +
-            (skipped.length ? `，跳过 ${skipped.length} 个失效账号` : ""),
-          "ok"
-        );
-      }
-
-      async function exportCpaEach() {
-        const candidates = await prepareCpaExportCandidates();
-        if (!candidates) return;
-        const { items: list, skipped } = filterExportOrUploadItems(candidates, {
-          announce: false,
-          actionLabel: "导出",
-        });
-        if (!list.length) {
-          showMsg(
-            skipped.length
-              ? `没有可导出的 CPA 记录，跳过 ${skipped.length} 个失效账号`
-              : "没有可导出的 CPA 记录",
-            "err"
+        clearMsg();
+        setExportBusy(true);
+        try {
+          const prepared = await prepareItemsForTarget(TARGET_CPA, {
+            progressLabel: "导出 CPA",
+            trackExport: true,
+          });
+          if (!prepared || prepared.cancelled) return;
+          const { items: list, skipped } = prepared;
+          if (!list.length) return;
+          const enc = new TextEncoder();
+          const used = new Map();
+          const files = list.map((item) => {
+            let name = cpaFilename(item.converted);
+            if (used.has(name)) {
+              const n = used.get(name) + 1;
+              used.set(name, n);
+              name = name.replace(/\.json$/i, `-${n}.json`);
+            } else {
+              used.set(name, 1);
+            }
+            const text = JSON.stringify(item.converted, null, 2);
+            return { name, data: enc.encode(text) };
+          });
+          const zipBytes = buildZip(files);
+          downloadBlob(
+            new Blob([zipBytes], { type: "application/zip" }),
+            `cpa-auth-${tsStamp()}.zip`
           );
-          return;
-        }
-        const used = new Map();
-        for (const item of list) {
-          let name = cpaFilename(item.converted);
-          if (used.has(name)) {
-            const n = used.get(name) + 1;
-            used.set(name, n);
-            name = name.replace(/\.json$/i, `-${n}.json`);
-          } else {
-            used.set(name, 1);
+          for (const item of list) {
+            setItemExportState(item, EXPORT_STATUS.SUCCESS, TARGET_CPA, "已写入本机 ZIP");
           }
-          downloadJson(item.converted, name);
-          await new Promise((r) => setTimeout(r, 120));
+          exportProgressMessage(TARGET_CPA, activeExportItemIds?.size || list.length);
+          renderTable();
+          scheduleWorkspaceSave({ immediate: true });
+          showMsg(
+            `已导出 CPA ${files.length} 个文件` +
+              (skipped.length ? `，跳过 ${skipped.length} 个失效账号` : ""),
+            "ok"
+          );
+        } finally {
+          setExportBusy(false);
         }
-        showMsg(
-          `已触发逐个下载 CPA JSON ${list.length} 个` +
-            (skipped.length ? `，跳过 ${skipped.length} 个失效账号` : ""),
-          "ok"
-        );
       }
 
       function apiErrorMessage(error) {
@@ -8853,6 +8994,10 @@
 
       async function uploadToServer(target, showConfigOnly = false, options = {}) {
         if (uploadBusy) return;
+        if (exportBusy) {
+          showMsg("导出进行中，请稍后再上传", "err");
+          return;
+        }
         if (remoteImportBusy) {
           showMsg("远端导入进行中，请先取消或等待完成后再上传", "err");
           return;
@@ -8866,9 +9011,9 @@
           );
           return;
         }
-        const operationItems = Array.isArray(options.itemsOverride)
+        let operationItems = Array.isArray(options.itemsOverride)
           ? options.itemsOverride.filter((item) => item && !item.error && item.account)
-          : getOperationItems();
+          : getOperationItems().filter((item) => canTargetFormat(item, target));
         if (!showConfigOnly && !operationItems.length) {
           showMsg(
             options.itemsOverride
@@ -8881,6 +9026,9 @@
           return;
         }
 
+        // 上传前自动补全凭证并转换目标格式
+        let expiredItems = [];
+        let uploadItems = operationItems;
         if (!showConfigOnly) {
           try {
             const hydrate = await ensureItemsHydrated(operationItems, {
@@ -8899,41 +9047,76 @@
             showMsg(`补全凭证失败：${apiErrorMessage(error)}`, "err");
             return;
           }
-        }
 
-        // 过期处理：按选项决定是否跳过失效账号
-        let expiredItems = [];
-        let uploadItems = operationItems.filter(
-          (item) => item && !item.error && item.account && !itemNeedsHydration(item)
-        );
-        if (!showConfigOnly && !uploadItems.length) {
-          showMsg("没有可上传的账号，请先补全远端凭证", "err");
-          return;
-        }
-        if (!showConfigOnly && shouldSkipExpiredAccounts()) {
-          const filtered = filterExportOrUploadItems(uploadItems);
-          expiredItems = filtered.skipped;
-          uploadItems = filtered.items;
-          if (expiredItems.length) {
-            for (const item of expiredItems) {
-              const expiredText = item.expiresAt
-                ? `已于 ${formatExpiryDisplay(item.expiresAt) || item.expiresAt} 过期`
-                : "账号已过期";
-              setItemUploadState(item, UPLOAD_STATUS.NONE, "", `已跳过，${expiredText}`, 0);
+          let convertFailed = 0;
+          for (const item of operationItems) {
+            if (itemNeedsHydration(item) || item.error || !item.account) {
+              convertFailed += 1;
+              continue;
             }
-            renderTable();
+            const already =
+              item.converted &&
+              (target === TARGET_SUB2API
+                ? item.targetFormat === TARGET_SUB2API
+                : item.targetFormat === "cpa" || item.targetFormat === TARGET_CPA);
+            if (already) continue;
+            try {
+              item.converted = convertItemTo(item, target);
+              item.targetFormat = target === TARGET_SUB2API ? TARGET_SUB2API : "cpa";
+            } catch (e) {
+              item.error = "转换失败: " + e.message;
+              convertFailed += 1;
+            }
           }
+          converted = items.some((item) => item.converted);
+
+          uploadItems = operationItems.filter((item) => {
+            if (item.error || !item.account || itemNeedsHydration(item) || !item.converted) {
+              return false;
+            }
+            if (target === TARGET_SUB2API) return item.targetFormat === TARGET_SUB2API;
+            return item.targetFormat === "cpa" || item.targetFormat === TARGET_CPA;
+          });
           if (!uploadItems.length) {
             showMsg(
-              expiredItems.length
-                ? `所选 ${expiredItems.length} 个账号均已失效。可在「过期处理」中改为仍包含`
-                : selectionMode
-                  ? "请先勾选要上传的账号"
-                  : "没有可上传的账号",
+              convertFailed
+                ? `没有可上传的账号，转换/补全失败 ${convertFailed} 个`
+                : "没有可上传的账号，请先补全远端凭证",
               "err"
             );
+            renderTable();
+            scheduleWorkspaceSave({ immediate: true });
             return;
           }
+
+          // 过期处理：按选项决定是否跳过失效账号
+          if (shouldSkipExpiredAccounts()) {
+            const filtered = filterExportOrUploadItems(uploadItems);
+            expiredItems = filtered.skipped;
+            uploadItems = filtered.items;
+            if (expiredItems.length) {
+              for (const item of expiredItems) {
+                const expiredText = item.expiresAt
+                  ? `已于 ${formatExpiryDisplay(item.expiresAt) || item.expiresAt} 过期`
+                  : "账号已过期";
+                setItemUploadState(item, UPLOAD_STATUS.NONE, "", `已跳过，${expiredText}`, 0);
+              }
+              renderTable();
+            }
+            if (!uploadItems.length) {
+              showMsg(
+                expiredItems.length
+                  ? `所选 ${expiredItems.length} 个账号均已失效。可在「过期处理」中改为仍包含`
+                  : selectionMode
+                    ? "请先勾选要上传的账号"
+                    : "没有可上传的账号",
+                "err"
+              );
+              return;
+            }
+          }
+          renderTable();
+          scheduleWorkspaceSave({ immediate: true });
         }
 
         // 上传前确保已拿到服务端上限，并校验用户配置
@@ -9284,6 +9467,9 @@
         for (const item of items) {
           item.converted = null;
           item.targetFormat = null;
+          item.exportStatus = EXPORT_STATUS.NONE;
+          item.exportTarget = "";
+          item.exportMessage = "";
         }
       }
 
@@ -9350,7 +9536,12 @@
         const pullBtn = $("btnRemotePullList");
         if (pullBtn) {
           pullBtn.disabled =
-            remoteImportBusy || uploadBusy || cpaRemoteBusy || sub2RemoteBusy || sub2DedupeBusy;
+            remoteImportBusy ||
+            uploadBusy ||
+            exportBusy ||
+            cpaRemoteBusy ||
+            sub2RemoteBusy ||
+            sub2DedupeBusy;
           if (remoteImportBusy) {
             pullBtn.innerHTML = '<span class="busy-spin"></span>正在拉取';
           } else {
@@ -9368,6 +9559,7 @@
             !showDedupe ||
             remoteImportBusy ||
             uploadBusy ||
+            exportBusy ||
             sub2DedupeBusy ||
             sub2RemoteBusy ||
             !hasSub2apiConfigReady();
@@ -10013,7 +10205,7 @@
         let signal = externalSignal;
         let ownBusy = false;
         if (!signal) {
-          if (remoteImportBusy || uploadBusy) {
+          if (remoteImportBusy || uploadBusy || (exportBusy && !options.allowDuringExport)) {
             throw new Error("其他任务进行中，请稍后再补全凭证");
           }
           remoteImportCancelRequested = false;
@@ -10335,12 +10527,17 @@
           showMsg("上传进行中，无法清空", "err");
           return;
         }
+        if (exportBusy) {
+          showMsg("导出进行中，无法清空", "err");
+          return;
+        }
         if (remoteImportBusy) {
           showMsg("远端导入进行中，无法清空", "err");
           return;
         }
         items = [];
         converted = false;
+        activeExportItemIds = null;
         fileInput.value = "";
         selectionMode = false;
         tableSearch = "";
@@ -10436,10 +10633,8 @@
       $("btnRemoteSub2Dedupe")?.addEventListener("click", () => openSub2DedupeModal());
       $("btnRemoteAbort")?.addEventListener("click", cancelRemoteImport);
       $("btnUnlockDirection")?.addEventListener("click", () => unlockDirection());
-      $("btnConvert").addEventListener("click", convertAll);
       $("btnExportSub2").addEventListener("click", exportSub2);
       $("btnExportCpaZip").addEventListener("click", exportCpaZip);
-      $("btnExportCpaEach").addEventListener("click", exportCpaEach);
       $("btnUploadSub2").addEventListener("click", (event) =>
         uploadToServer(TARGET_SUB2API, event.shiftKey)
       );
