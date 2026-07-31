@@ -2641,21 +2641,6 @@
                   ><input type="checkbox" data-upload-select="cancelled" />已取消</label
                 >
               </div>
-              <div class="selection-filter-group">
-                <span class="toolbar-label">导出状态</span>
-                <label class="status-select"
-                  ><input type="checkbox" data-export-select="not-exported" />未导出</label
-                >
-                <label class="status-select"
-                  ><input type="checkbox" data-export-select="preparing" />准备中</label
-                >
-                <label class="status-select"
-                  ><input type="checkbox" data-export-select="exported" />已导出</label
-                >
-                <label class="status-select"
-                  ><input type="checkbox" data-export-select="failed" />失败</label
-                >
-              </div>
             </div>
             <div class="selection-toolbar-row proxy-row">
               <span class="toolbar-label">代理 ID</span>
@@ -2685,6 +2670,22 @@
                 刷新代理缓存
               </button>
               <span class="mono" id="proxyCacheMeta" style="opacity: 0.65; font-size: 11px"></span>
+              <span class="toolbar-sep"></span>
+              <div class="selection-filter-group">
+                <span class="toolbar-label">导出状态</span>
+                <label class="status-select"
+                  ><input type="checkbox" data-export-select="not-exported" />未导出</label
+                >
+                <label class="status-select"
+                  ><input type="checkbox" data-export-select="preparing" />准备中</label
+                >
+                <label class="status-select"
+                  ><input type="checkbox" data-export-select="exported" />已导出</label
+                >
+                <label class="status-select"
+                  ><input type="checkbox" data-export-select="failed" />失败</label
+                >
+              </div>
             </div>
           </div>
           <div class="search-toolbar" id="searchToolbar">
@@ -3724,9 +3725,20 @@
         return "";
       }
 
+      function isItemConverted(item) {
+        if (!item || item.error) return false;
+        if (itemNeedsHydration(item)) return false;
+        if (item.converted) return true;
+        // 导出/上传成功意味着当时已完成转换；代理变更等可能清掉 converted 缓存，仍按已处理展示
+        if (item.exportStatus === EXPORT_STATUS.SUCCESS) return true;
+        if (item.uploadStatus === UPLOAD_STATUS.SUCCESS) return true;
+        return false;
+      }
+
       function convertSortRank(item) {
         if (item.error) return 3;
-        if (item.converted) return 2;
+        if (itemNeedsHydration(item)) return 0;
+        if (isItemConverted(item)) return 2;
         return 1;
       }
 
@@ -5535,51 +5547,58 @@
         scheduleWorkspaceSave();
       }
 
+      function statusDetailTip(primary, secondary = "") {
+        const parts = [primary, secondary].map((s) => String(s || "").trim()).filter(Boolean);
+        return parts.join(" · ");
+      }
+
       function exportStatusHtml(item) {
-        const detail = item.exportMessage
-          ? `<span class="upload-detail" title="${escapeHtml(item.exportMessage)}">${escapeHtml(item.exportMessage)}</span>`
+        const tip = statusDetailTip(item.exportTarget, item.exportMessage);
+        const tipAttr = tip
+          ? ` data-tip="${escapeHtml(tip)}" title="${escapeHtml(tip)}" tabindex="0"`
           : "";
         if (item.exportStatus === EXPORT_STATUS.PREPARING) {
-          return `<span class="tag tag-exporting">${escapeHtml(item.exportTarget || "")} 准备中</span>${detail}`;
+          return `<span class="tag tag-exporting"${tipAttr}>准备中</span>`;
         }
         if (item.exportStatus === EXPORT_STATUS.SUCCESS) {
-          return `<span class="tag tag-export-ok">${escapeHtml(item.exportTarget || "")} 已导出</span>${detail}`;
+          return `<span class="tag tag-export-ok"${tipAttr}>已导出</span>`;
         }
         if (item.exportStatus === EXPORT_STATUS.FAILED) {
-          return `<span class="tag tag-export-fail">${escapeHtml(item.exportTarget || "")} 导出失败</span>${detail}`;
+          return `<span class="tag tag-export-fail"${tipAttr}>失败</span>`;
         }
         return `<span class="tag tag-export-none">未导出</span>`;
       }
 
       function uploadStatusHtml(item) {
-        const detail = item.uploadMessage
-          ? `<span class="upload-detail" title="${escapeHtml(item.uploadMessage)}">${escapeHtml(item.uploadMessage)}</span>`
+        const tip = statusDetailTip(item.uploadTarget, item.uploadMessage);
+        const tipAttr = tip
+          ? ` data-tip="${escapeHtml(tip)}" title="${escapeHtml(tip)}" tabindex="0"`
           : "";
         if (item.uploadStatus === UPLOAD_STATUS.QUEUED) {
-          return `<span class="tag tag-upload-queued">${escapeHtml(item.uploadTarget || "")} 等待上传</span>${detail}`;
+          return `<span class="tag tag-upload-queued"${tipAttr}>待上传</span>`;
         }
         if (item.uploadStatus === UPLOAD_STATUS.UPLOADING) {
-          return `<span class="tag tag-uploading">${escapeHtml(item.uploadTarget || "")} 上传中</span>${detail}`;
+          return `<span class="tag tag-uploading"${tipAttr}>上传中</span>`;
         }
         if (item.uploadStatus === UPLOAD_STATUS.SUCCESS) {
-          return `<span class="tag tag-upload-ok">${escapeHtml(item.uploadTarget || "")} 上传成功</span>${detail}`;
+          return `<span class="tag tag-upload-ok"${tipAttr}>成功</span>`;
         }
         if (item.uploadStatus === UPLOAD_STATUS.FAILED) {
-          return `<span class="tag tag-upload-fail">${escapeHtml(item.uploadTarget || "")} 上传失败</span>${detail}`;
+          return `<span class="tag tag-upload-fail"${tipAttr}>失败</span>`;
         }
         if (item.uploadStatus === UPLOAD_STATUS.UNKNOWN) {
-          return `<span class="tag tag-upload-unknown">${escapeHtml(item.uploadTarget || "")} 状态未知</span>${detail}`;
+          return `<span class="tag tag-upload-unknown"${tipAttr}>未知</span>`;
         }
         if (item.uploadStatus === UPLOAD_STATUS.CANCELLED) {
-          return `<span class="tag tag-upload-cancelled">${escapeHtml(item.uploadTarget || "")} 已取消</span>${detail}`;
+          return `<span class="tag tag-upload-cancelled"${tipAttr}>已取消</span>`;
         }
         // 失效账号自动跳过：只显示标签，详细原因放深色 data-tip
         if (item.uploadMessage && String(item.uploadMessage).startsWith("已跳过")) {
-          const tip =
+          const skipTip =
             String(item.uploadMessage)
               .replace(/^已跳过\s*[·•-]?\s*/, "")
               .trim() || "账号已过期";
-          return `<span class="tag tag-account-expired" data-tip="${escapeHtml(tip)}" tabindex="0">已跳过</span>`;
+          return `<span class="tag tag-account-expired" data-tip="${escapeHtml(skipTip)}" title="${escapeHtml(skipTip)}" tabindex="0">已跳过</span>`;
         }
         return `<span class="tag tag-upload-none">未上传</span>`;
       }
@@ -5654,7 +5673,7 @@
               ? `<span class="tag tag-err">${escapeHtml(item.error)}</span>`
               : itemNeedsHydration(item)
                 ? `<span class="tag tag-exporting">待补全</span>`
-                : item.converted
+                : isItemConverted(item)
                   ? `<span class="tag tag-ok">已转换</span>`
                   : `<span class="tag tag-ok">待转换</span>`;
             const rowNo = tableSort.key ? rowIndex + 1 : index + 1;
@@ -8455,8 +8474,21 @@
       async function prepareSub2UploadItems(uploadItems, configPayload) {
         const filled = applyDefaultProxyToItems(uploadItems);
         if (filled) {
+          // 默认代理写入会清掉 SUB2 的 converted 缓存，这里按当前目标重转一次
+          for (const item of uploadItems) {
+            if (item.error || !item.account || itemNeedsHydration(item)) continue;
+            if (item.converted && item.targetFormat === TARGET_SUB2API) continue;
+            try {
+              item.converted = convertItemTo(item, TARGET_SUB2API);
+              item.targetFormat = TARGET_SUB2API;
+            } catch (e) {
+              item.error = "转换失败: " + e.message;
+            }
+          }
+          converted = items.some((item) => item.converted);
           showMsg(`已按默认代理补全 ${filled} 个账号的代理 ID`, "info");
           renderTable();
+          scheduleWorkspaceSave({ immediate: true });
         }
 
         showMsg("正在拉取 SUB2API 代理 ID 列表并校验…", "info");
@@ -8918,14 +8950,18 @@
 
       function uniqueCpaUploadEntries(operationItems) {
         const used = new Map();
-        return operationItems.map((item) => {
+        const entries = operationItems.map((item) => {
           const account = convertItemTo(item, TARGET_CPA);
+          item.converted = account;
+          item.targetFormat = "cpa";
           let filename = cpaFilename(account);
           const count = (used.get(filename) || 0) + 1;
           used.set(filename, count);
           if (count > 1) filename = filename.replace(/\.json$/i, `-${count}.json`);
           return { item, account, filename };
         });
+        converted = items.some((row) => row.converted);
+        return entries;
       }
 
       async function uploadCpaBatch(
@@ -9215,10 +9251,13 @@
         renderTable();
         try {
           if (target === TARGET_SUB2API) {
-            const entries = uploadItems.map((item) => ({
-              item,
-              account: convertItemTo(item, TARGET_SUB2API),
-            }));
+            const entries = uploadItems.map((item) => {
+              const account = convertItemTo(item, TARGET_SUB2API);
+              item.converted = account;
+              item.targetFormat = TARGET_SUB2API;
+              return { item, account };
+            });
+            converted = items.some((row) => row.converted);
             const batches = [];
             for (let i = 0; i < entries.length; i += batchSize) {
               batches.push(entries.slice(i, i + batchSize));
