@@ -376,6 +376,24 @@ for (const id of ["autoPause", "keepSso", "keepHeaders"]) {
 applyUiSettings(readUiSettings());
 updateUploadLimitHints();
 
+$("themeSwitch")?.addEventListener("click", (event) => {
+  const btn = event.target?.closest?.("[data-theme-mode]");
+  if (!btn || !$("themeSwitch").contains(btn)) return;
+  applyThemeMode(btn.getAttribute("data-theme-mode"));
+});
+
+try {
+  const themeMedia = window.matchMedia("(prefers-color-scheme: light)");
+  const onThemeMediaChange = () => {
+    if (getThemeMode() === "auto") applyThemeMode("auto", { persist: false });
+  };
+  if (typeof themeMedia.addEventListener === "function") {
+    themeMedia.addEventListener("change", onThemeMediaChange);
+  } else if (typeof themeMedia.addListener === "function") {
+    themeMedia.addListener(onThemeMediaChange);
+  }
+} catch {}
+
 $("btnCloseConfig").addEventListener("click", () => closeConfigDialog(false));
 $("btnCancelConfig").addEventListener("click", () => closeConfigDialog(false));
 $("serverConfigModal").addEventListener("click", (event) => {

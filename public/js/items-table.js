@@ -675,6 +675,48 @@ function readUiSettings() {
   }
 }
 
+function normalizeThemeMode(value) {
+  const mode = String(value || "").trim();
+  return mode === "light" || mode === "dark" || mode === "auto" ? mode : "dark";
+}
+
+function resolveTheme(mode) {
+  const normalized = normalizeThemeMode(mode);
+  if (normalized === "light" || normalized === "dark") return normalized;
+  try {
+    return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  } catch {
+    return "dark";
+  }
+}
+
+function getThemeMode() {
+  const attr = document.documentElement.getAttribute("data-theme-mode");
+  if (attr === "light" || attr === "dark" || attr === "auto") return attr;
+  return normalizeThemeMode(readUiSettings().theme);
+}
+
+function syncThemeSwitchUi(mode = getThemeMode()) {
+  const normalized = normalizeThemeMode(mode);
+  const root = $("themeSwitch");
+  if (!root) return;
+  root.querySelectorAll("[data-theme-mode]").forEach((btn) => {
+    const active = btn.getAttribute("data-theme-mode") === normalized;
+    btn.classList.toggle("is-active", active);
+    btn.setAttribute("aria-pressed", active ? "true" : "false");
+  });
+}
+
+function applyThemeMode(mode, { persist = true } = {}) {
+  const normalized = normalizeThemeMode(mode);
+  const resolved = resolveTheme(normalized);
+  document.documentElement.setAttribute("data-theme-mode", normalized);
+  document.documentElement.setAttribute("data-theme", resolved);
+  syncThemeSwitchUi(normalized);
+  if (persist) saveUiSettingsSoon();
+  return resolved;
+}
+
 function collectUiSettings() {
   return {
     direction: $("direction")?.value || "auto",
@@ -697,6 +739,7 @@ function collectUiSettings() {
     cpaUploadAttempts: $("cpaUploadAttempts")?.value || String(DEFAULT_UPLOAD_ATTEMPTS),
     sub2AmbiguousRetry: $("sub2AmbiguousRetry")?.value || DEFAULT_SUB2_AMBIGUOUS_RETRY,
     skipExpiredAccounts: $("skipExpiredAccounts")?.value || DEFAULT_SKIP_EXPIRED_ACCOUNTS,
+    theme: getThemeMode(),
     savedAt: new Date().toISOString(),
   };
 }
@@ -752,6 +795,7 @@ function applyUiSettings(settings = {}) {
   $("skipExpiredAccounts").value = ["skip", "include"].includes(skipExpired)
     ? skipExpired
     : DEFAULT_SKIP_EXPIRED_ACCOUNTS;
+  applyThemeMode(settings.theme || getThemeMode(), { persist: false });
 }
 
 function updateUploadLimitHints() {

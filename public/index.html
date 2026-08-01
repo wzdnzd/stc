@@ -4,6 +4,35 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CPA ↔ SUB2API 账号转换与批量上传工具</title>
+    <script>
+      (function () {
+        try {
+          var KEY = "cpa2sub.uiSettings.v1";
+          var mode = "dark";
+          var raw = localStorage.getItem(KEY);
+          if (raw) {
+            var parsed = JSON.parse(raw);
+            if (
+              parsed &&
+              (parsed.theme === "light" || parsed.theme === "dark" || parsed.theme === "auto")
+            ) {
+              mode = parsed.theme;
+            }
+          }
+          var resolved =
+            mode === "light" || mode === "dark"
+              ? mode
+              : window.matchMedia("(prefers-color-scheme: light)").matches
+                ? "light"
+                : "dark";
+          document.documentElement.setAttribute("data-theme", resolved);
+          document.documentElement.setAttribute("data-theme-mode", mode);
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme", "dark");
+          document.documentElement.setAttribute("data-theme-mode", "dark");
+        }
+      })();
+    </script>
     <script src="/shared/account-convert.js"></script>
     <link rel="stylesheet" href="/css/app.css" />
   </head>
@@ -15,6 +44,35 @@
           <h1>CPA ↔ SUB2API 账号转换与批量上传工具</h1>
         </div>
         <div class="header-actions">
+          <div class="theme-switch" id="themeSwitch" role="group" aria-label="主题">
+            <button
+              type="button"
+              class="theme-switch-btn"
+              data-theme-mode="light"
+              aria-pressed="false"
+              title="亮色"
+            >
+              亮
+            </button>
+            <button
+              type="button"
+              class="theme-switch-btn"
+              data-theme-mode="dark"
+              aria-pressed="false"
+              title="暗色"
+            >
+              暗
+            </button>
+            <button
+              type="button"
+              class="theme-switch-btn"
+              data-theme-mode="auto"
+              aria-pressed="false"
+              title="跟随系统"
+            >
+              自动
+            </button>
+          </div>
           <form method="post" action="/auth/logout" style="margin: 0">
             <button class="btn-danger btn-sm" type="submit">退出</button>
           </form>
