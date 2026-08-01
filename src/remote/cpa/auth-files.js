@@ -8,6 +8,7 @@ import {
 } from "../../constants.js";
 import { publicErrorMessage } from "../../responses.js";
 import { sanitizeJsonFilename } from "../../upload.js";
+import { unixFromIsoOrNumber } from "../../shared/account-convert.js";
 
 // ---------------------------------------------------------------------------
 // CPA 远端认证文件 list / download
@@ -59,6 +60,9 @@ export function parseCpaAuthFileItem(item) {
       .toLowerCase();
     disabled = status === "disabled" || status === "inactive";
   }
+  const updatedAt = unixFromIsoOrNumber(
+    pickFirstDefined(item, ["updated_at", "updatedAt", "modified_at", "modifiedAt", "mtime"])
+  );
   return {
     name,
     id: String(pickFirstDefined(item, ["id"]) || ""),
@@ -77,6 +81,8 @@ export function parseCpaAuthFileItem(item) {
       ]) || ""
     ),
     disabled,
+    // 列表阶段没有 token 过期时间，先用文件更新时间占位；补全凭证后会替换为真实过期
+    updatedAt: updatedAt != null && Number.isFinite(updatedAt) && updatedAt > 0 ? updatedAt : null,
   };
 }
 

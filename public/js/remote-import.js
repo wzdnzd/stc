@@ -253,9 +253,14 @@ function itemsFromSub2RemoteAccounts(accounts, options = {}) {
       account?.id != null
         ? String(account.id)
         : account?.email || account?.name || account?.credentials?.email || "unknown";
-    const sourceFile = `sub2-remote:${idPart}`;
+    const sourceFile = `sub2api-remote:${idPart}`;
     if (asStub) {
       const email = String(account?.email || account?.name || "").trim();
+      const expiresAt =
+        unixFromIsoOrNumber(account?.expiresAt) ||
+        unixFromIsoOrNumber(account?.expires_at) ||
+        unixFromIsoOrNumber(account?.credentials?.expires_at) ||
+        null;
       const stubAccount = {
         id: account?.id,
         name: account?.name || email || `id=${idPart}`,
@@ -265,8 +270,8 @@ function itemsFromSub2RemoteAccounts(accounts, options = {}) {
         platform: account?.platform,
         type: account?.type,
       };
-      if (account?.expiresAt != null) {
-        stubAccount.credentials.expires_at = account.expiresAt;
+      if (expiresAt != null) {
+        stubAccount.credentials.expires_at = expiresAt;
       }
       out.push(
         prepareItem({
@@ -281,7 +286,7 @@ function itemsFromSub2RemoteAccounts(accounts, options = {}) {
             email,
             name: account?.name || "",
           },
-          expiresAt: account?.expiresAt ?? null,
+          expiresAt,
         })
       );
       continue;
@@ -339,19 +344,31 @@ function stubsFromCpaRemoteFiles(files) {
     const name = String(file?.name || "").trim();
     if (!name) continue;
     const label = file?.account || file?.accountId || name.replace(/\.json$/i, "") || name;
+    // 列表阶段没有 token 过期时间：用 updated_at 占位，补全凭证后 refreshAccountExpiry 会换成真实过期
+    const provisionalExpiry =
+      unixFromIsoOrNumber(file?.updatedAt ?? file?.updated_at ?? file?.modified_at) || null;
+    // 快载用 provider 作为账号类型；补全后改为完整数据的 type
+    const provider = String(file?.provider || "").trim();
+    const account = {
+      type: provider || "xai",
+      provider,
+      auth_kind: "oauth",
+      email: String(label),
+      name,
+    };
+    if (provisionalExpiry != null) {
+      account._exp = provisionalExpiry;
+      account.expired = isoFromUnix(provisionalExpiry);
+    }
     out.push(
       prepareItem({
         sourceFile: name,
         sourceFormat: "cpa",
-        account: {
-          type: "xai",
-          auth_kind: "oauth",
-          email: String(label),
-          name,
-        },
+        account,
         needsHydration: true,
         remoteOrigin: TARGET_CPA,
         remoteRef: { kind: "cpa", name },
+        expiresAt: provisionalExpiry,
       })
     );
   }

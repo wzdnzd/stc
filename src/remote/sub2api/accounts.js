@@ -39,21 +39,29 @@ export function accountExpiresUnix(account) {
   if (!account || typeof account !== "object") return null;
   const candidates = [
     account.credentials?.expires_at,
+    account.credentials?.expired_at,
+    account.credentials?.expired,
     account.expires_at,
     account.expired_at,
     account.expired,
     account.extra?.expires_at,
+    account.extra?.expired_at,
+    account.extra?.expired,
   ];
   for (const raw of candidates) {
     if (raw == null || raw === "") continue;
     if (typeof raw === "number" && Number.isFinite(raw)) {
       return raw > 1e12 ? Math.floor(raw / 1000) : Math.floor(raw);
     }
-    const asNum = Number(raw);
-    if (Number.isFinite(asNum) && String(raw).trim() !== "" && !String(raw).includes("-")) {
-      return asNum > 1e12 ? Math.floor(asNum / 1000) : Math.floor(asNum);
-    }
     const text = String(raw).trim();
+    // 纯数字（含字符串形式的 unix 秒/毫秒）
+    if (/^\d+(\.\d+)?$/.test(text)) {
+      const asNum = Number(text);
+      if (Number.isFinite(asNum)) {
+        return asNum > 1e12 ? Math.floor(asNum / 1000) : Math.floor(asNum);
+      }
+    }
+    // ISO / 可解析日期字符串
     const normalized = text.endsWith("Z") ? `${text.slice(0, -1)}+00:00` : text;
     const ms = Date.parse(normalized);
     if (Number.isFinite(ms)) return Math.floor(ms / 1000);
@@ -103,12 +111,12 @@ export function extractAccountsPageItems(payload) {
 }
 
 export async function fetchSub2apiAccountsPage(config, page, pageSize, clientSignal) {
+  // 快载/去重需要 credentials.expires_at 等元数据；lite=1 可能裁掉该字段导致过期列为空
   const query = new URLSearchParams({
     page: String(page),
     page_size: String(pageSize),
     sort_by: "id",
     sort_order: "asc",
-    lite: "1",
   });
   const result = await sub2apiRequest(
     config,

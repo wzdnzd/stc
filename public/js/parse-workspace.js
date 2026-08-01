@@ -414,6 +414,8 @@ function reviveWorkspaceItem(raw) {
     needsHydration: Boolean(raw.needsHydration),
     remoteOrigin: raw.remoteOrigin || null,
     remoteRef: raw.remoteRef || null,
+    // 快载 stub 的过期时间可能只在 item.expiresAt，需带回 prepareItem 再解析
+    expiresAt: raw.expiresAt ?? null,
   });
   // prepareItem 会重算过期；保留快照里的上传/导出字段
   if (raw.uploadStatus) item.uploadStatus = raw.uploadStatus;

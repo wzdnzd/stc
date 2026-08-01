@@ -108,13 +108,13 @@ function renderTable() {
   syncSortHeaders();
   const visibleItems = getVisibleItems();
   if (!items.length) {
-    tbody.innerHTML = `<tr><td colspan="11" class="mono">尚未导入文件</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" class="mono">尚未导入文件</td></tr>`;
     updateStats();
     refreshActionButtons();
     return;
   }
   if (!visibleItems.length) {
-    tbody.innerHTML = `<tr><td colspan="11" class="mono">没有匹配的账号</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" class="mono">没有匹配的账号</td></tr>`;
     updateStats();
     refreshActionButtons();
     return;
@@ -154,6 +154,7 @@ function renderTable() {
       <td class="cell-tag">${srcTag}</td>
       <td class="cell-tag">${target}</td>
       <td class="email" title="${escapeHtml(accountLabel(item))}">${escapeHtml(accountLabel(item))}</td>
+      <td class="cell-tag">${accountTypeHtml(item)}</td>
       <td class="cell-tag">${accountStatusHtml(item)}</td>
       <td class="cell-expiry">${accountExpiryHtml(item)}</td>
       <td class="cell-tag">${proxyCellHtml(item)}</td>

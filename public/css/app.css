@@ -1325,16 +1325,19 @@ col.col-dst {
   width: 7%;
 }
 col.col-email {
-  width: 18%;
+  width: 15%;
 }
-col.col-account {
+col.col-type {
   width: 7%;
 }
+col.col-account {
+  width: 6%;
+}
 col.col-expiry {
-  width: 13%;
+  width: 12%;
 }
 col.col-proxy {
-  width: 10%;
+  width: 9%;
 }
 col.col-convert {
   width: 6%;
@@ -1343,7 +1346,7 @@ col.col-export {
   width: 7%;
 }
 col.col-upload {
-  width: 10%;
+  width: 9%;
 }
 
 td.cell-expiry {

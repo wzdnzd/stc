@@ -526,7 +526,7 @@
               id="accountSearch"
               type="search"
               autocomplete="off"
-              placeholder="搜索邮箱、文件、状态、代理 ID…"
+              placeholder="搜索邮箱、类型、文件、状态、代理 ID…"
             />
             <button class="btn-ghost btn-sm" id="btnClearSearch" type="button">清除</button>
             <span class="mono" id="searchResultCount"></span>
@@ -541,6 +541,7 @@
               <col class="col-src" />
               <col class="col-dst" />
               <col class="col-email" />
+              <col class="col-type" />
               <col class="col-account" />
               <col class="col-expiry" />
               <col class="col-proxy" />
@@ -585,6 +586,9 @@
                 <th class="th-sortable" data-sort="email" tabindex="0" aria-sort="none">
                   邮箱 / 标识<span class="sort-ind" aria-hidden="true"></span>
                 </th>
+                <th class="th-sortable" data-sort="accountType" tabindex="0" aria-sort="none">
+                  账号类型<span class="sort-ind" aria-hidden="true"></span>
+                </th>
                 <th class="th-sortable" data-sort="accountStatus" tabindex="0" aria-sort="none">
                   账号状态<span class="sort-ind" aria-hidden="true"></span>
                 </th>
@@ -607,7 +611,7 @@
             </thead>
             <tbody id="tbody">
               <tr>
-                <td colspan="11" class="mono">尚未导入文件</td>
+                <td colspan="12" class="mono">尚未导入文件</td>
               </tr>
             </tbody>
           </table>

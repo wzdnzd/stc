@@ -178,8 +178,9 @@ function sameSideUploadBlocked(target) {
 
 /**
  * 从源账号解析过期时间：
- * - CPA：account.expired（ISO）或 _exp
+ * - CPA：account.expired（ISO）或 _exp；快载 stub 可能只有列表 updated_at 占位
  * - SUB2API：credentials.expires_at（unix 秒）
+ * - 远端快载 stub / 工作区恢复：回退 item.expiresAt
  */
 function resolveAccountExpiry(item) {
   if (!item?.account || item.error) {
@@ -193,10 +194,23 @@ function resolveAccountExpiry(item) {
       null;
   } else if (item.sourceFormat === "sub2api") {
     const cred = item.account.credentials || {};
-    expiresAt = unixFromIsoOrNumber(cred.expires_at) || null;
+    expiresAt =
+      unixFromIsoOrNumber(cred.expires_at) ||
+      unixFromIsoOrNumber(item.account.expires_at) ||
+      unixFromIsoOrNumber(item.account.expiresAt) ||
+      null;
+  }
+  // 快载 stub 可能把过期时间放在 item.expiresAt，account 内尚未有完整字段
+  if (expiresAt == null || !Number.isFinite(expiresAt) || expiresAt <= 0) {
+    const fallback = Number(item.expiresAt);
+    if (Number.isFinite(fallback) && fallback > 0) expiresAt = fallback;
   }
   if (expiresAt == null || !Number.isFinite(expiresAt) || expiresAt <= 0) {
     return { expiresAt: null, accountStatus: ACCOUNT_STATUS.UNKNOWN };
+  }
+  // CPA 快载仅有 updated_at 占位，不是 token 过期时间，只展示不判定失效
+  if (item.needsHydration && item.sourceFormat === "cpa") {
+    return { expiresAt, accountStatus: ACCOUNT_STATUS.UNKNOWN };
   }
   const nowSec = Math.floor(Date.now() / 1000);
   return {
@@ -252,6 +266,35 @@ function accountExpiryHtml(item) {
     return `<span class="mono">—</span>`;
   }
   const text = formatExpiryDisplay(item.expiresAt);
+  if (!text) return `<span class="mono">—</span>`;
+  return `<span class="mono" title="${escapeHtml(text)}">${escapeHtml(text)}</span>`;
+}
+
+/**
+ * 账号类型展示：
+ * - CPA 快载：provider；完整数据：type
+ * - SUB2API：platform
+ */
+function resolveAccountType(item) {
+  if (!item?.account || item.error) return "";
+  const acc = item.account;
+  if (item.sourceFormat === "cpa") {
+    const raw = item.needsHydration
+      ? acc.provider || acc.type || ""
+      : acc.type || acc.provider || "";
+    return String(raw || "").trim();
+  }
+  if (item.sourceFormat === "sub2api") {
+    return String(acc.platform || "").trim();
+  }
+  return String(acc.platform || acc.type || acc.provider || "").trim();
+}
+
+function accountTypeHtml(item) {
+  if (item.error || !item.account) {
+    return `<span class="mono">—</span>`;
+  }
+  const text = resolveAccountType(item);
   if (!text) return `<span class="mono">—</span>`;
   return `<span class="mono" title="${escapeHtml(text)}">${escapeHtml(text)}</span>`;
 }
@@ -384,6 +427,8 @@ function getSortValue(item, index, key) {
       return resolveItemTargetKey(item);
     case "email":
       return accountLabel(item);
+    case "accountType":
+      return resolveAccountType(item);
     case "accountStatus":
       return accountStatusSortRank(item);
     case "expiresAt":
@@ -461,6 +506,7 @@ function getVisibleItems() {
         item.sourceFormat,
         item.targetFormat,
         accountLabel(item),
+        resolveAccountType(item),
         item.uploadTarget,
         item.uploadMessage,
         item.uploadStatus,
