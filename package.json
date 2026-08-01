@@ -4,14 +4,20 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "sync:account-convert": "node scripts/sync-account-convert.mjs",
+    "predev": "npm run sync:account-convert",
     "dev": "wrangler dev",
+    "predeploy": "npm run sync:account-convert",
     "deploy": "wrangler deploy",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "npm run lint && npm run format:check && node --check src/index.js",
-    "prepare": "husky"
+    "check:src": "node --check src/index.js && node --check src/router.js && node --check src/auth.js && node --check src/config.js && node --check src/http.js && node --check src/upload.js && node --check src/transfer.js && node --check src/proxy-cache.js && node --check src/limits.js && node --check src/responses.js && node --check src/remote/cpa/auth-files.js && node --check src/remote/sub2api/accounts.js && node --check src/remote/sub2api/dedupe.js && node --check src/remote/sub2api/export.js && node --check src/shared/account-convert.js",
+    "precheck": "npm run sync:account-convert",
+    "check": "npm run lint && npm run format:check && npm run check:src",
+    "prepare": "husky",
+    "postinstall": "npm run sync:account-convert"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -7,3 +7,5 @@ node_modules/
 .env.*
 .DS_Store
 .eslintcache
+# 由 scripts/sync-account-convert.mjs 从 src/shared/account-convert.js 生成，勿手改入库
+public/shared/account-convert.js
