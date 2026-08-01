@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "cpa2sub",
+  "name": "stc",
   "main": "./src/index.js",
   "compatibility_date": "2026-07-25",
   "assets": {
@@ -12,7 +12,7 @@
     "enabled": true,
   },
   // 可选：跨 isolate 共享代理 id→key 缓存。未绑定则仅用 Worker 内存缓存。
-  // 1) wrangler kv namespace create "cpa2sub-proxy-cache"
+  // 1) wrangler kv namespace create "stc-proxy-cache"
   // 2) 将返回的 id 填入下方 preview_id / id 后取消注释
   // "kv_namespaces": [
   //   {

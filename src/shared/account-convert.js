@@ -1,5 +1,5 @@
 /**
- * CPA ↔ SUB2API 账号转换与规范化（前后端共用）
+ * SUB2API ↔ CPA 账号转换与规范化（前后端共用）
  * - Worker：ESM import
  * - 浏览器：由 public/shared/account-convert.js 同步暴露为 window.AccountConvert
  */

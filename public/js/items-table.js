@@ -1030,7 +1030,7 @@ function canTargetFormat(item, target) {
 }
 
 function canExportFormat(item) {
-  // 导出不受转换方向与同源限制：任意可操作账号都可导出到 CPA 或 SUB2API，点击后再补全并自动转换
+  // 导出不受转换方向与同源限制：任意可操作账号都可导出到 SUB2API 或 CPA，点击后再补全并自动转换
   if (!item || item.error) return false;
   return Boolean(item.account) || itemNeedsHydration(item);
 }

@@ -37,7 +37,7 @@ let body = src
 const unique = [...new Set(exportNames)];
 const assign = unique.map((name) => `    ${name},`).join("\n");
 
-const out = `/* CPA ↔ SUB2API 转换共享模块（浏览器）。由 src/shared/account-convert.js 同步生成，请勿手改逻辑。 */
+const out = `/* SUB2API ↔ CPA 转换共享模块（浏览器）。由 src/shared/account-convert.js 同步生成，请勿手改逻辑。 */
 (function (global) {
   "use strict";
 ${body

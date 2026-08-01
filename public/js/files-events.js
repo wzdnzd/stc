@@ -436,7 +436,7 @@ $("sub2DedupeGroups")?.addEventListener("click", (event) => {
   setSub2DedupeKeepSelection(groupIndex, accountId);
 });
 
-// 从 CPA 下载 / 从 SUB2API 导出
+// 从 SUB2API 导出 / 从 CPA 下载
 $("btnCpaRemoteDownload")?.addEventListener("click", () => openCpaRemoteDownloadModal());
 $("btnCloseCpaRemoteDownload")?.addEventListener("click", () => closeCpaRemoteDownloadModal());
 $("btnCancelCpaRemoteDownload")?.addEventListener("click", () => closeCpaRemoteDownloadModal());

@@ -158,7 +158,7 @@ var RESUMABLE_UPLOAD_STATUSES = new Set([
 
 /** 导入模式：本地文件 | 远端服务器 */
 var importMode = "local";
-/** 远端源服务器：CPA | SUB2API */
+/** 远端源服务器：SUB2API | CPA */
 var remoteSourceTarget = TARGET_CPA;
 var remoteImportBusy = false;
 /** @type {AbortController|null} */

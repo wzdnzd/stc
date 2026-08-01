@@ -66,6 +66,11 @@ export async function handleRequest(request, env) {
     });
   }
 
+  if (isPublicAssetPath(url.pathname)) {
+    const assetResponse = await env.ASSETS.fetch(request);
+    return withSecurityHeaders(assetResponse, true);
+  }
+
   if (setupProblem) {
     if (url.pathname.startsWith("/api/")) {
       return jsonResponse({ ok: false, code: "APP_NOT_CONFIGURED", error: setupProblem }, 503);
@@ -90,6 +95,10 @@ export async function handleRequest(request, env) {
 
   const assetResponse = await env.ASSETS.fetch(request);
   return withSecurityHeaders(assetResponse, true);
+}
+
+function isPublicAssetPath(pathname) {
+  return pathname === "/asserts/stc.png";
 }
 
 export async function handleApi(request, env, url) {

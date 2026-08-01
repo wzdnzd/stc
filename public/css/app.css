@@ -240,6 +240,21 @@ body {
   margin-bottom: 12px;
 }
 
+.page-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.page-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
 .page-header h1 {
   margin: 0;
   font-size: 17px;

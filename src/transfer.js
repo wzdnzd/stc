@@ -112,7 +112,7 @@ export async function transferRemoteBatch(env, body, clientSignal = undefined) {
   const source = normalizeTargetFormat(body?.source ?? body?.from);
   const target = normalizeTargetFormat(body?.target ?? body?.to);
   if (!source || !target) {
-    throw new HttpError(400, "source / target 必须是 CPA 或 SUB2API", "INVALID_PAYLOAD");
+    throw new HttpError(400, "source / target 必须是 SUB2API 或 CPA", "INVALID_PAYLOAD");
   }
   if (source === target) {
     throw new HttpError(400, "远端互传不允许 source 与 target 相同", "SAME_SIDE_TRANSFER");
