@@ -598,9 +598,224 @@ function toggleTableSort(key) {
   renderTable();
 }
 
+/** 转换列筛选值：pending / converted / hydrate / error */
+function resolveConvertFilterValue(item) {
+  if (!item || item.error) return "error";
+  if (itemNeedsHydration(item)) return "hydrate";
+  if (isItemConverted(item)) return "converted";
+  return "pending";
+}
+
+function convertFilterLabel(value) {
+  if (value === "converted") return "已转换";
+  if (value === "hydrate") return "待补全";
+  if (value === "error") return "错误";
+  return "待转换";
+}
+
+function exportStatusFilterValue(item) {
+  return item?.exportStatus || EXPORT_STATUS.NONE;
+}
+
+function exportStatusFilterLabel(value) {
+  if (value === EXPORT_STATUS.PREPARING) return "准备中";
+  if (value === EXPORT_STATUS.SUCCESS) return "已导出";
+  if (value === EXPORT_STATUS.FAILED) return "失败";
+  return "未导出";
+}
+
+function uploadStatusFilterValue(item) {
+  if (!item) return UPLOAD_STATUS.NONE;
+  if (item.uploadStatus === UPLOAD_STATUS.SKIPPED) return UPLOAD_STATUS.SKIPPED;
+  if (item.uploadMessage && String(item.uploadMessage).startsWith("已跳过")) {
+    return UPLOAD_STATUS.SKIPPED;
+  }
+  return item.uploadStatus || UPLOAD_STATUS.NONE;
+}
+
+function uploadStatusFilterLabel(value) {
+  if (value === UPLOAD_STATUS.QUEUED) return "待上传";
+  if (value === UPLOAD_STATUS.UPLOADING) return "上传中";
+  if (value === UPLOAD_STATUS.SUCCESS) return "成功";
+  if (value === UPLOAD_STATUS.FAILED) return "失败";
+  if (value === UPLOAD_STATUS.UNKNOWN) return "未知";
+  if (value === UPLOAD_STATUS.CANCELLED) return "已取消";
+  if (value === UPLOAD_STATUS.SKIPPED) return "已跳过";
+  return "未上传";
+}
+
+function proxyFilterValue(item) {
+  if (!item || item.error || !item.account) return "";
+  const proxyId = getItemProxyId(item);
+  return proxyId == null ? "__none__" : String(proxyId);
+}
+
+function proxyFilterLabel(value) {
+  if (value === "__none__") return "无代理";
+  return value;
+}
+
+function accountTypeFilterValue(item) {
+  if (!item || item.error || !item.account) return "";
+  const text = resolveAccountType(item);
+  return text || "__empty__";
+}
+
+function accountTypeFilterLabel(value) {
+  if (value === "__empty__") return "未标注";
+  return value;
+}
+
+function accountStatusFilterValue(item) {
+  if (!item || item.error || !item.account) return "";
+  return item.accountStatus || ACCOUNT_STATUS.UNKNOWN;
+}
+
+function itemMatchesTableFilters(item) {
+  if (!tableFilters) return true;
+  const checks = [
+    ["accountType", accountTypeFilterValue(item)],
+    ["accountStatus", accountStatusFilterValue(item)],
+    ["proxyId", proxyFilterValue(item)],
+    ["convert", resolveConvertFilterValue(item)],
+    ["exportStatus", exportStatusFilterValue(item)],
+    ["uploadStatus", uploadStatusFilterValue(item)],
+  ];
+  for (const [key, value] of checks) {
+    const selected = tableFilters[key];
+    if (!selected || !selected.size) continue;
+    if (!value || !selected.has(value)) return false;
+  }
+  return true;
+}
+
+function hasActiveTableFilters() {
+  return Object.values(tableFilters || {}).some((set) => set && set.size > 0);
+}
+
+function clearTableFilters({ render = true } = {}) {
+  for (const key of Object.keys(tableFilters || {})) {
+    tableFilters[key] = new Set();
+  }
+  openTableFilterKey = null;
+  syncTableFilterControls();
+  if (render) renderTable();
+}
+
+function collectTableFilterOptions(key) {
+  const seen = new Map();
+  for (const item of items) {
+    let value = "";
+    let label = "";
+    if (key === "accountType") {
+      value = accountTypeFilterValue(item);
+      if (!value) continue;
+      label = accountTypeFilterLabel(value);
+    } else if (key === "accountStatus") {
+      value = accountStatusFilterValue(item);
+      if (!value) continue;
+      label = accountStatusLabel(value);
+    } else if (key === "proxyId") {
+      value = proxyFilterValue(item);
+      if (!value) continue;
+      label = proxyFilterLabel(value);
+    } else if (key === "convert") {
+      value = resolveConvertFilterValue(item);
+      label = convertFilterLabel(value);
+    } else if (key === "exportStatus") {
+      value = exportStatusFilterValue(item);
+      label = exportStatusFilterLabel(value);
+    } else if (key === "uploadStatus") {
+      value = uploadStatusFilterValue(item);
+      label = uploadStatusFilterLabel(value);
+    } else {
+      continue;
+    }
+    if (!seen.has(value)) seen.set(value, label);
+  }
+  const entries = Array.from(seen.entries());
+  if (key === "proxyId") {
+    entries.sort((a, b) => {
+      if (a[0] === "__none__") return -1;
+      if (b[0] === "__none__") return 1;
+      return compareNullableNumber(a[0], b[0]);
+    });
+  } else {
+    entries.sort((a, b) => compareText(a[1], b[1]));
+  }
+  return entries.map(([value, label]) => ({ value, label }));
+}
+
+function mselSummaryText(selected, options) {
+  if (!selected || !selected.size) return "全部";
+  const labels = options
+    .filter((opt) => selected.has(opt.value))
+    .map((opt) => opt.label);
+  if (!labels.length) return "全部";
+  if (labels.length === 1) return labels[0];
+  if (labels.length === 2) return `${labels[0]}、${labels[1]}`;
+  return `已选 ${labels.length}`;
+}
+
+function closeOpenTableFilter() {
+  if (!openTableFilterKey) return;
+  openTableFilterKey = null;
+  document.querySelectorAll(".msel.is-open").forEach((el) => {
+    el.classList.remove("is-open");
+    const btn = el.querySelector(".msel-btn");
+    const menu = el.querySelector(".msel-menu");
+    if (btn) btn.setAttribute("aria-expanded", "false");
+    if (menu) menu.hidden = true;
+  });
+}
+
+function syncTableFilterControls() {
+  const clearBtn = $("btnClearTableFilters");
+  if (clearBtn) clearBtn.hidden = !hasActiveTableFilters();
+  document.querySelectorAll("#tableFilterBar .msel[data-filter-key]").forEach((root) => {
+    const key = root.getAttribute("data-filter-key") || "";
+    if (!key || !tableFilters[key]) return;
+    const selected = tableFilters[key];
+    const options = collectTableFilterOptions(key);
+    // 去掉数据中已不存在的选中值
+    for (const value of Array.from(selected)) {
+      if (!options.some((opt) => opt.value === value)) selected.delete(value);
+    }
+    const menu = root.querySelector(".msel-menu");
+    const summary = root.querySelector("[data-msel-summary]");
+    const btn = root.querySelector(".msel-btn");
+    if (summary) summary.textContent = mselSummaryText(selected, options);
+    root.classList.toggle("is-active", selected.size > 0);
+    root.classList.toggle("is-empty", options.length === 0);
+    if (btn) btn.disabled = options.length === 0;
+    if (!menu) return;
+    if (!options.length) {
+      menu.innerHTML = `<div class="msel-empty">暂无可用值</div>`;
+    } else {
+      menu.innerHTML = options
+        .map((opt) => {
+          const checked = selected.has(opt.value);
+          return `<label class="msel-option${checked ? " is-checked" : ""}">
+            <input type="checkbox" data-filter-key="${escapeHtml(key)}" data-filter-value="${escapeHtml(opt.value)}" ${checked ? "checked" : ""} />
+            <span class="msel-option-text">${escapeHtml(opt.label)}</span>
+          </label>`;
+        })
+        .join("");
+    }
+    const isOpen = openTableFilterKey === key;
+    root.classList.toggle("is-open", isOpen);
+    if (btn) btn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    menu.hidden = !isOpen;
+  });
+}
+
 function getVisibleItems() {
   const q = tableSearch.trim().toLowerCase();
+  const filterActive = hasActiveTableFilters();
   let rows = items.map((item, index) => ({ item, index }));
+  if (filterActive) {
+    rows = rows.filter(({ item }) => itemMatchesTableFilters(item));
+  }
   if (q) {
     const tokens = q.split(/\s+/).filter(Boolean);
     rows = rows.filter(({ item }) => {
@@ -633,6 +848,7 @@ function getVisibleItems() {
         proxyId == null ? "无代理" : "有代理",
         item.proxyValid === false ? "无效代理" : "",
         item.proxyValid === true ? "合法代理" : "",
+        convertFilterLabel(resolveConvertFilterValue(item)),
       ]
         .join(" ")
         .toLowerCase();
@@ -662,10 +878,12 @@ function syncTableControls() {
   $("btnSelectMode").classList.toggle("active", selectionMode);
   $("btnSearchToggle").classList.toggle("active", searchVisible);
   $("selectedCount").textContent = String(selectedCount());
+  syncTableFilterControls();
   const visible = getVisibleItems().length;
-  $("searchResultCount").textContent = tableSearch
-    ? `匹配 ${visible}，共 ${items.length}`
-    : `共 ${items.length}`;
+  const parts = [];
+  if (tableSearch || hasActiveTableFilters()) parts.push(`匹配 ${visible}`);
+  parts.push(`共 ${items.length}`);
+  $("searchResultCount").textContent = parts.join("，");
 }
 
 function targetConfigInfo(target) {

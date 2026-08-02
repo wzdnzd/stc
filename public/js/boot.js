@@ -16,6 +16,21 @@ var searchVisible = false;
 var tableSearch = "";
 /** @type {{key:string, dir:"asc"|"desc"}} */
 var tableSort = { key: "", dir: "asc" };
+/**
+ * 主列表多选筛选：key → 选中的 value 集合
+ * 空集合表示该字段不限制
+ * @type {Record<string, Set<string>>}
+ */
+var tableFilters = {
+  accountType: new Set(),
+  accountStatus: new Set(),
+  proxyId: new Set(),
+  convert: new Set(),
+  exportStatus: new Set(),
+  uploadStatus: new Set(),
+};
+/** 当前展开的筛选下拉 key，null 表示收起 */
+var openTableFilterKey = null;
 var uploadBusy = false;
 var activeUploadTarget = "";
 var uploadAbortController = null;

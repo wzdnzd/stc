@@ -445,59 +445,73 @@
                 退出多选
               </button>
               <span class="toolbar-sep"></span>
-              <div class="selection-filter-group">
-                <span class="toolbar-label">账号状态</span>
-                <label class="status-select"
-                  ><input type="checkbox" data-account-select="valid" />有效</label
+              <div class="table-filter-bar" id="tableFilterBar" aria-label="列表筛选">
+                <div class="msel" data-filter-key="accountType">
+                  <button type="button" class="msel-btn" aria-haspopup="listbox" aria-expanded="false">
+                    <span class="msel-label">账号类型</span>
+                    <span class="msel-summary" data-msel-summary>全部</span>
+                    <span class="msel-caret" aria-hidden="true">▾</span>
+                  </button>
+                  <div class="msel-menu" hidden role="listbox" aria-multiselectable="true"></div>
+                </div>
+                <div class="msel" data-filter-key="accountStatus">
+                  <button type="button" class="msel-btn" aria-haspopup="listbox" aria-expanded="false">
+                    <span class="msel-label">账号状态</span>
+                    <span class="msel-summary" data-msel-summary>全部</span>
+                    <span class="msel-caret" aria-hidden="true">▾</span>
+                  </button>
+                  <div class="msel-menu" hidden role="listbox" aria-multiselectable="true"></div>
+                </div>
+                <div class="msel" data-filter-key="proxyId">
+                  <button type="button" class="msel-btn" aria-haspopup="listbox" aria-expanded="false">
+                    <span class="msel-label">代理 ID</span>
+                    <span class="msel-summary" data-msel-summary>全部</span>
+                    <span class="msel-caret" aria-hidden="true">▾</span>
+                  </button>
+                  <div class="msel-menu" hidden role="listbox" aria-multiselectable="true"></div>
+                </div>
+                <div class="msel" data-filter-key="convert">
+                  <button type="button" class="msel-btn" aria-haspopup="listbox" aria-expanded="false">
+                    <span class="msel-label">转换</span>
+                    <span class="msel-summary" data-msel-summary>全部</span>
+                    <span class="msel-caret" aria-hidden="true">▾</span>
+                  </button>
+                  <div class="msel-menu" hidden role="listbox" aria-multiselectable="true"></div>
+                </div>
+                <div class="msel" data-filter-key="exportStatus">
+                  <button type="button" class="msel-btn" aria-haspopup="listbox" aria-expanded="false">
+                    <span class="msel-label">导出状态</span>
+                    <span class="msel-summary" data-msel-summary>全部</span>
+                    <span class="msel-caret" aria-hidden="true">▾</span>
+                  </button>
+                  <div class="msel-menu" hidden role="listbox" aria-multiselectable="true"></div>
+                </div>
+                <div class="msel" data-filter-key="uploadStatus">
+                  <button type="button" class="msel-btn" aria-haspopup="listbox" aria-expanded="false">
+                    <span class="msel-label">上传状态</span>
+                    <span class="msel-summary" data-msel-summary>全部</span>
+                    <span class="msel-caret" aria-hidden="true">▾</span>
+                  </button>
+                  <div class="msel-menu" hidden role="listbox" aria-multiselectable="true"></div>
+                </div>
+                <button
+                  class="btn-ghost btn-sm"
+                  id="btnClearTableFilters"
+                  type="button"
+                  hidden
+                  title="清除全部筛选"
                 >
-                <label class="status-select"
-                  ><input type="checkbox" data-account-select="expired" />失效</label
-                >
-                <label class="status-select"
-                  ><input type="checkbox" data-account-select="unknown" />未知</label
-                >
+                  清除筛选
+                </button>
               </div>
-              <div class="selection-filter-group">
-                <span class="toolbar-label">上传状态</span>
-                <label class="status-select"
-                  ><input type="checkbox" data-upload-select="failed" />失败</label
-                >
-                <label class="status-select"
-                  ><input type="checkbox" data-upload-select="not-uploaded" />未上传</label
-                >
-                <label class="status-select"
-                  ><input type="checkbox" data-upload-select="success" />成功</label
-                >
-                <label class="status-select"
-                  ><input type="checkbox" data-upload-select="uploading" />上传中</label
-                >
-                <label class="status-select"
-                  ><input type="checkbox" data-upload-select="unknown" />未知</label
-                >
-                <label class="status-select"
-                  ><input type="checkbox" data-upload-select="cancelled" />已取消</label
-                >
-              </div>
-            </div>
-            <div class="selection-toolbar-row proxy-row">
-              <span class="toolbar-label">代理 ID</span>
+              <span class="toolbar-sep"></span>
+              <span class="toolbar-label">代理</span>
               <button class="btn-primary btn-sm" id="btnBatchSetProxy" type="button">
                 批量设置
               </button>
               <button class="btn-ghost btn-sm" id="btnBatchClearProxy" type="button">
                 批量清除
               </button>
-              <span class="toolbar-sep"></span>
-              <button class="btn-ghost btn-sm" id="btnSelectHasProxy" type="button">
-                仅选中有代理
-              </button>
-              <button class="btn-ghost btn-sm" id="btnSelectNoProxy" type="button">
-                仅选中无代理
-              </button>
-              <button class="btn-ghost btn-sm" id="btnSelectInvalidProxy" type="button">
-                仅选中无效代理
-              </button>
-              <span class="toolbar-sep"></span>
               <button
                 class="btn-ghost btn-sm"
                 id="btnRefreshProxyCache"
@@ -506,22 +520,6 @@
               >
                 刷新代理缓存
               </button>
-              <span class="toolbar-sep"></span>
-              <div class="selection-filter-group">
-                <span class="toolbar-label">导出状态</span>
-                <label class="status-select"
-                  ><input type="checkbox" data-export-select="not-exported" />未导出</label
-                >
-                <label class="status-select"
-                  ><input type="checkbox" data-export-select="preparing" />准备中</label
-                >
-                <label class="status-select"
-                  ><input type="checkbox" data-export-select="exported" />已导出</label
-                >
-                <label class="status-select"
-                  ><input type="checkbox" data-export-select="failed" />失败</label
-                >
-              </div>
             </div>
           </div>
           <div class="search-toolbar" id="searchToolbar">

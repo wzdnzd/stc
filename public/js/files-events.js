@@ -70,15 +70,7 @@ function clearAll() {
   hasPendingRemoteHydration = false;
   unlockDirection({ silent: true });
   $("accountSearch").value = "";
-  document.querySelectorAll("[data-upload-select]").forEach((input) => {
-    input.checked = false;
-  });
-  document.querySelectorAll("[data-account-select]").forEach((input) => {
-    input.checked = false;
-  });
-  document.querySelectorAll("[data-export-select]").forEach((input) => {
-    input.checked = false;
-  });
+  clearTableFilters({ render: false });
   setUploadProgressVisible(false);
   clearMsg();
   renderTable();
@@ -171,30 +163,14 @@ $("btnSelectMode").addEventListener("click", () => {
   selectionMode = !selectionMode;
   if (!selectionMode) {
     for (const item of items) item.selected = false;
-    document.querySelectorAll("[data-upload-select]").forEach((input) => {
-      input.checked = false;
-    });
-    document.querySelectorAll("[data-account-select]").forEach((input) => {
-      input.checked = false;
-    });
-    document.querySelectorAll("[data-export-select]").forEach((input) => {
-      input.checked = false;
-    });
+    clearTableFilters({ render: false });
   }
   renderTable();
 });
 $("btnExitSelection").addEventListener("click", () => {
   selectionMode = false;
   for (const item of items) item.selected = false;
-  document.querySelectorAll("[data-upload-select]").forEach((input) => {
-    input.checked = false;
-  });
-  document.querySelectorAll("[data-account-select]").forEach((input) => {
-    input.checked = false;
-  });
-  document.querySelectorAll("[data-export-select]").forEach((input) => {
-    input.checked = false;
-  });
+  clearTableFilters({ render: false });
   renderTable();
 });
 $("btnSelectVisible").addEventListener("click", () => {
@@ -205,15 +181,6 @@ $("btnSelectVisible").addEventListener("click", () => {
 });
 $("btnClearSelection").addEventListener("click", () => {
   for (const item of items) item.selected = false;
-  document.querySelectorAll("[data-upload-select]").forEach((input) => {
-    input.checked = false;
-  });
-  document.querySelectorAll("[data-account-select]").forEach((input) => {
-    input.checked = false;
-  });
-  document.querySelectorAll("[data-export-select]").forEach((input) => {
-    input.checked = false;
-  });
   renderTable();
 });
 tbody.addEventListener("change", (event) => {
@@ -223,36 +190,43 @@ tbody.addEventListener("change", (event) => {
   if (item) item.selected = checkbox.checked;
   renderTable();
 });
-document.querySelectorAll("[data-upload-select]").forEach((checkbox) => {
-  checkbox.addEventListener("change", () => {
-    const status = checkbox.dataset.uploadSelect;
-    for (const { item } of getVisibleItems()) {
-      if (item.error || !(item.account || itemNeedsHydration(item))) continue;
-      if (item.uploadStatus === status) item.selected = checkbox.checked;
-    }
-    renderTable();
-  });
+
+// 主列表多选筛选：同行下拉，选项来自当前列表实际字段值
+$("tableFilterBar")?.addEventListener("click", (event) => {
+  const btn = event.target.closest(".msel-btn");
+  if (btn) {
+    event.preventDefault();
+    event.stopPropagation();
+    const root = btn.closest(".msel[data-filter-key]");
+    const key = root?.getAttribute("data-filter-key") || "";
+    if (!key || btn.disabled) return;
+    openTableFilterKey = openTableFilterKey === key ? null : key;
+    syncTableFilterControls();
+    return;
+  }
 });
-document.querySelectorAll("[data-account-select]").forEach((checkbox) => {
-  checkbox.addEventListener("change", () => {
-    const status = checkbox.dataset.accountSelect;
-    for (const { item } of getVisibleItems()) {
-      if (item.error || !(item.account || itemNeedsHydration(item))) continue;
-      if (item.accountStatus === status) item.selected = checkbox.checked;
-    }
-    renderTable();
-  });
+$("tableFilterBar")?.addEventListener("change", (event) => {
+  const input = event.target.closest("input[data-filter-key][data-filter-value]");
+  if (!input) return;
+  const key = input.getAttribute("data-filter-key") || "";
+  const value = input.getAttribute("data-filter-value") || "";
+  if (!key || !tableFilters[key]) return;
+  if (input.checked) tableFilters[key].add(value);
+  else tableFilters[key].delete(value);
+  renderTable();
 });
-document.querySelectorAll("[data-export-select]").forEach((checkbox) => {
-  checkbox.addEventListener("change", () => {
-    const status = checkbox.dataset.exportSelect;
-    for (const { item } of getVisibleItems()) {
-      if (item.error || !(item.account || itemNeedsHydration(item))) continue;
-      const exportStatus = item.exportStatus || EXPORT_STATUS.NONE;
-      if (exportStatus === status) item.selected = checkbox.checked;
-    }
-    renderTable();
-  });
+$("btnClearTableFilters")?.addEventListener("click", () => {
+  clearTableFilters({ render: true });
+});
+document.addEventListener("click", (event) => {
+  if (!openTableFilterKey) return;
+  if (event.target.closest?.("#tableFilterBar .msel")) return;
+  closeOpenTableFilter();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && openTableFilterKey) {
+    closeOpenTableFilter();
+  }
 });
 
 $("btnSearchToggle").addEventListener("click", () => {
@@ -516,9 +490,6 @@ $("btnExportSub2RemoteSelected")?.addEventListener("click", () => {
 // 代理：批量 / 校验弹窗 / 行内编辑
 $("btnBatchSetProxy")?.addEventListener("click", openBatchProxyModal);
 $("btnBatchClearProxy")?.addEventListener("click", batchClearSelectedProxies);
-$("btnSelectHasProxy")?.addEventListener("click", () => selectVisibleByProxyFilter("has"));
-$("btnSelectNoProxy")?.addEventListener("click", () => selectVisibleByProxyFilter("none"));
-$("btnSelectInvalidProxy")?.addEventListener("click", () => selectVisibleByProxyFilter("invalid"));
 $("btnRefreshProxyCache")?.addEventListener("click", () => refreshSub2apiProxyCache());
 $("btnCloseBatchProxy")?.addEventListener("click", closeBatchProxyModal);
 $("btnCancelBatchProxy")?.addEventListener("click", closeBatchProxyModal);
