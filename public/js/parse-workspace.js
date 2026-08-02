@@ -488,15 +488,24 @@ function countUploadStats(list, target = "") {
   const match = (item) => !target || !item.uploadTarget || item.uploadTarget === target;
   const count = (status) =>
     scope.filter((item) => match(item) && item.uploadStatus === status).length;
+  // 旧快照可能用 NONE +「已跳过」文案表示跳过
+  const legacySkipped = scope.filter(
+    (item) =>
+      match(item) &&
+      item.uploadStatus === UPLOAD_STATUS.NONE &&
+      item.uploadMessage &&
+      String(item.uploadMessage).startsWith("已跳过")
+  ).length;
   return {
     total: scope.length,
     success: count(UPLOAD_STATUS.SUCCESS),
     failed: count(UPLOAD_STATUS.FAILED),
     unknown: count(UPLOAD_STATUS.UNKNOWN),
     cancelled: count(UPLOAD_STATUS.CANCELLED),
+    skipped: count(UPLOAD_STATUS.SKIPPED) + legacySkipped,
     queued: count(UPLOAD_STATUS.QUEUED),
     uploading: count(UPLOAD_STATUS.UPLOADING),
-    none: count(UPLOAD_STATUS.NONE),
+    none: Math.max(0, count(UPLOAD_STATUS.NONE) - legacySkipped),
   };
 }
 
@@ -522,6 +531,13 @@ function summarizeResumeCandidates(list, target, { includeUnknown = false, itemI
       return false;
     }
     if (item.uploadStatus === UPLOAD_STATUS.SUCCESS) return false;
+    // 跳过项不参与续传；兼容旧快照文案标记
+    if (
+      item.uploadStatus === UPLOAD_STATUS.SKIPPED ||
+      (item.uploadMessage && String(item.uploadMessage).startsWith("已跳过"))
+    ) {
+      return false;
+    }
     if (
       item.uploadStatus === UPLOAD_STATUS.UNKNOWN ||
       item.uploadStatus === UPLOAD_STATUS.UPLOADING

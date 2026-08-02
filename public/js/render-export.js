@@ -60,13 +60,23 @@ function uploadStatusHtml(item) {
   if (item.uploadStatus === UPLOAD_STATUS.CANCELLED) {
     return `<span class="tag tag-upload-cancelled"${tipAttr}>已取消</span>`;
   }
-  // 失效账号自动跳过：只显示标签，详细原因放深色 data-tip
+  if (item.uploadStatus === UPLOAD_STATUS.SKIPPED) {
+    const skipTip =
+      String(item.uploadMessage || "")
+        .replace(/^已跳过\s*[，,·•-]?\s*/, "")
+        .trim() || item.uploadMessage || "已跳过";
+    const skipTipAttr = skipTip
+      ? ` data-tip="${escapeHtml(skipTip)}" title="${escapeHtml(skipTip)}" tabindex="0"`
+      : tipAttr;
+    return `<span class="tag tag-upload-skipped"${skipTipAttr}>已跳过</span>`;
+  }
+  // 兼容旧快照：曾用 NONE +「已跳过…」文案标记跳过
   if (item.uploadMessage && String(item.uploadMessage).startsWith("已跳过")) {
     const skipTip =
       String(item.uploadMessage)
-        .replace(/^已跳过\s*[·•-]?\s*/, "")
+        .replace(/^已跳过\s*[，,·•-]?\s*/, "")
         .trim() || "账号已过期";
-    return `<span class="tag tag-account-expired" data-tip="${escapeHtml(skipTip)}" title="${escapeHtml(skipTip)}" tabindex="0">已跳过</span>`;
+    return `<span class="tag tag-upload-skipped" data-tip="${escapeHtml(skipTip)}" title="${escapeHtml(skipTip)}" tabindex="0">已跳过</span>`;
   }
   return `<span class="tag tag-upload-none">未上传</span>`;
 }

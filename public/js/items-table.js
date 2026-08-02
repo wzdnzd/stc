@@ -378,7 +378,13 @@ function accountStatusSortRank(item) {
 }
 
 function uploadSortRank(item) {
-  if (item.uploadMessage && String(item.uploadMessage).startsWith("已跳过")) return 7;
+  // 兼容旧快照：NONE +「已跳过…」文案
+  if (
+    item.uploadStatus === UPLOAD_STATUS.SKIPPED ||
+    (item.uploadMessage && String(item.uploadMessage).startsWith("已跳过"))
+  ) {
+    return 7;
+  }
   switch (item.uploadStatus) {
     case UPLOAD_STATUS.NONE:
       return 0;

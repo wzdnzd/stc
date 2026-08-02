@@ -279,8 +279,8 @@ async function prepareSub2UploadItems(uploadItems, configPayload) {
     for (const item of invalid) {
       setItemUploadState(
         item,
-        UPLOAD_STATUS.NONE,
-        "",
+        UPLOAD_STATUS.SKIPPED,
+        TARGET_SUB2API,
         `已跳过，代理 ID ${getItemProxyId(item) ?? "-"} 无效`,
         0
       );
@@ -531,15 +531,24 @@ function uploadProgressMessage(target, total) {
   const scope = activeUploadItemIds
     ? items.filter((item) => activeUploadItemIds.has(item.id))
     : getOperationItems();
+  // 跳过项保留 uploadTarget；兼容旧快照中 target 被清空的跳过标记
   const count = (status) =>
-    scope.filter((item) => item.uploadTarget === target && item.uploadStatus === status).length;
+    scope.filter((item) => {
+      if (item.uploadStatus !== status) return false;
+      if (status === UPLOAD_STATUS.SKIPPED) {
+        return !item.uploadTarget || item.uploadTarget === target;
+      }
+      return item.uploadTarget === target;
+    }).length;
   const success = count(UPLOAD_STATUS.SUCCESS);
   const failed = count(UPLOAD_STATUS.FAILED);
   const unknown = count(UPLOAD_STATUS.UNKNOWN);
   const cancelled = count(UPLOAD_STATUS.CANCELLED);
+  const skipped = count(UPLOAD_STATUS.SKIPPED);
   const uploading = count(UPLOAD_STATUS.UPLOADING);
   const queued = count(UPLOAD_STATUS.QUEUED);
-  const settled = success + failed + unknown + cancelled;
+  // 各终态之和 + 进行中应等于 total；跳过必须计入 settled
+  const settled = success + failed + unknown + cancelled + skipped;
   const pct = total > 0 ? Math.min(100, Math.round((settled / total) * 100)) : 0;
 
   setUploadProgressVisible(true);
@@ -550,6 +559,7 @@ function uploadProgressMessage(target, total) {
     `<span>成功：<b>${success}</b></span>` +
     `<span>失败：<b>${failed}</b></span>` +
     `<span>未知：<b>${unknown}</b></span>` +
+    `<span>跳过：<b>${skipped}</b></span>` +
     `<span>处理中：<b>${uploading}</b></span>` +
     `<span>等待：<b>${queued}</b></span>` +
     `<span>已取消：<b>${cancelled}</b></span>` +
@@ -925,7 +935,14 @@ async function uploadTransferBatch(
         // 直传不把完整凭证拉回前端；仅标记目标格式已处理
         entry.item.targetFormat = target === TARGET_SUB2API ? TARGET_SUB2API : "cpa";
       } else if (row?.skipped) {
-        setItemUploadState(entry.item, UPLOAD_STATUS.NONE, "", row.error || "已跳过失效账号", 0);
+        // 保留 uploadTarget，进度条才能把跳过计入总数
+        setItemUploadState(
+          entry.item,
+          UPLOAD_STATUS.SKIPPED,
+          target,
+          row.error || "已跳过失效账号",
+          0
+        );
       } else if (row?.unknown) {
         batchOk = false;
         batchAmbiguous = true;
@@ -1083,14 +1100,20 @@ async function uploadToServer(target, showConfigOnly = false, options = {}) {
           const expiredText = item.expiresAt
             ? `已于 ${formatExpiryDisplay(item.expiresAt) || item.expiresAt} 过期`
             : "账号已过期";
-          setItemUploadState(item, UPLOAD_STATUS.NONE, "", `已跳过，${expiredText}`, 0);
+          setItemUploadState(
+            item,
+            UPLOAD_STATUS.SKIPPED,
+            target,
+            `已跳过，${expiredText}`,
+            0
+          );
         }
         renderTable();
       }
       if (!uploadItems.length) {
         showMsg(
           expiredItems.length
-            ? `所选 ${expiredItems.length} 个账号均已失效。可在「过期处理」中改为仍包含`
+            ? `所选 ${expiredItems.length} 个账号均已失效，可在「过期处理」中改为仍包含`
             : selectionMode
               ? "请先勾选要上传的账号"
               : "没有可上传的账号",
@@ -1112,14 +1135,20 @@ async function uploadToServer(target, showConfigOnly = false, options = {}) {
           const expiredText = item.expiresAt
             ? `已于 ${formatExpiryDisplay(item.expiresAt) || item.expiresAt} 过期`
             : "账号已过期";
-          setItemUploadState(item, UPLOAD_STATUS.NONE, "", `已跳过，${expiredText}`, 0);
+          setItemUploadState(
+            item,
+            UPLOAD_STATUS.SKIPPED,
+            target,
+            `已跳过，${expiredText}`,
+            0
+          );
         }
         renderTable();
       }
       if (!uploadItems.length) {
         showMsg(
           expiredItems.length
-            ? `所选 ${expiredItems.length} 个账号均已失效。可在「过期处理」中改为仍包含`
+            ? `所选 ${expiredItems.length} 个账号均已失效，可在「过期处理」中改为仍包含`
             : "没有可上传的账号",
           "err"
         );
@@ -1187,7 +1216,19 @@ async function uploadToServer(target, showConfigOnly = false, options = {}) {
     }
   }
 
-  activeUploadItemIds = new Set(uploadItems.map((item) => item.id));
+  // 进度与完成统计的「共」= 实际上传 + 上传前已跳过，保证各状态之和可对上
+  const preSkippedItems = [];
+  const seenProgressId = new Set();
+  for (const item of [...expiredItems, ...skippedInvalidProxy]) {
+    if (!item?.id || seenProgressId.has(item.id)) continue;
+    seenProgressId.add(item.id);
+    preSkippedItems.push(item);
+  }
+  const progressTotal = uploadItems.length + preSkippedItems.length;
+  activeUploadItemIds = new Set([
+    ...uploadItems.map((item) => item.id),
+    ...preSkippedItems.map((item) => item.id),
+  ]);
   restoredJobMeta = {
     target,
     itemIds: Array.from(activeUploadItemIds),
@@ -1215,7 +1256,7 @@ async function uploadToServer(target, showConfigOnly = false, options = {}) {
       0
     );
   }
-  uploadProgressMessage(target, uploadItems.length);
+  uploadProgressMessage(target, progressTotal);
   renderTable();
   try {
     if (useRemoteTransfer) {
@@ -1233,7 +1274,7 @@ async function uploadToServer(target, showConfigOnly = false, options = {}) {
         async (batchEntries, index) =>
           uploadTransferBatch(
             batchEntries,
-            entries.length,
+            progressTotal,
             index + 1,
             batches.length,
             transferSource,
@@ -1259,7 +1300,7 @@ async function uploadToServer(target, showConfigOnly = false, options = {}) {
         batches,
         () => adaptiveUploadConcurrency,
         async (batchEntries, index) =>
-          uploadSub2Batch(batchEntries, entries.length, index + 1, batches.length, configPayload, {
+          uploadSub2Batch(batchEntries, progressTotal, index + 1, batches.length, configPayload, {
             maxAttempts: uploadAttempts,
             ambiguousRetry,
           })
@@ -1274,27 +1315,38 @@ async function uploadToServer(target, showConfigOnly = false, options = {}) {
         batches,
         () => adaptiveUploadConcurrency,
         async (batchEntries, index) =>
-          uploadCpaBatch(batchEntries, entries.length, index + 1, batches.length, configPayload, {
+          uploadCpaBatch(batchEntries, progressTotal, index + 1, batches.length, configPayload, {
             maxAttempts: uploadAttempts,
           })
       );
     }
-    const success = uploadItems.filter(
-      (item) => item.uploadStatus === UPLOAD_STATUS.SUCCESS
+    // 统计范围与进度条一致：上传项 + 上传前跳过项
+    const statScope = [...uploadItems, ...preSkippedItems];
+    const success = statScope.filter((item) => item.uploadStatus === UPLOAD_STATUS.SUCCESS).length;
+    const failed = statScope.filter((item) => item.uploadStatus === UPLOAD_STATUS.FAILED).length;
+    const unknown = statScope.filter((item) => item.uploadStatus === UPLOAD_STATUS.UNKNOWN).length;
+    const cancelled = statScope.filter(
+      (item) => item.uploadStatus === UPLOAD_STATUS.CANCELLED
     ).length;
-    const failed = uploadItems.filter((item) => item.uploadStatus === UPLOAD_STATUS.FAILED).length;
-    const unknown = uploadItems.filter(
-      (item) => item.uploadStatus === UPLOAD_STATUS.UNKNOWN
-    ).length;
-    const skipped = expiredItems.length + skippedInvalidProxy.length;
-    uploadProgressMessage(target, uploadItems.length);
+    const skipped = statScope.filter((item) => item.uploadStatus === UPLOAD_STATUS.SKIPPED).length;
+    uploadProgressMessage(target, progressTotal);
+    const parts = [
+      `成功：${success}`,
+      `失败：${failed}`,
+      `未知：${unknown}`,
+      `跳过：${skipped}`,
+    ];
+    if (cancelled) parts.push(`已取消：${cancelled}`);
+    // 成功+失败+未知+跳过+已取消 应等于本次账号总数
+    const accounted = success + failed + unknown + cancelled + skipped;
+    if (progressTotal > 0 && accounted !== progressTotal) {
+      parts.push(`未归类：${Math.max(0, progressTotal - accounted)}`);
+    }
+    if (expiredItems.length) parts.push(`失效：${expiredItems.length}`);
+    if (skippedInvalidProxy.length) parts.push(`无效代理：${skippedInvalidProxy.length}`);
+    if (forcedInvalidProxy) parts.push("含强制上传");
     showMsg(
-      `${target} ${useRemoteTransfer ? "远端直传" : "上传"}完成，成功：${success}, 失败：${failed}, 未知：${unknown}` +
-        (skipped
-          ? `, 跳过：${skipped}, 失效：${expiredItems.length}` +
-            (skippedInvalidProxy.length ? `, 无效代理：${skippedInvalidProxy.length}` : "")
-          : "") +
-        (forcedInvalidProxy ? ", 含强制上传" : ""),
+      `${target} ${useRemoteTransfer ? "远端直传" : "上传"}完成，${parts.join("，")}`,
       failed || unknown ? "info" : "ok"
     );
   } catch (error) {

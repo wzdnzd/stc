@@ -137,6 +137,8 @@ var UPLOAD_STATUS = Object.freeze({
   FAILED: "failed",
   UNKNOWN: "unknown",
   CANCELLED: "cancelled",
+  /** 过期/无效代理等主动跳过，计入进度与完成统计，不与成功/失败混淆 */
+  SKIPPED: "skipped",
 });
 var EXPORT_STATUS = Object.freeze({
   NONE: "not-exported",

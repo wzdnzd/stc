@@ -1690,6 +1690,11 @@ tr.selected-row td {
   color: var(--neutral-fg);
 }
 
+.tag-upload-skipped {
+  background: var(--neutral-bg-2);
+  color: var(--neutral-fg-2);
+}
+
 .tag-account-valid {
   background: var(--ok-bg);
   color: var(--ok-fg);
