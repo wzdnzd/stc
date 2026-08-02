@@ -1277,6 +1277,13 @@ th {
   white-space: nowrap;
 }
 
+/* # 列含多选/搜索按钮，避免被窄列宽 + overflow 裁掉 */
+th.th-index {
+  overflow: visible;
+  min-width: 108px;
+  z-index: 2;
+}
+
 th.th-sortable {
   cursor: pointer;
   user-select: none;
@@ -1326,12 +1333,12 @@ th.th-sortable.is-sorted-desc .sort-ind::after {
   content: "▼";
 }
 
-/* 列宽：百分比均分，源文件/邮箱占主要弹性空间，避免中间大片空白 */
+/* 列宽：百分比均分；# 列需容纳排序指示 + 多选/搜索按钮 */
 col.col-idx {
-  width: 5%;
+  width: 9%;
 }
 col.col-file {
-  width: 16%;
+  width: 14%;
 }
 col.col-src {
   width: 6%;
@@ -1340,7 +1347,7 @@ col.col-dst {
   width: 7%;
 }
 col.col-email {
-  width: 15%;
+  width: 14%;
 }
 col.col-type {
   width: 7%;
@@ -1349,7 +1356,7 @@ col.col-account {
   width: 6%;
 }
 col.col-expiry {
-  width: 12%;
+  width: 11%;
 }
 col.col-proxy {
   width: 9%;
@@ -1769,6 +1776,7 @@ body.is-empty .table-wrap tbody td {
   align-items: center;
   gap: 4px;
   white-space: nowrap;
+  min-width: max-content;
 }
 
 .icon-btn {
@@ -1783,6 +1791,7 @@ body.is-empty .table-wrap tbody td {
   color: var(--muted);
   font-size: 15px;
   line-height: 1;
+  flex: 0 0 auto;
 }
 
 .icon-btn:hover,
