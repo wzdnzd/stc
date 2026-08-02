@@ -626,6 +626,19 @@ function clearTableFilters({ render = true } = {}) {
   if (render) renderTable();
 }
 
+/** 按当前可见结果同步勾选：匹配行选中，其余取消 */
+function selectVisibleFilterResults() {
+  if (!selectionMode) return;
+  const visibleIds = new Set(
+    getVisibleItems()
+      .filter(({ item }) => !item.error && (item.account || itemNeedsHydration(item)))
+      .map(({ item }) => item.id)
+  );
+  for (const item of items) {
+    item.selected = visibleIds.has(item.id);
+  }
+}
+
 function collectTableFilterOptions(key) {
   const seen = new Map();
   for (const item of items) {

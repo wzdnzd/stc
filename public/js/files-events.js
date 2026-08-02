@@ -174,9 +174,7 @@ $("btnExitSelection").addEventListener("click", () => {
   renderTable();
 });
 $("btnSelectVisible").addEventListener("click", () => {
-  for (const { item } of getVisibleItems()) {
-    if (!item.error && (item.account || itemNeedsHydration(item))) item.selected = true;
-  }
+  selectVisibleFilterResults();
   renderTable();
 });
 $("btnClearSelection").addEventListener("click", () => {
@@ -217,11 +215,15 @@ $("tableFilterBar")?.addEventListener("change", (event) => {
   if (!key || !tableFilters[key]) return;
   if (input.checked) tableFilters[key].add(value);
   else tableFilters[key].delete(value);
-  // 保持当前下拉展开，仅刷新列表与选项勾选态
+  // 勾选筛选条件后，自动选中当前筛选结果
+  selectVisibleFilterResults();
   renderTable();
 });
 $("btnClearTableFilters")?.addEventListener("click", () => {
-  clearTableFilters({ render: true });
+  clearTableFilters({ render: false });
+  // 清除筛选后按当前可见结果重新同步勾选
+  selectVisibleFilterResults();
+  renderTable();
 });
 document.addEventListener("click", (event) => {
   if (!openTableFilterKey) return;
