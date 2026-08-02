@@ -81,17 +81,19 @@ export function summarizeDedupeAccount(account) {
   const proxyId = parseProxyId(
     account?.proxy_id ?? account?.proxyId ?? account?.proxy?.id ?? account?.proxy?.proxy_id
   );
+  // 列表/快载原样下发 status；前端：error 强制失效，其余按 token 有效期判定
+  const status = account?.status ?? account?.state ?? "";
   return {
     id: account?.id,
     name: account?.name ?? "",
     email,
     platform: account?.platform ?? "",
     type: account?.type ?? "",
-    status: account?.status ?? "",
+    status,
     proxyId,
     expiresAt: accountExpiresUnix(account),
     createdAt: account?.created_at ?? account?.createdAt ?? null,
-    normal: isNormalAccountStatus(account?.status),
+    normal: isNormalAccountStatus(status),
   };
 }
 

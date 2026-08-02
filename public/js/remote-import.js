@@ -265,13 +265,15 @@ function itemsFromSub2RemoteAccounts(accounts, options = {}) {
       const proxyId = parseProxyId(
         account?.proxyId ?? account?.proxy_id ?? account?.proxy?.id ?? account?.proxy?.proxy_id
       );
-      const status = account?.status ?? "";
+      // 列表 status 原样保留；error 强制失效，其余按 token 有效期判定
+      const status = account?.status ?? account?.state ?? "";
       const stubAccount = {
         id: account?.id,
         name: account?.name || email || `id=${idPart}`,
         credentials: email ? { email } : {},
         extra: email ? { email } : {},
         status,
+        state: account?.state,
         platform: account?.platform,
         type: account?.type,
         normal: account?.normal,
