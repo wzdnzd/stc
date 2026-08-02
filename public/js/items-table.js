@@ -765,8 +765,39 @@ function closeOpenTableFilter() {
     const btn = el.querySelector(".msel-btn");
     const menu = el.querySelector(".msel-menu");
     if (btn) btn.setAttribute("aria-expanded", "false");
-    if (menu) menu.hidden = true;
+    if (menu) {
+      menu.hidden = true;
+      menu.style.top = "";
+      menu.style.left = "";
+      menu.style.minWidth = "";
+      menu.style.maxWidth = "";
+    }
   });
+}
+
+/** 将展开的筛选菜单固定到按钮下方，避免被工具栏 overflow 裁切 */
+function positionOpenTableFilterMenu(btn, menu) {
+  if (!btn || !menu) return;
+  const rect = btn.getBoundingClientRect();
+  const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+  const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+  const minWidth = Math.max(rect.width, 140);
+  const maxWidth = Math.min(280, Math.max(160, vw - 16));
+  let left = rect.left;
+  if (left + minWidth > vw - 8) left = Math.max(8, vw - minWidth - 8);
+  if (left < 8) left = 8;
+  let top = rect.bottom + 4;
+  menu.style.minWidth = `${Math.round(minWidth)}px`;
+  menu.style.maxWidth = `${Math.round(maxWidth)}px`;
+  menu.style.left = `${Math.round(left)}px`;
+  menu.style.top = `${Math.round(top)}px`;
+  // 先显示再量高度，必要时向上翻
+  menu.hidden = false;
+  const menuHeight = menu.getBoundingClientRect().height || 0;
+  if (top + menuHeight > vh - 8 && rect.top - 4 - menuHeight > 8) {
+    top = rect.top - 4 - menuHeight;
+    menu.style.top = `${Math.round(top)}px`;
+  }
 }
 
 function syncTableFilterControls() {
@@ -805,7 +836,15 @@ function syncTableFilterControls() {
     const isOpen = openTableFilterKey === key;
     root.classList.toggle("is-open", isOpen);
     if (btn) btn.setAttribute("aria-expanded", isOpen ? "true" : "false");
-    menu.hidden = !isOpen;
+    if (isOpen) {
+      positionOpenTableFilterMenu(btn, menu);
+    } else {
+      menu.hidden = true;
+      menu.style.top = "";
+      menu.style.left = "";
+      menu.style.minWidth = "";
+      menu.style.maxWidth = "";
+    }
   });
 }
 

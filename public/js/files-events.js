@@ -193,26 +193,31 @@ tbody.addEventListener("change", (event) => {
 
 // 主列表多选筛选：同行下拉，选项来自当前列表实际字段值
 $("tableFilterBar")?.addEventListener("click", (event) => {
-  const btn = event.target.closest(".msel-btn");
-  if (btn) {
-    event.preventDefault();
+  // 菜单在 fixed 定位下仍挂在 filter bar 内；内部点击不关闭
+  if (event.target.closest(".msel-menu")) {
     event.stopPropagation();
-    const root = btn.closest(".msel[data-filter-key]");
-    const key = root?.getAttribute("data-filter-key") || "";
-    if (!key || btn.disabled) return;
-    openTableFilterKey = openTableFilterKey === key ? null : key;
-    syncTableFilterControls();
     return;
   }
+  const btn = event.target.closest(".msel-btn");
+  if (!btn) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const root = btn.closest(".msel[data-filter-key]");
+  const key = root?.getAttribute("data-filter-key") || "";
+  if (!key || btn.disabled) return;
+  openTableFilterKey = openTableFilterKey === key ? null : key;
+  syncTableFilterControls();
 });
 $("tableFilterBar")?.addEventListener("change", (event) => {
   const input = event.target.closest("input[data-filter-key][data-filter-value]");
   if (!input) return;
+  event.stopPropagation();
   const key = input.getAttribute("data-filter-key") || "";
   const value = input.getAttribute("data-filter-value") || "";
   if (!key || !tableFilters[key]) return;
   if (input.checked) tableFilters[key].add(value);
   else tableFilters[key].delete(value);
+  // 保持当前下拉展开，仅刷新列表与选项勾选态
   renderTable();
 });
 $("btnClearTableFilters")?.addEventListener("click", () => {
@@ -220,7 +225,7 @@ $("btnClearTableFilters")?.addEventListener("click", () => {
 });
 document.addEventListener("click", (event) => {
   if (!openTableFilterKey) return;
-  if (event.target.closest?.("#tableFilterBar .msel")) return;
+  if (event.target.closest?.("#tableFilterBar") || event.target.closest?.(".msel-menu")) return;
   closeOpenTableFilter();
 });
 document.addEventListener("keydown", (event) => {
@@ -228,6 +233,20 @@ document.addEventListener("keydown", (event) => {
     closeOpenTableFilter();
   }
 });
+window.addEventListener(
+  "resize",
+  () => {
+    if (openTableFilterKey) syncTableFilterControls();
+  },
+  { passive: true }
+);
+window.addEventListener(
+  "scroll",
+  () => {
+    if (openTableFilterKey) syncTableFilterControls();
+  },
+  { passive: true, capture: true }
+);
 
 $("btnSearchToggle").addEventListener("click", () => {
   searchVisible = !searchVisible;

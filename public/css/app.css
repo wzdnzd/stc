@@ -1509,6 +1509,9 @@ body.is-empty .table-wrap tbody td {
   gap: 8px;
   flex-direction: column;
   margin-bottom: 10px;
+  overflow: visible;
+  position: relative;
+  z-index: 4;
 }
 
 .table-control-panel.show {
@@ -1527,24 +1530,27 @@ body.is-empty .table-wrap tbody td {
   border-radius: 10px;
   background: var(--surface-toolbar);
   font-size: 12px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: thin;
+  overflow: visible;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .selection-toolbar {
   flex-direction: row;
   align-items: center;
   gap: 6px;
+  position: relative;
+  z-index: 5;
 }
 
 .selection-toolbar-row {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex: 1 1 auto;
   flex-wrap: nowrap;
-  width: max-content;
-  min-width: 100%;
+  width: 100%;
+  min-width: 0;
   justify-content: flex-start;
 }
 
@@ -1553,12 +1559,14 @@ body.is-empty .table-wrap tbody td {
 }
 
 .selection-toolbar-row .table-filter-bar {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .selection-toolbar.show,
 .search-toolbar.show {
   display: flex;
+  width: 100%;
 }
 
 .selection-toolbar b {
@@ -1583,27 +1591,37 @@ body.is-empty .table-wrap tbody td {
 }
 
 .table-filter-bar {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 4px;
   flex-wrap: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  overflow: visible;
+}
+
+.table-filter-bar > #btnClearTableFilters {
   flex: 0 0 auto;
-  white-space: nowrap;
 }
 
 .msel {
   position: relative;
-  display: inline-flex;
-  flex: 0 0 auto;
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .msel-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 4px;
-  max-width: 148px;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
   min-height: 28px;
-  padding: 3px 7px;
+  padding: 3px 8px;
   margin: 0;
   border: 1px solid var(--border);
   border-radius: 7px;
@@ -1640,15 +1658,18 @@ body.is-empty .table-wrap tbody td {
 .msel-label {
   color: var(--muted);
   white-space: nowrap;
+  flex: 0 0 auto;
 }
 
 .msel-summary {
   color: var(--text);
   font-weight: 600;
-  max-width: 88px;
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: left;
 }
 
 .msel-caret {
@@ -1656,14 +1677,15 @@ body.is-empty .table-wrap tbody td {
   font-size: 10px;
   line-height: 1;
   margin-left: 1px;
+  flex: 0 0 auto;
 }
 
 .msel-menu {
-  position: absolute;
-  top: calc(100% + 4px);
+  position: fixed;
+  top: 0;
   left: 0;
-  z-index: 40;
-  min-width: 100%;
+  z-index: 1200;
+  min-width: 140px;
   width: max-content;
   max-width: min(280px, 70vw);
   max-height: min(280px, 50vh);
@@ -1673,6 +1695,14 @@ body.is-empty .table-wrap tbody td {
   border-radius: 10px;
   background: var(--panel);
   box-shadow: var(--shadow-modal);
+}
+
+.msel.is-open {
+  z-index: 6;
+}
+
+.msel-menu[hidden] {
+  display: none !important;
 }
 
 .msel-option {
@@ -1861,11 +1891,7 @@ tr.selected-row td {
 
 @media (max-width: 900px) {
   .msel-btn {
-    max-width: 132px;
-  }
-
-  .msel-summary {
-    max-width: 64px;
+    padding: 3px 6px;
   }
 }
 
