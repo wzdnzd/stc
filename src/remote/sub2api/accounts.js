@@ -7,6 +7,7 @@ import {
   DEDUPE_NORMAL_STATUSES,
   VERIFY_TIMEOUT_MS,
 } from "../../constants.js";
+import { parseProxyId } from "../../shared/account-convert.js";
 
 export function compareAccountIdAsc(a, b) {
   const av = a?.id;
@@ -76,6 +77,10 @@ export function summarizeDedupeAccount(account) {
     ) ||
     (String(account?.name || "").includes("@") ? normalizeDedupeEmail(account.name) : "") ||
     "";
+  // 列表/快载需要把 proxy_id 带到前端主表「代理 ID」列
+  const proxyId = parseProxyId(
+    account?.proxy_id ?? account?.proxyId ?? account?.proxy?.id ?? account?.proxy?.proxy_id
+  );
   return {
     id: account?.id,
     name: account?.name ?? "",
@@ -83,6 +88,7 @@ export function summarizeDedupeAccount(account) {
     platform: account?.platform ?? "",
     type: account?.type ?? "",
     status: account?.status ?? "",
+    proxyId,
     expiresAt: accountExpiresUnix(account),
     createdAt: account?.created_at ?? account?.createdAt ?? null,
     normal: isNormalAccountStatus(account?.status),

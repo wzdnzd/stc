@@ -51,17 +51,25 @@ export function parseCpaAuthFileItem(item) {
   const nameRaw = pickFirstDefined(item, ["name", "file_name", "fileName", "id"]);
   if (nameRaw == null || nameRaw === "") return null;
   const name = String(nameRaw);
+  const statusRaw = pickFirstDefined(item, ["status", "state"]);
+  const status = statusRaw == null || statusRaw === "" ? "" : String(statusRaw).trim();
   let disabled;
   if ("disabled" in item) {
     disabled = asBoolFlag(item.disabled);
   } else {
-    const status = String(pickFirstDefined(item, ["status", "state"]) || "")
-      .trim()
-      .toLowerCase();
-    disabled = status === "disabled" || status === "inactive";
+    const statusLower = status.toLowerCase();
+    disabled = statusLower === "disabled" || statusLower === "inactive";
   }
+  const unavailable = "unavailable" in item ? asBoolFlag(item.unavailable) : false;
   const updatedAt = unixFromIsoOrNumber(
-    pickFirstDefined(item, ["updated_at", "updatedAt", "modified_at", "modifiedAt", "mtime"])
+    pickFirstDefined(item, [
+      "updated_at",
+      "updatedAt",
+      "modified_at",
+      "modifiedAt",
+      "modtime",
+      "mtime",
+    ])
   );
   return {
     name,
@@ -81,6 +89,9 @@ export function parseCpaAuthFileItem(item) {
       ]) || ""
     ),
     disabled,
+    unavailable,
+    // 源站运行状态，如 active；快载时用于主表「账号状态」
+    status,
     // 列表阶段没有 token 过期时间，先用文件更新时间占位；补全凭证后会替换为真实过期
     updatedAt: updatedAt != null && Number.isFinite(updatedAt) && updatedAt > 0 ? updatedAt : null,
   };

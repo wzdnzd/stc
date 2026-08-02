@@ -176,11 +176,88 @@ function sameSideUploadBlocked(target) {
   return listHasRemoteOrigin(target);
 }
 
+/** 远端列表 status 是否视为可调度/有效，如 active / normal / enabled */
+function isActiveRemoteStatus(status) {
+  if (status == null || status === "") return false;
+  if (typeof status === "boolean") return status;
+  const raw = String(status).trim().toLowerCase();
+  if (!raw) return false;
+  if (
+    [
+      "active",
+      "normal",
+      "enabled",
+      "ok",
+      "running",
+      "success",
+      "valid",
+      "healthy",
+      "1",
+      "true",
+    ].includes(raw)
+  ) {
+    return true;
+  }
+  const n = Number(status);
+  return Number.isFinite(n) && n === 1;
+}
+
+/** 远端列表 status 是否明确表示停用/异常 */
+function isInactiveRemoteStatus(status) {
+  if (status == null || status === "") return false;
+  if (typeof status === "boolean") return !status;
+  const raw = String(status).trim().toLowerCase();
+  if (!raw) return false;
+  if (
+    [
+      "inactive",
+      "disabled",
+      "paused",
+      "error",
+      "failed",
+      "expired",
+      "invalid",
+      "banned",
+      "blocked",
+      "unavailable",
+      "0",
+      "false",
+      "off",
+    ].includes(raw)
+  ) {
+    return true;
+  }
+  const n = Number(status);
+  return Number.isFinite(n) && n === 0;
+}
+
+/**
+ * 快载时根据源站 status / disabled 判定账号状态：
+ * - active 等 → 有效
+ * - disabled / inactive / unavailable 等 → 失效
+ * - 无明确 status 时回退未知，再由 token 过期时间决定
+ */
+function resolveRemoteListAccountStatus(item) {
+  if (!item?.account || item.error) return null;
+  const account = item.account;
+  if (account.disabled === true || account.unavailable === true) {
+    return ACCOUNT_STATUS.EXPIRED;
+  }
+  const status = account.status ?? account.state ?? item.remoteStatus ?? "";
+  if (isActiveRemoteStatus(status)) return ACCOUNT_STATUS.VALID;
+  if (isInactiveRemoteStatus(status)) return ACCOUNT_STATUS.EXPIRED;
+  // normal 布尔字段：SUB2API 列表摘要可能带 normal
+  if (account.normal === true || item.remoteNormal === true) return ACCOUNT_STATUS.VALID;
+  if (account.normal === false || item.remoteNormal === false) return ACCOUNT_STATUS.EXPIRED;
+  return null;
+}
+
 /**
  * 从源账号解析过期时间：
  * - CPA：account.expired（ISO）或 _exp；快载 stub 可能只有列表 updated_at 占位
  * - SUB2API：credentials.expires_at（unix 秒）
  * - 远端快载 stub / 工作区恢复：回退 item.expiresAt
+ * 账号状态优先采用源站 status=active；无 status 时再按 token 过期时间判定
  */
 function resolveAccountExpiry(item) {
   if (!item?.account || item.error) {
@@ -206,16 +283,37 @@ function resolveAccountExpiry(item) {
     if (Number.isFinite(fallback) && fallback > 0) expiresAt = fallback;
   }
   if (expiresAt == null || !Number.isFinite(expiresAt) || expiresAt <= 0) {
-    return { expiresAt: null, accountStatus: ACCOUNT_STATUS.UNKNOWN };
+    expiresAt = null;
   }
-  // CPA 快载仅有 updated_at 占位，不是 token 过期时间，只展示不判定失效
-  if (item.needsHydration && item.sourceFormat === "cpa") {
-    return { expiresAt, accountStatus: ACCOUNT_STATUS.UNKNOWN };
+
+  // 快载：有源站 status 时以 status 为准；CPA 的 updated_at 仅作时间展示
+  const remoteStatus = resolveRemoteListAccountStatus(item);
+  if (item.needsHydration) {
+    if (remoteStatus) {
+      return { expiresAt, accountStatus: remoteStatus };
+    }
+    // CPA 快载仅有 updated_at 占位且无 status 时，只展示时间不判定
+    if (item.sourceFormat === "cpa") {
+      return { expiresAt, accountStatus: ACCOUNT_STATUS.UNKNOWN };
+    }
+  } else if (remoteStatus === ACCOUNT_STATUS.EXPIRED) {
+    // 完整数据若源站已标记非 active，优先视为失效
+    return { expiresAt, accountStatus: ACCOUNT_STATUS.EXPIRED };
+  }
+
+  if (expiresAt == null) {
+    return {
+      expiresAt: null,
+      accountStatus: remoteStatus || ACCOUNT_STATUS.UNKNOWN,
+    };
   }
   const nowSec = Math.floor(Date.now() / 1000);
+  if (expiresAt < nowSec) {
+    return { expiresAt, accountStatus: ACCOUNT_STATUS.EXPIRED };
+  }
   return {
     expiresAt,
-    accountStatus: expiresAt < nowSec ? ACCOUNT_STATUS.EXPIRED : ACCOUNT_STATUS.VALID,
+    accountStatus: remoteStatus || ACCOUNT_STATUS.VALID,
   };
 }
 

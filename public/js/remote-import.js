@@ -261,15 +261,22 @@ function itemsFromSub2RemoteAccounts(accounts, options = {}) {
         unixFromIsoOrNumber(account?.expires_at) ||
         unixFromIsoOrNumber(account?.credentials?.expires_at) ||
         null;
+      // 列表摘要可能已带 proxyId；也兼容原始 proxy_id / proxy.id
+      const proxyId = parseProxyId(
+        account?.proxyId ?? account?.proxy_id ?? account?.proxy?.id ?? account?.proxy?.proxy_id
+      );
+      const status = account?.status ?? "";
       const stubAccount = {
         id: account?.id,
         name: account?.name || email || `id=${idPart}`,
         credentials: email ? { email } : {},
         extra: email ? { email } : {},
-        status: account?.status,
+        status,
         platform: account?.platform,
         type: account?.type,
+        normal: account?.normal,
       };
+      if (proxyId != null) stubAccount.proxy_id = proxyId;
       if (expiresAt != null) {
         stubAccount.credentials.expires_at = expiresAt;
       }
@@ -287,22 +294,27 @@ function itemsFromSub2RemoteAccounts(accounts, options = {}) {
             name: account?.name || "",
           },
           expiresAt,
+          proxyId,
+          remoteStatus: status,
+          remoteNormal: account?.normal,
         })
       );
       continue;
     }
     if (isSub2Account(account) || (account && account.credentials)) {
+      const normalized = normalizeSub2(account);
       out.push(
         prepareItem({
           sourceFile,
           sourceFormat: "sub2api",
-          account: normalizeSub2(account),
+          account: normalized,
           needsHydration: false,
           remoteOrigin: TARGET_SUB2API,
           remoteRef: {
             kind: "sub2",
             id: account?.id != null ? account.id : idPart,
           },
+          proxyId: extractProxyIdFromAccount(normalized),
         })
       );
     } else if (isCpaRecord(account)) {
@@ -349,12 +361,16 @@ function stubsFromCpaRemoteFiles(files) {
       unixFromIsoOrNumber(file?.updatedAt ?? file?.updated_at ?? file?.modified_at) || null;
     // 快载用 provider 作为账号类型；补全后改为完整数据的 type
     const provider = String(file?.provider || "").trim();
+    const status = String(file?.status || "").trim();
     const account = {
       type: provider || "xai",
       provider,
       auth_kind: "oauth",
       email: String(label),
       name,
+      status,
+      disabled: Boolean(file?.disabled),
+      unavailable: Boolean(file?.unavailable),
     };
     if (provisionalExpiry != null) {
       account._exp = provisionalExpiry;
@@ -369,6 +385,7 @@ function stubsFromCpaRemoteFiles(files) {
         remoteOrigin: TARGET_CPA,
         remoteRef: { kind: "cpa", name },
         expiresAt: provisionalExpiry,
+        remoteStatus: status,
       })
     );
   }
