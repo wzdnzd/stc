@@ -1539,8 +1539,20 @@ body.is-empty .table-wrap tbody td {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.selection-toolbar-row > * {
+  flex: 0 0 auto;
+}
+
+.selection-toolbar-row .table-filter-bar {
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .selection-toolbar.show,

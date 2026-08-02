@@ -437,14 +437,6 @@
           <div class="selection-toolbar" id="selectionToolbar">
             <div class="selection-toolbar-row">
               <span>已选 <b id="selectedCount">0</b></span>
-              <button class="btn-primary btn-sm" id="btnSelectVisible" type="button">
-                全选结果
-              </button>
-              <button class="btn-ghost btn-sm" id="btnClearSelection" type="button">清空</button>
-              <button class="btn-danger btn-sm" id="btnExitSelection" type="button">
-                退出多选
-              </button>
-              <span class="toolbar-sep"></span>
               <div class="table-filter-bar" id="tableFilterBar" aria-label="列表筛选">
                 <div class="msel" data-filter-key="accountType">
                   <button type="button" class="msel-btn" aria-haspopup="listbox" aria-expanded="false">
@@ -504,6 +496,14 @@
                   清除筛选
                 </button>
               </div>
+              <span class="toolbar-sep"></span>
+              <button class="btn-primary btn-sm" id="btnSelectVisible" type="button">
+                全选结果
+              </button>
+              <button class="btn-ghost btn-sm" id="btnClearSelection" type="button">清空</button>
+              <button class="btn-danger btn-sm" id="btnExitSelection" type="button">
+                退出多选
+              </button>
               <span class="toolbar-sep"></span>
               <span class="toolbar-label">代理</span>
               <button class="btn-primary btn-sm" id="btnBatchSetProxy" type="button">
