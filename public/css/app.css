@@ -1520,30 +1520,32 @@ body.is-empty .table-wrap tbody td {
   display: none;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   min-height: 44px;
   padding: 8px 10px;
   border: 1px solid var(--border-soft);
   border-radius: 10px;
   background: var(--surface-toolbar);
   font-size: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
 }
 
 .selection-toolbar {
   flex-direction: row;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .selection-toolbar-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: nowrap;
-  width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: thin;
+  width: max-content;
+  min-width: 100%;
+  justify-content: flex-start;
 }
 
 .selection-toolbar-row > * {
@@ -1551,8 +1553,7 @@ body.is-empty .table-wrap tbody td {
 }
 
 .selection-toolbar-row .table-filter-bar {
-  flex: 0 1 auto;
-  min-width: 0;
+  flex: 0 0 auto;
 }
 
 .selection-toolbar.show,
@@ -1566,7 +1567,7 @@ body.is-empty .table-wrap tbody td {
 }
 
 .toolbar-spacer {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
 }
 
 .toolbar-sep {
@@ -1578,14 +1579,16 @@ body.is-empty .table-wrap tbody td {
 
 .toolbar-label {
   color: var(--muted);
+  white-space: nowrap;
 }
 
 .table-filter-bar {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  min-width: 0;
+  gap: 4px;
+  flex-wrap: nowrap;
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .msel {
@@ -1597,10 +1600,10 @@ body.is-empty .table-wrap tbody td {
 .msel-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  max-width: 190px;
-  min-height: 30px;
-  padding: 4px 8px;
+  gap: 4px;
+  max-width: 148px;
+  min-height: 28px;
+  padding: 3px 7px;
   margin: 0;
   border: 1px solid var(--border);
   border-radius: 7px;
@@ -1611,6 +1614,7 @@ body.is-empty .table-wrap tbody td {
   line-height: 1.2;
   cursor: pointer;
   user-select: none;
+  white-space: nowrap;
 }
 
 .msel-btn:hover:not(:disabled) {
@@ -1856,12 +1860,12 @@ tr.selected-row td {
 }
 
 @media (max-width: 900px) {
-  .table-filter-bar {
-    width: 100%;
+  .msel-btn {
+    max-width: 132px;
   }
 
-  .msel-btn {
-    max-width: 100%;
+  .msel-summary {
+    max-width: 64px;
   }
 }
 
