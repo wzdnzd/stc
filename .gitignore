@@ -9,3 +9,7 @@ node_modules/
 .eslintcache
 # 由 scripts/sync-account-convert.mjs 从 src/shared/account-convert.js 生成，勿手改入库
 public/shared/account-convert.js
+
+# Python
+__pycache__/
+.pyc
