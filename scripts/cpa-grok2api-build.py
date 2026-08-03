@@ -1422,9 +1422,7 @@ class Grok2ApiRemoteClient:
                     "me_error": str(me_error),
                 }
             except Exception as export_error:  # noqa: BLE001
-                raise RuntimeError(
-                    f"grok2api 验证失败。/me：{me_error}；export：{export_error}"
-                ) from export_error
+                raise RuntimeError(f"grok2api 验证失败。/me：{me_error}；export：{export_error}") from export_error
 
     def export_all_accounts(self, page_size: int = DEFAULT_G2A_EXPORT_PAGE_SIZE) -> list[dict[str, Any]]:
         """游标导出全部账号凭据，合并为账号列表"""
