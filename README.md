@@ -13,6 +13,7 @@
 - SUB2API 账号数据 ↔ CPA 认证文件双向转换
 - 前后端共用同一套转换逻辑（`src/shared/account-convert.js` / `public/shared/account-convert.js`）
 - 支持命名规则、目标格式选择，以及账号状态、过期时间、代理等字段规范化
+- CPA / SUB2API 与 **Grok2API** 之间的互转请使用离线脚本 [`scripts/cpa-grok2api-build.py`](scripts/cpa-grok2api-build.py)，详见下文
 
 ### 本地导入 / 导出
 
@@ -338,6 +339,154 @@ npx wrangler deploy
 
 建议通过 `workers.dev` 或自定义域名在浏览器新标签页中打开，不要在 Cloudflare Dashboard 嵌入式预览框中登录。
 
+## 与 Grok2API 互转：`cpa-grok2api-build.py`
+
+网页端 STC 负责 **SUB2API ↔ CPA**。若还需要与 **Grok2API** 的 `grok_build` 账号互转，请使用仓库内的离线脚本：
+
+```text
+scripts/cpa-grok2api-build.py
+```
+
+该脚本独立于 Worker，仅依赖 Python 3 标准库，可在本机直接读写文件，也可对接 CPA / Grok2API 管理接口做远端拉取与导出。
+
+### 适用场景与中转说明
+
+| 需求 | 做法 |
+| ---- | ---- |
+| CPA ↔ Grok2API | 直接运行本脚本，用 `--source` / `--target` 指定方向 |
+| SUB2API ↔ Grok2API | **不能一步到位**。先把账号转成 CPA 格式，再用本脚本在 CPA 与 Grok2API 之间转换；反向同理 |
+
+推荐链路：
+
+```text
+SUB2API ──STC 网页或 API──→ CPA ──本脚本──→ Grok2API
+Grok2API ──本脚本──→ CPA ──STC 网页或 API──→ SUB2API
+```
+
+要点：
+
+- 本脚本当前只处理 **xAI / Grok** 相关账号：CPA 侧为 `type=xai` 的认证文件，Grok2API 侧为 `provider=grok_build` 的账号
+- SUB2API 与 Grok2API 字段模型不同，**必须以 CPA 认证文件作为中间格式**，先转 CPA，再转目标格式
+- `cliproxyapi` 与 `cpa` 同义，可写在 `--source` 或 `--target` 中
+
+### 功能概览
+
+- **双向转换**：`cpa` ↔ `grok2api`，通过必填且互异的 `--source` / `--target` 指定方向
+- **本地模式**：扫描单个 JSON 或目录下全部 JSON，支持 `--name-filter` 正则过滤文件名
+- **远端模式**
+  - 源为 CPA：调用管理接口列出并下载认证文件，按内容筛选 xAI 账号后转为 Grok2API 导入文档
+  - 源为 Grok2API：使用 Admin Bearer Token 调用导出接口，支持游标分页，再写成 CPA 单文件
+- **输出形态**
+  - CPA → Grok2API：生成 `{"accounts":[...]}` 文档，可用 `--max-per-file` 分片
+  - Grok2API → CPA：每个账号一个文件，命名为 `${provider}-${email}.json`（`provider` 中的下划线会转为中划线）
+
+### 基本用法
+
+```bash
+# 查看帮助
+python scripts/cpa-grok2api-build.py -h
+```
+
+**CPA → Grok2API（本地）**
+
+```bash
+# 单文件
+python scripts/cpa-grok2api-build.py \
+  --source cpa --target grok2api \
+  --mode local -i ./account.json -o ./out.json
+
+# 目录批量，每文件最多 500 个账号
+python scripts/cpa-grok2api-build.py \
+  --source cpa --target grok2api \
+  --mode local -i ./cpa-accounts -o ./export/ \
+  --max-per-file 500
+```
+
+**CPA → Grok2API（远端 CPA）**
+
+```bash
+python scripts/cpa-grok2api-build.py \
+  --source cpa --target grok2api \
+  --mode remote \
+  --cpa-url https://cpa.example.com \
+  --cpa-key YOUR_MANAGEMENT_KEY \
+  -o ./grok2api-build-accounts.json
+```
+
+也可用环境变量：`CPA_BASE_URL`、`CPA_MANAGEMENT_KEY`。鉴权默认 `auto`：先 `Authorization: Bearer`，失败再试 `X-Management-Key`。
+
+**Grok2API → CPA（本地）**
+
+```bash
+python scripts/cpa-grok2api-build.py \
+  --source grok2api --target cpa \
+  --mode local \
+  -i ./grok2api-build-accounts.json \
+  -o ./cpa-accounts/
+```
+
+**Grok2API → CPA（远端 Grok2API）**
+
+```bash
+# 已有 Admin accessToken
+python scripts/cpa-grok2api-build.py \
+  --source grok2api --target cpa \
+  --mode remote \
+  --g2a-url https://g2a.example.com \
+  --g2a-token YOUR_ADMIN_ACCESS_TOKEN \
+  -o ./cpa-accounts/
+
+# 或用管理员用户名密码登录后导出
+python scripts/cpa-grok2api-build.py \
+  --source grok2api --target cpa \
+  --mode remote \
+  --g2a-url https://g2a.example.com \
+  --g2a-username admin --g2a-password secret \
+  -o ./cpa-accounts/
+```
+
+环境变量备选：`G2A_BASE_URL` / `GROK2API_BASE_URL`，以及 `G2A_TOKEN` / `GROK2API_TOKEN` / `G2A_ACCESS_TOKEN`，或 `G2A_USERNAME` + `G2A_PASSWORD`。
+
+### 与 STC 网页配合：SUB2API ↔ Grok2API
+
+**SUB2API → Grok2API**
+
+1. 在 STC 中将 SUB2API 账号导出或转换为 **CPA** 认证文件
+2. 对本脚本执行：`--source cpa --target grok2api`
+3. 将生成的 `grok2api-build-accounts*.json` 导入 Grok2API
+
+**Grok2API → SUB2API**
+
+1. 对本脚本执行：`--source grok2api --target cpa`，得到若干 CPA JSON
+2. 在 STC 中导入这些 CPA 文件，再转换或上传到 **SUB2API**
+
+这样两端都只与 CPA 交换，字段映射更稳定，也便于用 STC 做列表筛选、去重与批量上传。
+
+### 常用参数
+
+| 参数 | 说明 |
+| ---- | ---- |
+| `--source` / `--target` | 必填。`cpa`、`cliproxyapi`、`grok2api`；二者不能相同 |
+| `--mode` | `local` 或 `remote`，默认 `local` |
+| `-i` / `--input` | 本地模式输入文件或目录 |
+| `-o` / `--output` | 输出路径。CPA→Grok2API 可为文件或目录；Grok2API→CPA 为输出目录 |
+| `--max-per-file` | 仅 CPA→Grok2API：单文件账号上限，1～10000，默认 10000 |
+| `--name-filter` | 可选，按文件名正则过滤 |
+| `--cpa-url` / `--cpa-key` | CPA 远端地址与管理密钥 |
+| `--cpa-auth-mode` | `auto` / `bearer` / `x-management-key` |
+| `--concurrency` | CPA 远端下载并发，默认 8 |
+| `--g2a-url` / `--g2a-token` | Grok2API 远端地址与 Admin Token |
+| `--g2a-username` / `--g2a-password` | 无 Token 时登录换取 accessToken |
+| `--g2a-provider` | 导出 provider，默认 `grok_build` |
+| `--g2a-page-size` | 远端导出分页大小，默认 1000 |
+
+### 鉴权与接口摘要
+
+- **CPA remote**：`GET /v0/management/auth-files` 列表，`GET /v0/management/auth-files/download?name=...` 下载；鉴权为 Bearer 或 `X-Management-Key`
+- **Grok2API remote**：管理接口仅接受 `Authorization: Bearer <accessToken>`；Token 可来自 `POST /api/admin/v1/auth/login`，或直接传入已有 Token
+- **Grok2API 导出**：`GET /api/admin/v1/accounts/export?provider=grok_build`；超过单页上限时用 `limit` / `afterId` / `snapshotMaxId` 游标分批
+
 ## 许可证
 
 见 [LICENSE](LICENSE)。
+
