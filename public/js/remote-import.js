@@ -466,9 +466,10 @@ async function commitIncomingItems(incoming, options = {}) {
   }
 
   items = finalItems;
-  for (const item of items) item.selected = false;
-  // 导入后列表非空时默认进入多选，方便直接用筛选
+  // 导入后列表非空时默认进入多选，并勾选全部可用账号
   selectionMode = items.length > 0;
+  if (selectionMode) selectAllUsableItems();
+  else for (const item of items) item.selected = false;
   if (resetFileInput && fileInput) fileInput.value = "";
   hideWorkspaceRestoreBanner();
   pendingWorkspaceSnapshot = null;

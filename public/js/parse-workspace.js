@@ -771,9 +771,10 @@ function applyWorkspaceSnapshot(snapshot, { normalizeUpload = true } = {}) {
     if (normalizeUpload) normalizeInterruptedUploadItems(revived);
     items = revived;
     converted = items.some((item) => item.converted);
-    // 恢复工作区后若有数据，默认进入多选以便筛选
+    // 恢复工作区后若有数据，默认进入多选并勾选全部可用账号
     selectionMode = items.length > 0;
-    for (const item of items) item.selected = false;
+    if (selectionMode) selectAllUsableItems();
+    else for (const item of items) item.selected = false;
     tableSearch = "";
     if ($("accountSearch")) $("accountSearch").value = "";
     tableSort =

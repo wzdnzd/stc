@@ -631,7 +631,7 @@ function selectVisibleFilterResults() {
   if (!selectionMode) return;
   const visibleIds = new Set(
     getVisibleItems()
-      .filter(({ item }) => !item.error && (item.account || itemNeedsHydration(item)))
+      .filter(({ item }) => isUsableItem(item))
       .map(({ item }) => item.id)
   );
   for (const item of items) {
@@ -834,10 +834,21 @@ function getVisibleItems() {
   return sortVisibleRows(rows);
 }
 
+/** 可参与转换/导出/上传的账号行 */
+function isUsableItem(item) {
+  return Boolean(item) && !item.error && (Boolean(item.account) || itemNeedsHydration(item));
+}
+
+/** 进入多选后默认勾选全部可用账号 */
+function selectAllUsableItems() {
+  for (const item of items) {
+    item.selected = isUsableItem(item);
+  }
+}
+
 function getOperationItems() {
-  const usable = (item) => !item.error && (Boolean(item.account) || itemNeedsHydration(item));
-  if (!selectionMode) return items.filter(usable);
-  return items.filter((item) => item.selected && usable(item));
+  if (!selectionMode) return items.filter(isUsableItem);
+  return items.filter((item) => item.selected && isUsableItem(item));
 }
 
 function selectedCount() {
