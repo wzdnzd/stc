@@ -1338,6 +1338,40 @@ function yieldToBrowser() {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+function waitForPaint() {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  });
+}
+
+function setPageLoading(visible, { title = "加载中", text = "" } = {}) {
+  const el = $("pageLoading");
+  const titleEl = $("pageLoadingTitle");
+  const textEl = $("pageLoadingText");
+  const nextBusy = Boolean(visible);
+  const busyChanged = pageLoadingBusy !== nextBusy;
+  pageLoadingBusy = nextBusy;
+  if (titleEl) titleEl.textContent = title || "加载中";
+  if (textEl) textEl.textContent = text || "";
+  if (el) {
+    el.classList.toggle("show", pageLoadingBusy);
+    el.setAttribute("aria-busy", pageLoadingBusy ? "true" : "false");
+  }
+  document.body.classList.toggle("is-page-loading", pageLoadingBusy);
+  if (busyChanged) refreshActionButtons();
+}
+
+async function showPageLoading(title = "加载中", text = "") {
+  setPageLoading(true, { title, text });
+  await waitForPaint();
+  await yieldToBrowser();
+}
+
+function hidePageLoading() {
+  if (!pageLoadingBusy && !$("pageLoading")?.classList.contains("show")) return;
+  setPageLoading(false);
+}
+
 function canTargetFormat(item, target) {
   // 上传不受转换方向限制：点哪个目标就转到哪个格式。远端账号不可回传同一端
   if (!item || item.error) return false;
@@ -1375,7 +1409,8 @@ function canExportFormat(item) {
 function refreshActionButtons() {
   const operationItems = getOperationItems();
   const hasItems = operationItems.length > 0;
-  const anyBusy = uploadBusy || exportBusy || remoteImportBusy || sub2DedupeBusy;
+  const anyBusy =
+    uploadBusy || exportBusy || remoteImportBusy || sub2DedupeBusy || pageLoadingBusy;
   const canUploadSub2 = operationItems.some((item) => canTargetFormat(item, TARGET_SUB2API));
   const canUploadCpa = operationItems.some((item) => canTargetFormat(item, TARGET_CPA));
   // 无配置时也可点击，点击后弹窗引导配置；远端同源禁止回传

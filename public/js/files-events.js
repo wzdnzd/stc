@@ -1,48 +1,81 @@
-async function handleFiles(fileList) {
+function canStartLocalImport() {
   if (uploadBusy) {
     showMsg("上传进行中，请先取消或等待完成后再导入", "err");
-    return;
+    return false;
   }
   if (remoteImportBusy) {
     showMsg("远端导入进行中，请先取消或等待完成后再导入", "err");
-    return;
+    return false;
   }
+  if (pageLoadingBusy) return false;
+  return true;
+}
+
+async function handleFiles(fileList) {
+  if (!canStartLocalImport()) return;
   clearMsg();
   const files = Array.from(fileList || []);
   if (!files.length) return;
 
-  const incoming = [];
-  for (const file of files) {
-    try {
-      const text = await file.text();
-      const parsed = parseFileContent(file.name, text);
-      incoming.push(...parsed);
-    } catch (e) {
-      incoming.push(
-        prepareItem({
-          sourceFile: file.name,
-          sourceFormat: "unknown",
-          account: null,
-          error: "读取失败: " + e.message,
-        })
-      );
+  try {
+    await showPageLoading(
+      "加载中",
+      files.length > 1 ? `正在读取 ${files.length} 个文件` : "正在读取文件"
+    );
+    const incoming = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      setPageLoading(true, {
+        title: "加载中",
+        text: files.length > 1 ? `正在解析 ${i + 1}/${files.length}` : "正在解析文件",
+      });
+      await yieldToBrowser();
+      try {
+        const text = await file.text();
+        const parsed = await parseFileContentAsync(file.name, text, {
+          onProgress: ({ done, total }) => {
+            if (total <= 1) return;
+            setPageLoading(true, {
+              title: "加载中",
+              text:
+                files.length > 1
+                  ? `正在解析 ${i + 1}/${files.length} · ${done}/${total}`
+                  : `正在解析账号 ${done}/${total}`,
+            });
+          },
+        });
+        incoming.push(...parsed);
+      } catch (e) {
+        incoming.push(
+          prepareItem({
+            sourceFile: file.name,
+            sourceFormat: "unknown",
+            account: null,
+            error: "读取失败: " + e.message,
+          })
+        );
+      }
     }
-  }
-  if (!incoming.length) {
-    showMsg("未从所选文件中解析到账号", "err");
-    return;
-  }
+    if (!incoming.length) {
+      showMsg("未从所选文件中解析到账号", "err");
+      return;
+    }
 
-  const result = await commitIncomingItems(incoming, {
-    sourceLabel: "本机文件",
-    emptyMessage: "未从所选文件中解析到账号",
-    resetFileInput: true,
-    unlockDirectionOnSuccess: true,
-  });
-  if (!result) return;
+    const result = await commitIncomingItems(incoming, {
+      sourceLabel: "本机文件",
+      emptyMessage: "未从所选文件中解析到账号",
+      resetFileInput: true,
+      unlockDirectionOnSuccess: true,
+    });
+    if (!result) return;
 
-  const msg = formatCommitMessage(result, [`已导入 ${files.length} 个文件`]);
-  showMsg(msg, "ok");
+    const msg = formatCommitMessage(result, [`已导入 ${files.length} 个文件`]);
+    showMsg(msg, "ok");
+  } catch (error) {
+    showMsg(error?.message || String(error), "err");
+  } finally {
+    hidePageLoading();
+  }
 }
 
 function clearAll() {
@@ -110,18 +143,29 @@ function cancelProxyInlineEdit() {
 }
 
 // events
-dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("click", () => {
+  if (pageLoadingBusy || uploadBusy || remoteImportBusy) return;
+  fileInput.click();
+});
 dropzone.addEventListener("dragover", (e) => {
   e.preventDefault();
+  if (pageLoadingBusy || uploadBusy || remoteImportBusy) return;
   dropzone.classList.add("dragover");
 });
 dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
 dropzone.addEventListener("drop", (e) => {
   e.preventDefault();
   dropzone.classList.remove("dragover");
+  if (pageLoadingBusy || uploadBusy || remoteImportBusy) return;
   handleFiles(e.dataTransfer.files);
 });
-fileInput.addEventListener("change", () => handleFiles(fileInput.files));
+fileInput.addEventListener("change", () => {
+  if (pageLoadingBusy || uploadBusy || remoteImportBusy) {
+    fileInput.value = "";
+    return;
+  }
+  handleFiles(fileInput.files);
+});
 $("btnImportModeToggle")?.addEventListener("click", () => {
   setImportMode(importMode === "remote" ? "local" : "remote");
 });

@@ -32,6 +32,7 @@ var tableFilters = {
 /** 当前展开的筛选下拉 key，null 表示收起 */
 var openTableFilterKey = null;
 var uploadBusy = false;
+var pageLoadingBusy = false;
 var activeUploadTarget = "";
 var uploadAbortController = null;
 var uploadCancelRequested = false;

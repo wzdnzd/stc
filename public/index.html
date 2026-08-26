@@ -1063,6 +1063,27 @@
       </div>
     </div>
 
+    <div
+      class="modal-backdrop page-loading"
+      id="pageLoading"
+      role="status"
+      aria-live="polite"
+      aria-busy="false"
+    >
+      <div class="modal page-loading-card">
+        <div class="modal-head">
+          <span class="busy-spin" aria-hidden="true"></span>
+          <h3 id="pageLoadingTitle">加载中</h3>
+        </div>
+        <div class="modal-body">
+          <div class="upload-progress-track" aria-hidden="true">
+            <div class="upload-progress-fill page-loading-fill"></div>
+          </div>
+          <p class="hint page-loading-text" id="pageLoadingText"></p>
+        </div>
+      </div>
+    </div>
+
     <div class="toast-host" id="toastHost" aria-live="polite" aria-atomic="true"></div>
 
     <script src="/js/boot.js"></script>

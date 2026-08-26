@@ -420,7 +420,11 @@ async function commitIncomingItems(incoming, options = {}) {
     return null;
   }
 
-  if (!items.length && pendingWorkspaceSnapshot?.items?.length) {
+  const needSnapshotConfirm = !items.length && pendingWorkspaceSnapshot?.items?.length;
+  const needConflict = items.length > 0;
+  if (needSnapshotConfirm || needConflict) hidePageLoading();
+
+  if (needSnapshotConfirm) {
     const snapCount = pendingWorkspaceSnapshot.items.length;
     const go = window.confirm(
       `本机还有上次 ${snapCount} 个账号的工作区快照尚未恢复。\n` +
@@ -435,7 +439,7 @@ async function commitIncomingItems(incoming, options = {}) {
   }
 
   let mode = "merge";
-  if (items.length) {
+  if (needConflict) {
     mode = await openImportConflictModal({
       existingCount: items.length,
       incomingCount: incoming.length,
@@ -447,49 +451,54 @@ async function commitIncomingItems(incoming, options = {}) {
     }
   }
 
-  const incomingDeduped = dedupeItemList(incoming);
-  const internalDropped = incoming.length - incomingDeduped.length;
+  try {
+    await showPageLoading("加载中", `正在载入 ${incoming.length} 个账号`);
+    const incomingDeduped = dedupeItemList(incoming);
+    const internalDropped = incoming.length - incomingDeduped.length;
 
-  let finalItems = [];
-  let mergeInfo = { replaced: 0, keptOld: 0, added: 0 };
-  if (mode === "replace" || !items.length) {
-    finalItems = incomingDeduped;
-    mergeInfo = { replaced: 0, keptOld: 0, added: incomingDeduped.length };
-    converted = false;
-    restoredJobMeta = null;
-  } else {
-    mergeInfo = mergeItemsByIdentity(items, incomingDeduped, {
-      preferIncomingOnTie: true,
-    });
-    finalItems = mergeInfo.items;
-    converted = finalItems.some((item) => item.converted);
+    let finalItems = [];
+    let mergeInfo = { replaced: 0, keptOld: 0, added: 0 };
+    if (mode === "replace" || !items.length) {
+      finalItems = incomingDeduped;
+      mergeInfo = { replaced: 0, keptOld: 0, added: incomingDeduped.length };
+      converted = false;
+      restoredJobMeta = null;
+    } else {
+      mergeInfo = mergeItemsByIdentity(items, incomingDeduped, {
+        preferIncomingOnTie: true,
+      });
+      finalItems = mergeInfo.items;
+      converted = finalItems.some((item) => item.converted);
+    }
+
+    items = finalItems;
+    // 导入后列表非空时默认进入多选，并勾选全部可用账号
+    selectionMode = items.length > 0;
+    if (selectionMode) selectAllUsableItems();
+    else for (const item of items) item.selected = false;
+    if (resetFileInput && fileInput) fileInput.value = "";
+    hideWorkspaceRestoreBanner();
+    pendingWorkspaceSnapshot = null;
+    const discardBtn = $("btnDiscardWorkspace");
+    if (discardBtn) discardBtn.textContent = "丢弃快照";
+
+    if (unlockDirectionOnSuccess) unlockDirection({ silent: true });
+    if (lockDirectionAfter) lockDirectionForRemoteSource(lockDirectionAfter);
+    refreshPendingRemoteHydrationFlag();
+
+    renderTable();
+    scheduleWorkspaceSave({ immediate: true });
+
+    return {
+      mode,
+      mergeInfo,
+      internalDropped,
+      count: items.length,
+      sourceLabel,
+    };
+  } finally {
+    hidePageLoading();
   }
-
-  items = finalItems;
-  // 导入后列表非空时默认进入多选，并勾选全部可用账号
-  selectionMode = items.length > 0;
-  if (selectionMode) selectAllUsableItems();
-  else for (const item of items) item.selected = false;
-  if (resetFileInput && fileInput) fileInput.value = "";
-  hideWorkspaceRestoreBanner();
-  pendingWorkspaceSnapshot = null;
-  const discardBtn = $("btnDiscardWorkspace");
-  if (discardBtn) discardBtn.textContent = "丢弃快照";
-
-  if (unlockDirectionOnSuccess) unlockDirection({ silent: true });
-  if (lockDirectionAfter) lockDirectionForRemoteSource(lockDirectionAfter);
-  refreshPendingRemoteHydrationFlag();
-
-  renderTable();
-  scheduleWorkspaceSave({ immediate: true });
-
-  return {
-    mode,
-    mergeInfo,
-    internalDropped,
-    count: items.length,
-    sourceLabel,
-  };
 }
 
 function formatCommitMessage(result, extras = []) {

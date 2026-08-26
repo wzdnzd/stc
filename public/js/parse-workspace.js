@@ -50,114 +50,81 @@ function sub2ToCpa(sub2) {
   return AccountConvert.sub2ToCpa(sub2, readConvertOptionsFromUi());
 }
 
-function parseFileContent(filename, text) {
-  let data;
-  try {
-    data = JSON.parse(text);
-  } catch (e) {
-    return [
-      prepareItem({
-        sourceFile: filename,
-        sourceFormat: "unknown",
-        account: null,
-        error: "JSON 解析失败: " + e.message,
-      }),
-    ];
-  }
+var PARSE_YIELD_CHUNK = 200;
 
-  const out = [];
+function parseJsonText(filename, text) {
+  try {
+    return { data: JSON.parse(text) };
+  } catch (e) {
+    return {
+      items: [
+        prepareItem({
+          sourceFile: filename,
+          sourceFormat: "unknown",
+          account: null,
+          error: "JSON 解析失败: " + e.message,
+        }),
+      ],
+    };
+  }
+}
+
+function grokMergedFlat(raw) {
+  return {
+    access_token: raw.access_token || raw.key || "",
+    refresh_token: raw.refresh_token || "",
+    id_token: raw.id_token || "",
+    email: raw.email || "",
+    sub: raw.user_id || raw.principal_id || "",
+    token_type: "Bearer",
+    expired: raw.expires_at || "",
+    last_refresh: raw.create_time || "",
+    base_url: BASE_URL,
+  };
+}
+
+function collectParseEntries(data) {
+  const entries = [];
+  const push = (entry) => entries.push(entry);
 
   if (isSub2Export(data)) {
     if (!data.accounts.length) {
-      out.push(
-        prepareItem({
-          sourceFile: filename,
-          sourceFormat: "sub2api-export",
-          account: null,
-          error: "accounts 为空",
-        })
-      );
-      return out;
+      push({ sourceFormat: "sub2api-export", account: null, error: "accounts 为空" });
+      return entries;
     }
     for (const acc of data.accounts) {
       if (isSub2Account(acc) || (acc && acc.credentials)) {
-        out.push(
-          prepareItem({
-            sourceFile: filename,
-            sourceFormat: "sub2api",
-            account: normalizeSub2(acc),
-          })
-        );
+        push({ sourceFormat: "sub2api", account: acc, normalize: "sub2" });
       } else if (isCpaRecord(acc)) {
-        out.push(
-          prepareItem({
-            sourceFile: filename,
-            sourceFormat: "cpa",
-            account: normalizeCpa(acc),
-          })
-        );
+        push({ sourceFormat: "cpa", account: acc, normalize: "cpa" });
       } else {
-        out.push(
-          prepareItem({
-            sourceFile: filename,
-            sourceFormat: "unknown",
-            account: null,
-            error: "accounts 内对象无法识别",
-          })
-        );
+        push({ sourceFormat: "unknown", account: null, error: "accounts 内对象无法识别" });
       }
     }
-    return out;
+    return entries;
   }
 
   if (Array.isArray(data)) {
     for (const item of data) {
       if (isSub2Account(item)) {
-        out.push(
-          prepareItem({
-            sourceFile: filename,
-            sourceFormat: "sub2api",
-            account: normalizeSub2(item),
-          })
-        );
+        push({ sourceFormat: "sub2api", account: item, normalize: "sub2" });
       } else if (isCpaRecord(item)) {
-        out.push(
-          prepareItem({
-            sourceFile: filename,
-            sourceFormat: "cpa",
-            account: normalizeCpa(item),
-          })
-        );
+        push({ sourceFormat: "cpa", account: item, normalize: "cpa" });
       } else {
-        out.push(
-          prepareItem({
-            sourceFile: filename,
-            sourceFormat: "unknown",
-            account: null,
-            error: "数组元素无法识别",
-          })
-        );
+        push({ sourceFormat: "unknown", account: null, error: "数组元素无法识别" });
       }
     }
-    return out;
+    return entries;
   }
 
   if (isSub2Account(data)) {
-    out.push(
-      prepareItem({
-        sourceFile: filename,
-        sourceFormat: "sub2api",
-        account: normalizeSub2(data),
-      })
-    );
-    return out;
+    push({ sourceFormat: "sub2api", account: data, normalize: "sub2" });
+    return entries;
   }
 
   if (isCpaRecord(data)) {
-    out.push(
-      prepareItem({ sourceFile: filename, sourceFormat: "cpa", account: normalizeCpa(data) })
-    );
-    return out;
+    push({ sourceFormat: "cpa", account: data, normalize: "cpa" });
+    return entries;
   }
 
   // 兼容 grok auth 合并字典：key = issuer::client_id
@@ -173,37 +140,50 @@ function parseFileContent(filename, text) {
     if (looksMerged) {
       for (const v of values) {
         if (!v || typeof v !== "object") continue;
-        const flat = {
-          access_token: v.access_token || v.key || "",
-          refresh_token: v.refresh_token || "",
-          id_token: v.id_token || "",
-          email: v.email || "",
-          sub: v.user_id || v.principal_id || "",
-          token_type: "Bearer",
-          expired: v.expires_at || "",
-          last_refresh: v.create_time || "",
-          base_url: BASE_URL,
-        };
-        out.push(
-          prepareItem({
-            sourceFile: filename,
-            sourceFormat: "cpa",
-            account: normalizeCpa(flat),
-          })
-        );
+        push({ sourceFormat: "cpa", account: v, normalize: "cpa-grok" });
       }
-      if (out.length) return out;
+      if (entries.length) return entries;
     }
   }
 
-  out.push(
-    prepareItem({
-      sourceFile: filename,
-      sourceFormat: "unknown",
-      account: null,
-      error: "无法识别的 JSON 结构",
-    })
-  );
+  push({ sourceFormat: "unknown", account: null, error: "无法识别的 JSON 结构" });
+  return entries;
+}
+
+function materializeParseEntry(filename, entry) {
+  let account = entry.account ?? null;
+  if (account && entry.normalize === "cpa-grok") account = normalizeCpa(grokMergedFlat(account));
+  else if (account && entry.normalize === "cpa") account = normalizeCpa(account);
+  else if (account && entry.normalize === "sub2") account = normalizeSub2(account);
+  return prepareItem({
+    sourceFile: filename,
+    sourceFormat: entry.sourceFormat,
+    account,
+    error: entry.error,
+  });
+}
+
+function parseFileContent(filename, text) {
+  const parsed = parseJsonText(filename, text);
+  if (parsed.items) return parsed.items;
+  return collectParseEntries(parsed.data).map((entry) => materializeParseEntry(filename, entry));
+}
+
+async function parseFileContentAsync(filename, text, { onProgress } = {}) {
+  if (typeof text === "string" && text.length > 80000) await yieldToBrowser();
+  const parsed = parseJsonText(filename, text);
+  if (parsed.items) return parsed.items;
+  const entries = collectParseEntries(parsed.data);
+  const total = entries.length;
+  if (total > PARSE_YIELD_CHUNK) await yieldToBrowser();
+  const out = [];
+  for (let i = 0; i < total; i++) {
+    out.push(materializeParseEntry(filename, entries[i]));
+    if ((i + 1) % PARSE_YIELD_CHUNK === 0 || i + 1 === total) {
+      if (typeof onProgress === "function") onProgress({ done: i + 1, total });
+      if (total > PARSE_YIELD_CHUNK) await yieldToBrowser();
+    }
+  }
   return out;
 }
 

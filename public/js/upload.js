@@ -1471,8 +1471,13 @@ async function restoreWorkspaceFromPending({ resume = false } = {}) {
     if (!ok) return;
   }
   const target = snapshot.uploadJob?.target || "";
-  applyWorkspaceSnapshot(snapshot, { normalizeUpload: true });
-  showMsg(`已恢复 ${items.length} 个账号到本地列表`, "ok");
+  try {
+    await showPageLoading("加载中", "正在恢复工作区");
+    applyWorkspaceSnapshot(snapshot, { normalizeUpload: true });
+    showMsg(`已恢复 ${items.length} 个账号到本地列表`, "ok");
+  } finally {
+    hidePageLoading();
+  }
   if (resume && target) {
     await resumeRestoredUploadJob();
     return;
