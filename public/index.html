@@ -9,9 +9,9 @@
     <script>
       (function () {
         try {
-          var KEY = "cpa2sub.uiSettings.v1";
+          var uiSettingsKey = "cpa2sub.uiSettings.v1";
           var mode = "dark";
-          var raw = localStorage.getItem(KEY);
+          var raw = localStorage.getItem(uiSettingsKey);
           if (raw) {
             var parsed = JSON.parse(raw);
             if (

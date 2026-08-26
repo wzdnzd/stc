@@ -172,8 +172,18 @@ function refreshPendingRemoteHydrationFlag() {
   return hasPendingRemoteHydration;
 }
 
-function sameSideUploadBlocked(target) {
-  return listHasRemoteOrigin(target);
+function normalizeUploadTarget(target) {
+  if (target === TARGET_SUB2API || target === "sub2api") return TARGET_SUB2API;
+  if (target === TARGET_CPA || target === "cpa") return TARGET_CPA;
+  return "";
+}
+
+/** 给定列表是否全部来自目标端远端，因而不可回传该端 */
+function sameSideUploadBlocked(target, list) {
+  const dest = normalizeUploadTarget(target);
+  const rows = Array.isArray(list) ? list : getOperationItems();
+  if (!dest || !rows.length) return false;
+  return rows.every((item) => itemRemoteOrigin(item) === dest);
 }
 
 /** 远端 status 是否明确为错误态（如 SUB2API 的 error） */
@@ -1329,13 +1339,31 @@ function yieldToBrowser() {
 }
 
 function canTargetFormat(item, target) {
-  // 上传候选：遵循转换方向。远端 stub 仅有元数据时也可点，点击后再补全与转换
+  // 上传不受转换方向限制：点哪个目标就转到哪个格式。远端账号不可回传同一端
   if (!item || item.error) return false;
   if (!item.account && !itemNeedsHydration(item)) return false;
-  const key = resolveItemTargetKey(item);
-  if (target === TARGET_SUB2API) return key === "sub2api" || key === TARGET_SUB2API;
-  if (target === TARGET_CPA || target === "cpa") return key === "cpa";
-  return false;
+  const dest = normalizeUploadTarget(target);
+  if (!dest) return false;
+  return itemRemoteOrigin(item) !== dest;
+}
+
+function describeEmptyUpload(target, candidates, { itemsOverride = false } = {}) {
+  const dest = normalizeUploadTarget(target) || target;
+  if (itemsOverride) return "没有可续传的账号";
+  const usable = (candidates || []).filter(isUsableItem);
+  if (selectionMode && !usable.length) return "请先勾选要上传的账号";
+  if (usable.length && sameSideUploadBlocked(dest, usable)) {
+    if (selectionMode) {
+      return dest === TARGET_SUB2API
+        ? "已选账号来自 SUB2API 远端，不可回传到 SUB2API"
+        : "已选账号来自 CPA 远端，不可回传到 CPA";
+    }
+    return dest === TARGET_SUB2API
+      ? "列表含从 SUB2API 远端载入的账号，不可回传到 SUB2API"
+      : "列表含从 CPA 远端载入的账号，不可回传到 CPA";
+  }
+  if (!usable.length) return "没有可上传的账号";
+  return `没有可上传到 ${dest} 的账号`;
 }
 
 function canExportFormat(item) {
@@ -1348,18 +1376,19 @@ function refreshActionButtons() {
   const operationItems = getOperationItems();
   const hasItems = operationItems.length > 0;
   const anyBusy = uploadBusy || exportBusy || remoteImportBusy || sub2DedupeBusy;
-  const idleUsable = hasItems && !anyBusy;
-  const blockUploadSub2 = sameSideUploadBlocked(TARGET_SUB2API);
-  const blockUploadCpa = sameSideUploadBlocked(TARGET_CPA);
+  const canUploadSub2 = operationItems.some((item) => canTargetFormat(item, TARGET_SUB2API));
+  const canUploadCpa = operationItems.some((item) => canTargetFormat(item, TARGET_CPA));
   // 无配置时也可点击，点击后弹窗引导配置；远端同源禁止回传
-  $("btnUploadSub2").disabled = !idleUsable || blockUploadSub2;
-  $("btnUploadCpa").disabled = !idleUsable || blockUploadCpa;
-  $("btnUploadSub2").title = blockUploadSub2
-    ? "列表含从 SUB2API 远端载入的账号，不可回传到 SUB2API"
-    : targetConfigTooltip(TARGET_SUB2API);
-  $("btnUploadCpa").title = blockUploadCpa
-    ? "列表含从 CPA 远端载入的账号，不可回传到 CPA"
-    : targetConfigTooltip(TARGET_CPA);
+  $("btnUploadSub2").disabled = !canUploadSub2 || anyBusy;
+  $("btnUploadCpa").disabled = !canUploadCpa || anyBusy;
+  $("btnUploadSub2").title =
+    hasItems && !canUploadSub2
+      ? describeEmptyUpload(TARGET_SUB2API, operationItems)
+      : targetConfigTooltip(TARGET_SUB2API);
+  $("btnUploadCpa").title =
+    hasItems && !canUploadCpa
+      ? describeEmptyUpload(TARGET_CPA, operationItems)
+      : targetConfigTooltip(TARGET_CPA);
   $("btnClear").disabled = !items.length || anyBusy;
   // 导出不受同源与转换方向限制；导出时再按目标自动转换
   const canExport = operationItems.some((item) => canExportFormat(item));

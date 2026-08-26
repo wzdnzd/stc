@@ -996,33 +996,29 @@ async function uploadToServer(target, showConfigOnly = false, options = {}) {
     showMsg("远端导入进行中，请先取消或等待完成后再上传", "err");
     return;
   }
-  if (!showConfigOnly && sameSideUploadBlocked(target)) {
-    showMsg(
-      target === TARGET_SUB2API
-        ? "列表含从 SUB2API 远端载入的账号，不可回传到 SUB2API"
-        : "列表含从 CPA 远端载入的账号，不可回传到 CPA",
-      "err"
-    );
-    return;
-  }
-  let operationItems = Array.isArray(options.itemsOverride)
+  const dest = normalizeUploadTarget(target) || target;
+  let sourceItems = Array.isArray(options.itemsOverride)
     ? options.itemsOverride.filter(
         (item) =>
           item &&
           !item.error &&
           (item.account || itemNeedsHydration(item) || canRemoteTransferItem(item, target))
       )
-    : getOperationItems().filter((item) => canTargetFormat(item, target));
-  if (!showConfigOnly && !operationItems.length) {
-    showMsg(
-      options.itemsOverride
-        ? "没有可续传的账号"
-        : selectionMode
-          ? "请先勾选要上传的账号"
-          : "没有可上传的账号",
-      "err"
-    );
-    return;
+    : getOperationItems();
+  let operationItems = sourceItems;
+  let sameSideExcluded = [];
+  if (!showConfigOnly) {
+    sameSideExcluded = sourceItems.filter((item) => itemRemoteOrigin(item) === dest);
+    operationItems = sourceItems.filter((item) => canTargetFormat(item, target));
+    if (!operationItems.length) {
+      showMsg(
+        describeEmptyUpload(target, sourceItems, {
+          itemsOverride: Boolean(options.itemsOverride),
+        }),
+        "err"
+      );
+      return;
+    }
   }
 
   const useRemoteTransfer = !showConfigOnly && shouldUseRemoteTransfer(operationItems, target);
@@ -1114,9 +1110,7 @@ async function uploadToServer(target, showConfigOnly = false, options = {}) {
         showMsg(
           expiredItems.length
             ? `所选 ${expiredItems.length} 个账号均已失效，可在「过期处理」中改为仍包含`
-            : selectionMode
-              ? "请先勾选要上传的账号"
-              : "没有可上传的账号",
+            : "没有可上传的账号",
           "err"
         );
         return;
@@ -1240,6 +1234,8 @@ async function uploadToServer(target, showConfigOnly = false, options = {}) {
   clearMsg();
   const preSkipNotes = [];
   if (useRemoteTransfer) preSkipNotes.push("远端直传");
+  if (sameSideExcluded.length)
+    preSkipNotes.push(`排除 ${sameSideExcluded.length} 个来自 ${dest} 远端的账号`);
   if (expiredItems.length) preSkipNotes.push(`跳过 ${expiredItems.length} 个失效账号`);
   if (skippedInvalidProxy.length)
     preSkipNotes.push(`跳过 ${skippedInvalidProxy.length} 个无效代理账号`);
