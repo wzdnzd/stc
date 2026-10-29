@@ -2,6 +2,37 @@ var AccountConvert = window.AccountConvert;
 if (!AccountConvert) {
   throw new Error("共享转换模块 /shared/account-convert.js 未加载");
 }
+
+/** 同源接口返回的 grok client 版本。转换和导入前 await，避免请求头停在默认值 */
+var grokClientVersionFetched = false;
+var grokClientVersionReady = null;
+
+function ensureGrokClientVersion() {
+  if (grokClientVersionFetched) return Promise.resolve(AccountConvert.getGrokClientVersion());
+  if (!grokClientVersionReady) {
+    grokClientVersionReady = (async function () {
+      try {
+        const response = await fetch("/api/grok-client-version", {
+          headers: { Accept: "application/json" },
+        });
+        if (!response.ok) return AccountConvert.getGrokClientVersion();
+        const data = await response.json();
+        if (data && data.resolved && data.version) {
+          AccountConvert.setGrokClientVersion(data.version);
+          grokClientVersionFetched = true;
+        }
+      } catch {
+        /* changelog 不可用时保持默认版本，下次再试 */
+      }
+      return AccountConvert.getGrokClientVersion();
+    })().finally(function () {
+      grokClientVersionReady = null;
+    });
+  }
+  return grokClientVersionReady;
+}
+
+ensureGrokClientVersion();
 var CLIENT_ID = AccountConvert.CLIENT_ID;
 var REDIRECT_URI = AccountConvert.REDIRECT_URI;
 var TOKEN_ENDPOINT = AccountConvert.TOKEN_ENDPOINT;

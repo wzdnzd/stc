@@ -796,6 +796,7 @@ function applyHydratedAccountToItem(item, fullAccount) {
 }
 
 async function ensureItemsHydrated(targetItems, options = {}) {
+  await ensureGrokClientVersion();
   const { progressLabel = "操作", allowPartial = true, signal: externalSignal = null } = options;
   const pending = (targetItems || []).filter((item) => itemNeedsHydration(item));
   if (!pending.length) {

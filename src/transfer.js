@@ -2,6 +2,7 @@ import {
   TARGET_CPA,
   TARGET_SUB2API,
   convertAccountTo,
+  resolveGrokClientVersion,
   normalizeConvertOptions,
   normalizeTargetFormat,
   summarizeAccountForResult,
@@ -147,6 +148,7 @@ export async function transferRemoteBatch(env, body, clientSignal = undefined) {
   );
   const retryAmbiguous = uploadOpts.retryAmbiguous === true || body?.retryAmbiguous === true;
   const timezone = body?.timezone ?? body?.time_zone ?? body?.tz;
+  await resolveGrokClientVersion();
 
   /** @type {Map<string, any>} */
   const accountByKey = new Map();

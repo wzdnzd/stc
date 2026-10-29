@@ -38,6 +38,7 @@ import { listCpaAuthFiles, downloadCpaAuthFiles } from "./remote/cpa/auth-files.
 import { listSub2apiAccountsMeta } from "./remote/sub2api/accounts.js";
 import { exportSub2apiAccounts } from "./remote/sub2api/export.js";
 import { transferRemoteBatch } from "./transfer.js";
+import { resolveGrokClientVersion, isGrokClientVersionResolved } from "./shared/account-convert.js";
 import { readJsonBody } from "./http.js";
 import { HttpError } from "./errors.js";
 import {
@@ -116,6 +117,15 @@ export async function handleApi(request, env, url) {
         sessionTtlHours: sessionTtlHours(env),
       },
       limits: buildPublicLimits(env),
+    });
+  }
+
+  if (url.pathname === "/api/grok-client-version" && request.method === "GET") {
+    const version = await resolveGrokClientVersion();
+    return jsonResponse({
+      ok: true,
+      version,
+      resolved: isGrokClientVersionResolved(),
     });
   }
 

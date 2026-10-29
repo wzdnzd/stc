@@ -150,6 +150,109 @@ export function generateUuid() {
   });
 }
 
+/** Changelog 读失败时写入 CPA 请求头的 grok client 版本 */
+export const DEFAULT_GROK_CLIENT_VERSION = "1.0.13";
+export const XAI_CHANGELOG_BUILD_URL = "https://x.ai/changelog/build";
+
+const GROK_CLIENT_VERSION_RE = /^\d+\.\d+\.\d+$/;
+let grokClientVersion = DEFAULT_GROK_CLIENT_VERSION;
+let grokClientVersionFromChangelog = false;
+/** @type {Promise<string>|null} */
+let grokClientVersionTask = null;
+
+/**
+ * 从 Changelog 页面提取最新 Grok Build 版本
+ * 优先 Latest vX.Y.Z，其次页面顶部的 Grok Build X.Y.Z
+ * @param {string} page
+ */
+export function extractLatestGrokBuildVersion(page) {
+  if (!page || typeof page !== "string") return "";
+  const text = page
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;|&#160;/gi, " ")
+    .replace(/\s+/g, " ");
+  const latest = text.match(/Latest\s+v(\d+\.\d+\.\d+)/i);
+  if (latest) return latest[1];
+  const build = text.match(/Grok\s+Build\s+(\d+\.\d+\.\d+)/i);
+  if (build) return build[1];
+  return "";
+}
+
+export function getGrokClientVersion() {
+  return grokClientVersion;
+}
+
+/** Changelog 已解析出版本号。失败或未请求时为 false，调用方可以再试 */
+export function isGrokClientVersionResolved() {
+  return grokClientVersionFromChangelog;
+}
+
+/** @param {string} version */
+export function setGrokClientVersion(version) {
+  const text = String(version || "").trim();
+  if (!GROK_CLIENT_VERSION_RE.test(text)) return grokClientVersion;
+  grokClientVersion = text;
+  return grokClientVersion;
+}
+
+/** CPA xAI 默认请求头，User-Agent 与 x-grok-client-version 使用同一版本 */
+export function xaiDefaultHeaders(version = getGrokClientVersion()) {
+  const resolved = GROK_CLIENT_VERSION_RE.test(String(version || "").trim())
+    ? String(version).trim()
+    : DEFAULT_GROK_CLIENT_VERSION;
+  return {
+    "User-Agent": `grok-pager/${resolved} grok-shell/${resolved} (linux; x86_64)`,
+    "X-XAI-Token-Auth": "xai-grok-cli",
+    "x-authenticateresponse": "authenticate-response",
+    "x-grok-client-identifier": "grok-pager",
+    "x-grok-client-version": resolved,
+  };
+}
+
+/**
+ * 读取 https://x.ai/changelog/build 的最新版本，失败则保持默认值
+ * 解析成功后同一运行环境不再重复请求；网络失败或被拦截时下次再试
+ * @param {typeof fetch} [fetchImpl]
+ */
+export async function resolveGrokClientVersion(fetchImpl) {
+  if (!grokClientVersionTask) {
+    const fetchFn = typeof fetchImpl === "function" ? fetchImpl : globalThis.fetch;
+    grokClientVersionTask = (async () => {
+      let keep = false;
+      if (typeof fetchFn !== "function") return grokClientVersion;
+      try {
+        const signal =
+          typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
+            ? AbortSignal.timeout(15000)
+            : undefined;
+        const response = await fetchFn(XAI_CHANGELOG_BUILD_URL, {
+          method: "GET",
+          headers: {
+            Accept: "text/html,application/xhtml+xml",
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+          },
+          signal,
+        });
+        if (response && response.ok) {
+          keep = true;
+          const found = extractLatestGrokBuildVersion(await response.text());
+          if (found) {
+            grokClientVersion = found;
+            grokClientVersionFromChangelog = true;
+          }
+        }
+      } catch {
+        /* 保持默认版本，下次再试 */
+      }
+      if (!keep) grokClientVersionTask = null;
+      return grokClientVersion;
+    })();
+  }
+  await grokClientVersionTask;
+  return grokClientVersion;
+}
+
 /**
  * 按提供商/平台取 OAuth 默认值
  * @param {string} [_sourceFormat] 源格式（保留参数兼容）
@@ -239,13 +342,7 @@ export function getAuthDefaults(_sourceFormat, account = {}) {
         TOKEN_ENDPOINT: "https://auth.x.ai/oauth2/token",
         BASE_URL: "https://cli-chat-proxy.grok.com/v1",
         REDIRECT_URI: "http://127.0.0.1:56121/callback",
-        DEFAULT_HEADERS: Object.freeze({
-          "User-Agent": "grok-pager/0.2.93 grok-shell/0.2.93 (linux; x86_64)",
-          "X-XAI-Token-Auth": "xai-grok-cli",
-          "x-authenticateresponse": "authenticate-response",
-          "x-grok-client-identifier": "grok-pager",
-          "x-grok-client-version": "0.2.93",
-        }),
+        DEFAULT_HEADERS: Object.freeze(xaiDefaultHeaders()),
         CPA_TYPE: "xai",
         SUB2_PLATFORM: "grok",
       };

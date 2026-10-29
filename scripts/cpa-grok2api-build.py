@@ -47,21 +47,16 @@ DEFAULT_MAX_PER_FILE = 10000
 DEFAULT_DOWNLOAD_CONCURRENCY = 8
 REQUEST_TIMEOUT_SEC = 60
 REQUEST_MAX_ATTEMPTS = 3
+DEFAULT_GROK_CLIENT_VERSION = "1.0.13"
+XAI_CHANGELOG_BUILD_URL = "https://x.ai/changelog/build"
 
 XAI_ALIASES = frozenset({"xai", "x-ai", "grok"})
 G2A_PROVIDER_ALIASES = frozenset({"grok_build", "grok-build", "build", "xai", "grok"})
 
-# 与 src/shared/account-convert.js 保持一致的 CPA xai 默认值
+# Grok client 版本默认 1.0.13；转成 CPA 前会从 Changelog 提取最新号，成功则覆盖
 CPA_REDIRECT_URI = "http://127.0.0.1:56121/callback"
 CPA_TOKEN_ENDPOINT = "https://auth.x.ai/oauth2/token"
 CPA_BASE_URL = "https://cli-chat-proxy.grok.com/v1"
-CPA_DEFAULT_HEADERS = {
-    "User-Agent": "grok-pager/0.2.93 grok-shell/0.2.93 (linux; x86_64)",
-    "X-XAI-Token-Auth": "xai-grok-cli",
-    "x-authenticateresponse": "authenticate-response",
-    "x-grok-client-identifier": "grok-pager",
-    "x-grok-client-version": "0.2.93",
-}
 DEFAULT_G2A_EXPORT_PAGE_SIZE = 1000
 DEFAULT_G2A_PROVIDER = "grok_build"
 
@@ -69,6 +64,78 @@ DEFAULT_G2A_PROVIDER = "grok_build"
 FORMAT_CPA = "cpa"
 FORMAT_GROK2API = "grok2api"
 FORMAT_CLIPROXYAPI = "cliproxyapi"
+
+_grok_client_version_cache: str | None = None
+
+
+def extract_latest_grok_build_version(page: str) -> str:
+    """从 Changelog 页面提取最新 Grok Build 版本
+
+    优先 Latest vX.Y.Z，其次页面顶部的 Grok Build X.Y.Z
+    """
+
+    if not page:
+        return ""
+
+    text = re.sub(r"<[^>]+>", " ", page)
+    text = re.sub(r"&nbsp;|&#160;", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s+", " ", text)
+    match = re.search(r"Latest\s+v(\d+\.\d+\.\d+)", text, re.IGNORECASE)
+    if match:
+        return match.group(1)
+
+    match = re.search(r"Grok\s+Build\s+(\d+\.\d+\.\d+)", text, re.IGNORECASE)
+    if match:
+        return match.group(1)
+
+    return ""
+
+
+def resolve_grok_client_version() -> str:
+    """读取 https://x.ai/changelog/build 的最新版本，失败则用默认值"""
+    global _grok_client_version_cache
+    if _grok_client_version_cache:
+        return _grok_client_version_cache
+
+    version = DEFAULT_GROK_CLIENT_VERSION
+    try:
+        req = urllib.request.Request(
+            XAI_CHANGELOG_BUILD_URL,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/131.0.0.0 Safari/537.36"
+                ),
+                "Accept": "text/html,application/xhtml+xml",
+            },
+            method="GET",
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+        found = extract_latest_grok_build_version(raw)
+        if found:
+            version = found
+            print(f"[version] 已从 Changelog 读取 grok client {version}")
+        else:
+            print(f"[version] Changelog 未解析出版本，使用默认 {version}")
+    except Exception as exc:  # noqa: BLE001
+        print(f"[version] 读取 Changelog 失败，使用默认 {version}：{exc}")
+
+    _grok_client_version_cache = version
+    return version
+
+
+def cpa_default_headers() -> dict[str, str]:
+    """CPA xAI 默认请求头，User-Agent 与 x-grok-client-version 使用同一版本"""
+    version = resolve_grok_client_version()
+    return {
+        "User-Agent": f"grok-pager/{version} grok-shell/{version} (linux; x86_64)",
+        "X-XAI-Token-Auth": "xai-grok-cli",
+        "x-authenticateresponse": "authenticate-response",
+        "x-grok-client-identifier": "grok-pager",
+        "x-grok-client-version": version,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -469,7 +536,7 @@ def g2a_to_cpa(account: dict[str, Any]) -> dict[str, Any]:
         "token_endpoint": CPA_TOKEN_ENDPOINT,
         "base_url": CPA_BASE_URL,
         "disabled": False,
-        "headers": dict(CPA_DEFAULT_HEADERS),
+        "headers": cpa_default_headers(),
     }
     return record
 
@@ -1111,6 +1178,7 @@ def convert_g2a_local(
     total = len(candidates)
     filter_desc = name_filter.pattern if name_filter is not None else "全部 .json 文件"
     print(f"[grok2api→cpa/local] 候选文件 {total} 个，过滤规则：{filter_desc}")
+    resolve_grok_client_version()
     print("[grok2api→cpa/local] 开始解析 grok2api 账号并转换为 CPA")
     print_progress(0, total, prefix="进度 ")
 
@@ -1501,6 +1569,7 @@ def convert_g2a_remote(
     skipped: list[dict[str, str]] = []
     total = len(accounts)
     print(f"[grok2api→cpa/remote] 开始转换为 CPA，共 {total} 条")
+    resolve_grok_client_version()
     print_progress(0, total, prefix="进度 ")
     for idx, account in enumerate(accounts, start=1):
         label = first_non_empty(account.get("email"), account.get("name"), f"#{idx}")

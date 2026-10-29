@@ -227,6 +227,7 @@ function refreshInvalidAfterFix() {
  * 返回 { ok, items, skippedInvalid, forced }
  */
 async function prepareSub2UploadItems(uploadItems, configPayload) {
+  await ensureGrokClientVersion();
   const filled = applyDefaultProxyToItems(uploadItems);
   if (filled) {
     // 默认代理写入会清掉 SUB2 的 converted 缓存，这里按当前目标重转一次
@@ -987,6 +988,7 @@ async function uploadTransferBatch(
 }
 
 async function uploadToServer(target, showConfigOnly = false, options = {}) {
+  await ensureGrokClientVersion();
   if (uploadBusy) return;
   if (exportBusy) {
     showMsg("导出进行中，请稍后再上传", "err");

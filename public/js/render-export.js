@@ -273,6 +273,7 @@ function exportProgressMessage(target, total, phaseText = "") {
  * @returns {Promise<{items:any[], skipped:any[], cancelled:boolean}|null>}
  */
 async function prepareItemsForTarget(target, options = {}) {
+  await ensureGrokClientVersion();
   const { progressLabel = "操作", trackExport = false, announceEmpty = true } = options;
   const exportTarget = normalizeExportTarget(target);
   if (remoteImportBusy && !exportBusy) {

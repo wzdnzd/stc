@@ -170,6 +170,7 @@ function parseFileContent(filename, text) {
 }
 
 async function parseFileContentAsync(filename, text, { onProgress } = {}) {
+  await ensureGrokClientVersion();
   if (typeof text === "string" && text.length > 80000) await yieldToBrowser();
   const parsed = parseJsonText(filename, text);
   if (parsed.items) return parsed.items;
